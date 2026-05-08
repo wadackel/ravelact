@@ -1,0 +1,12 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Near-duplicate workflows
+
+2 workflow clusters found at threshold `0.80`.
+
+| Cluster | Representative | Members | Triggers differ |
+|---|---|---:|---|
+| #0 | `.github/workflows/ci.yml` | 2 | true |
+| #1 | `.github/workflows/update-cares.yml` | 8 | false |

@@ -1,0 +1,8 @@
+name: Reusable
+on:
+  workflow_call:
+jobs:
+  inner:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo reusable

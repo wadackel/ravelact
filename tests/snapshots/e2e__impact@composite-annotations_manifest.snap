@@ -1,0 +1,12 @@
+---
+source: tests/e2e.rs
+expression: manifest
+---
+impact  2 impacted targets  (1 workflows, 1 actions)
+
+WORKFLOWS
+  - .github/workflows/entry.yml
+
+ACTIONS
+kind       target
+composite  .github/actions/notify

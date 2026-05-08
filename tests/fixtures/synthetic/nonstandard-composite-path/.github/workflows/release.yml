@@ -1,0 +1,13 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/build_cache
+        with:
+          key: release
+      - run: echo release

@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+callers  1 caller for .github/workflows/manifest-target.yml
+
+CALLERS
+kind                 location                detail
+annotated-composite  .github/actions/notify  _action via triggers

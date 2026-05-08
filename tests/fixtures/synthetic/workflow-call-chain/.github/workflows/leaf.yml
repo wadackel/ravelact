@@ -1,0 +1,10 @@
+name: Leaf
+on:
+  workflow_call:
+    secrets:
+      DEPLOY_TOKEN:
+        required: true
+jobs:
+  fanout:
+    uses: acme/shared/.github/workflows/deploy.yml@v1
+    secrets: inherit

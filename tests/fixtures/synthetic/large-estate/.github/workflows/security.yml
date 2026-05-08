@@ -1,0 +1,13 @@
+name: Security
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4

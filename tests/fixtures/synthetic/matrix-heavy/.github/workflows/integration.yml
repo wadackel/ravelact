@@ -1,0 +1,24 @@
+name: Integration
+on:
+  push:
+    branches: [main]
+jobs:
+  integration:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: ["20", "22"]
+        include:
+          - os: ubuntu-latest
+            node-version: "20"
+            shard: a
+          - os: ubuntu-latest
+            node-version: "20"
+            shard: b
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: echo integration ${{ matrix.shard }}

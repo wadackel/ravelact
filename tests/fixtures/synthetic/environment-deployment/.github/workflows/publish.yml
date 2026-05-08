@@ -1,0 +1,27 @@
+name: Publish
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: production
+      url: https://example.invalid/releases/${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "publishing ${{ github.ref_name }}"
+
+  smoke:
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - run: echo "post-publish smoke test"

@@ -1,0 +1,31 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+# Workflow-level intentional drop: deny-all baseline.
+permissions: {}
+jobs:
+  lint:
+    # Job-level intentional drop overrides any workflow default.
+    permissions: {}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo test
+
+  scan:
+    # Explicitly grants only what this job needs (overrides workflow drop).
+    permissions:
+      contents: read
+      security-events: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo scan

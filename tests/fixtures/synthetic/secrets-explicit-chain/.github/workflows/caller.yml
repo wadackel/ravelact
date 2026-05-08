@@ -1,0 +1,9 @@
+name: Caller
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: ./.github/workflows/mid.yml
+    secrets:
+      TOKEN_A: ${{ secrets.TOKEN_A }}

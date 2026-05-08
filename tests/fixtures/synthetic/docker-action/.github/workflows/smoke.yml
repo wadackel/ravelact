@@ -1,0 +1,12 @@
+name: Smoke
+on:
+  workflow_dispatch:
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          message: smoke
+      - run: echo smoke ok

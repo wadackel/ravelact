@@ -1,0 +1,9 @@
+name: TriggerAnnotated
+on: push
+jobs:
+  fan-out:
+    runs-on: ubuntu-latest
+    steps:
+      # ravelact:dispatches .github/workflows/target.yml
+      - name: kick off target
+        run: gh workflow run target.yml

@@ -1,0 +1,5 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+orphans  no unused declarations

@@ -1,0 +1,17 @@
+name: Setup Toolchain
+description: Top-level composite that delegates to a nested composite.
+inputs:
+  channel:
+    description: Toolchain channel
+    required: false
+    default: stable
+runs:
+  using: composite
+  steps:
+    - name: Print banner
+      shell: bash
+      run: echo "setup-toolchain channel=${{ inputs.channel }}"
+    - name: Delegate to nested fetcher
+      uses: ./.github/actions/fetch-deps
+      with:
+        manifest: tools.lock

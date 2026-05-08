@@ -1,0 +1,5 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+extract  no extraction candidates  (min-length=3, min-occurrences=2)

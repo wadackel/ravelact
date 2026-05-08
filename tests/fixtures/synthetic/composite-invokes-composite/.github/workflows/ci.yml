@@ -1,0 +1,15 @@
+name: CI
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-toolchain
+        with:
+          channel: stable
+      - run: echo "build with chained composites"

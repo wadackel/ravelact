@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: cargo test
+  call-build:
+    needs: test
+    uses: ./.github/workflows/build.yml
+    with:
+      artifact: foo
+    secrets: inherit
+  publish:
+    needs: call-build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Published at ${{ needs.call-build.outputs.url }}"

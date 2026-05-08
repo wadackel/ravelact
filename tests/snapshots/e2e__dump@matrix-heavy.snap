@@ -1,0 +1,318 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "cache",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "download-artifact",
+      "subpath": null
+    },
+    {
+      "gitref": "v5",
+      "owner": "actions",
+      "repo": "setup-go",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "setup-node",
+      "subpath": null
+    },
+    {
+      "gitref": "v5",
+      "owner": "actions",
+      "repo": "setup-python",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "upload-artifact",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "codecov",
+      "repo": "codecov-action",
+      "subpath": null
+    },
+    {
+      "gitref": "v3",
+      "owner": "docker",
+      "repo": "setup-buildx-action",
+      "subpath": null
+    },
+    {
+      "gitref": "v3",
+      "owner": "github",
+      "repo": "codeql-action",
+      "subpath": "init"
+    },
+    {
+      "gitref": "v4",
+      "owner": "pnpm",
+      "repo": "action-setup",
+      "subpath": null
+    },
+    {
+      "gitref": "v2",
+      "owner": "softprops",
+      "repo": "action-gh-release",
+      "subpath": null
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/audit.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "audit",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Audit",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/build.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Build",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/contracts.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "contracts",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Contracts",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/coverage.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "coverage",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Coverage",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/docs.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "docs",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Docs",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/e2e.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "e2e",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "E2E",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/integration.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "integration",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Integration",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/lint.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "lint",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Lint",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/perf.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "perf",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Perf",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/release.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "release",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Release",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/smoke.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "smoke",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Smoke",
+      "triggers": [
+        "workflow_dispatch"
+      ]
+    },
+    {
+      "id": ".github/workflows/typecheck.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "typecheck",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Typecheck",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/unit.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "unit",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Unit",
+      "triggers": [
+        "pull_request"
+      ]
+    }
+  ]
+}

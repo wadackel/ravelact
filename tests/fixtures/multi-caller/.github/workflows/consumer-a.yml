@@ -1,0 +1,10 @@
+name: Consumer A
+on: push
+jobs:
+  call:
+    uses: ./.github/workflows/callee.yml
+  publish:
+    needs: call
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "url=${{ needs.call.outputs.result }}"

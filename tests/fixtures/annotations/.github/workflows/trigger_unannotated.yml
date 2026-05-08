@@ -1,0 +1,8 @@
+name: TriggerUnannotated
+on: push
+jobs:
+  forgot-the-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: kick off target without telling ravelact
+        run: gh workflow run target.yml

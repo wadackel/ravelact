@@ -1,0 +1,9 @@
+name: Trigger
+on:
+  push:
+    branches: [main]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo trigger

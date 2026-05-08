@@ -1,0 +1,15 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+permissions  2 findings  (2 medium)
+
+  !  medium  implicit-repo-default
+  .github/workflows/entry.yml
+
+    entry-point workflow `.github/workflows/entry.yml` declares no `permissions:` and jobs [notify] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/step-target.yml
+
+    entry-point workflow `.github/workflows/step-target.yml` declares no `permissions:` and jobs [noop] inherit the repository default

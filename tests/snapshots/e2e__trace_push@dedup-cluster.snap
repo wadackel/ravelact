@@ -1,0 +1,14 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  2 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/a.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ peter-evans/create-pull-request  [ext-ac]  @v7
+│
+╰─→ .github/workflows/b.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ╰─→ peter-evans/create-pull-request  [ext-ac]  @v7

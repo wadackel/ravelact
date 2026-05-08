@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  1 entry workflow
+
+╭─ push   (filters=none)
+╰─→ .github/workflows/entry.yml  [wf]
+    ╰─→ .github/actions/notify  [ac]
+        ├─→ .github/workflows/manifest-target.yml  [ann]  via triggers
+        │   ╰─→ .github/workflows/manifest-target.yml  [wf]
+        ╰─→ .github/workflows/step-target.yml  [ann]  via dispatches
+            ╰─→ .github/workflows/step-target.yml  [wf]

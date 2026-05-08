@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Orphans
+
+3 unused declarations found: 0 workflows, 3 local actions, 0 inputs, 0 outputs.
+
+| Kind | Target | Detail |
+|---|---|---|
+| local-action-composite | `.github/actions/unused-composite` | unused |
+| local-action-docker | `.github/actions/unused-docker` | unused |
+| local-action-javascript | `.github/actions/unused-js` | unused |

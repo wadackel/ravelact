@@ -1,0 +1,12 @@
+name: 'Inner Composite'
+description: 'Nested composite action used by docker-action workflows'
+inputs:
+  label:
+    description: 'Label to log'
+    required: false
+    default: 'inner'
+runs:
+  using: 'composite'
+  steps:
+    - run: echo ${{ inputs.label }}
+      shell: bash

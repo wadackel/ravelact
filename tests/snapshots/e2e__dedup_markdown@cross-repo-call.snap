@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Near-duplicate workflows
+
+1 workflow cluster found at threshold `0.80`.
+
+| Cluster | Representative | Members | Triggers differ |
+|---|---|---:|---|
+| #0 | `.github/workflows/entry-a.yml` | 3 | true |

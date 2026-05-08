@@ -1,0 +1,19 @@
+name: Update libffi
+on:
+  schedule:
+    - cron: "0 4 * * 0"
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo check libffi
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: deps/update-libffi
+          title: "deps: update libffi"
+          body: "Auto-bump for libffi"

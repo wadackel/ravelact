@@ -1,0 +1,5 @@
+/target/
+dist/
+/result
+/lcov.info
+

@@ -1,0 +1,12 @@
+name: Dispatch Only
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [dev, prod]
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.mode }}"

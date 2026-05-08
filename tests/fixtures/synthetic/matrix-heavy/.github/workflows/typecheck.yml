@@ -1,0 +1,15 @@
+name: Typecheck
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  typecheck:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node-version: ["18", "20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - run: echo typecheck ${{ matrix.node-version }}

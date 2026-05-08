@@ -1,0 +1,96 @@
+---
+source: tests/e2e.rs
+assertion_line: 292
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".github/actions/setup",
+      "kind": "composite"
+    }
+  ],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/a.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external",
+            "localaction",
+            "localworkflow"
+          ]
+        }
+      ],
+      "name": "A",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/b.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external",
+            "localaction",
+            "localworkflow"
+          ]
+        }
+      ],
+      "name": "B",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/c.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external",
+            "localaction",
+            "localworkflow"
+          ]
+        }
+      ],
+      "name": "C",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/reusable.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "inner",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Reusable",
+      "triggers": [
+        "workflow_call"
+      ]
+    }
+  ]
+}

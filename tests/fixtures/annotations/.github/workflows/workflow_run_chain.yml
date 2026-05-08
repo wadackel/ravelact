@@ -1,0 +1,11 @@
+# ravelact:triggers .github/workflows/target.yml
+name: WorkflowRunChain
+on:
+  workflow_run:
+    workflows: [Target]
+    types: [completed]
+jobs:
+  chain:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "downstream of Target"

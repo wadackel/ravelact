@@ -1,0 +1,14 @@
+name: Dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Mode'
+        required: false
+        default: smoke
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo dispatch ${{ inputs.mode }}

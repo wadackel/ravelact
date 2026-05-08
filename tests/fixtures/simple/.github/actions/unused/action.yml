@@ -1,0 +1,7 @@
+name: Unused composite
+description: Nothing references this
+runs:
+  using: composite
+  steps:
+    - run: echo "orphan"
+      shell: bash

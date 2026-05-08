@@ -1,0 +1,37 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  setup:
+    name: Compute matrix
+    runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.plan.outputs.shards }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plan
+        run: |
+          echo 'shards=["a","b","c","d"]' >> "$GITHUB_OUTPUT"
+
+  test:
+    name: Run shard ${{ matrix.shard }}
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJson(needs.setup.outputs.shards) }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "running shard ${{ matrix.shard }}"
+
+  aggregate:
+    name: Aggregate
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "all shards completed"

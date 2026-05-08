@@ -1,0 +1,15 @@
+name: Leaf
+on:
+  workflow_call:
+    secrets:
+      TOKEN_A:
+        required: true
+        description: terminal consumer of the explicit propagation chain
+jobs:
+  consume:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use token
+        env:
+          TOKEN: ${{ secrets.TOKEN_A }}
+        run: echo "got token"

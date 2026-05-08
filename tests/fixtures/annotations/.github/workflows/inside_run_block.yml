@@ -1,0 +1,11 @@
+name: InsideRunBlock
+on: push
+jobs:
+  noisy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ravelact comment inside a block scalar must be ignored
+        run: |
+          # ravelact:dispatches .github/workflows/target.yml
+          echo "this `#` is part of a shell heredoc, not a YAML comment"
+          # gh workflow run target.yml   ← commented-out, lint must not flag

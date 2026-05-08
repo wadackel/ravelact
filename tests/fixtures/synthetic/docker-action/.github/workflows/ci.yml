@@ -1,0 +1,15 @@
+name: CI
+on:
+  push:
+    branches: [main]
+jobs:
+  run-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./
+        with:
+          message: ci
+      - uses: ./.github/actions/inner
+        with:
+          label: ci-inner

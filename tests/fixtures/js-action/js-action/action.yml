@@ -1,0 +1,7 @@
+name: JS Action
+inputs:
+  mode:
+    description: Behavior mode (consumed by JS code, not YAML)
+runs:
+  using: node20
+  main: index.js

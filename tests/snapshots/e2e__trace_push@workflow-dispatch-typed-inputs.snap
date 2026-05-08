@@ -1,0 +1,5 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  no entry-point matches  (filters=none)

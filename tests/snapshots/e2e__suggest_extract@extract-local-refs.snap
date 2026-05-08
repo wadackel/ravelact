@@ -1,0 +1,27 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+extract  1 extraction candidate  (min-length=3, min-occurrences=2)
+
+CANDIDATE 1
+score  length  occurrences
+6      3       3
+
+OCCURRENCES
+container                      steps
+.github/workflows/a.yml:build  0..3
+.github/workflows/b.yml:build  0..3
+.github/workflows/c.yml:build  0..3
+
+SKETCH ACTION.YML
+  name: extracted-bootstrap
+  description: Extracted from duplicated step sequences. Review and parametrize before using.
+  runs:
+    using: composite
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - shell: bash
+        run: |
+          npm ci

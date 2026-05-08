@@ -1,0 +1,21 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+dedup  1 workflow cluster  (threshold=0.80)
+
+CLUSTER 1
+metric           value
+workflows        3
+representative   .github/workflows/entry-a.yml
+triggers differ  yes
+
+MEMBERS
+member                         similarity
+.github/workflows/entry-b.yml  0.85
+.github/workflows/release.yml  0.90
+
+USES
+label      value
+common     (none)
+divergent  (none)

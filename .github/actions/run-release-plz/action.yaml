@@ -1,0 +1,26 @@
+name: run-release-plz
+description: Mint a GitHub App token, set up Rust, and run release-plz with the given subcommand. Caller must run actions/checkout first.
+inputs:
+  command:
+    description: release-plz subcommand, e.g. release-pr or release.
+    required: true
+  app-id:
+    description: GitHub App client id. Must be supplied from secrets.* so runtime masking applies.
+    required: true
+  app-private-key:
+    description: GitHub App private key. Must be supplied from secrets.* so runtime masking applies.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/create-github-app-token@1b10c78c7865c340bc4f6099eb2f838309f1e8c3 # v3.1.1
+      id: app-token
+      with:
+        client-id: ${{ inputs.app-id }}
+        private-key: ${{ inputs.app-private-key }}
+    - uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.16.0
+    - uses: release-plz/action@1528104d2ca23787631a1c1f022abb64b34c1e11 # v0.5.128
+      with:
+        command: ${{ inputs.command }}
+      env:
+        GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}

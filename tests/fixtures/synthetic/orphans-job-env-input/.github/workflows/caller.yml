@@ -1,0 +1,11 @@
+name: Caller
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: ./.github/workflows/callee.yml
+    with:
+      via-job-env: hello
+      via-wf-env: world
+      via-job-if: yes

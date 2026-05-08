@@ -1,0 +1,12 @@
+name: Target
+on:
+  workflow_call:
+    inputs:
+      reason:
+        required: false
+        description: who triggered us
+jobs:
+  echo:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "called"

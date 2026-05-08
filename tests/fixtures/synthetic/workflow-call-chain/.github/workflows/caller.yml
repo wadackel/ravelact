@@ -1,0 +1,8 @@
+name: Caller
+on:
+  push:
+    branches: [main]
+jobs:
+  call:
+    uses: ./.github/workflows/leaf.yml
+    secrets: inherit

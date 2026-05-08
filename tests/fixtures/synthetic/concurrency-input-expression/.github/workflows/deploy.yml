@@ -1,0 +1,23 @@
+name: Deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target slug
+        type: string
+        required: true
+        default: staging
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ inputs.target || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "deploying ${{ inputs.target || 'auto' }}"

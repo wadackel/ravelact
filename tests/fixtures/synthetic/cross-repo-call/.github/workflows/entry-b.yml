@@ -1,0 +1,9 @@
+name: Entry B
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  call-build:
+    uses: ./.github/workflows/_reusable.yml
+    with:
+      target: b

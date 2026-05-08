@@ -1,0 +1,23 @@
+name: Step-if guard demo
+on:
+  push:
+    branches: [main]
+jobs:
+  combined:
+    # Job-level guard.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      # Step-level guard combined with the job guard via logical AND.
+      - if: runner.os == 'Linux'
+        uses: actions/checkout@v4
+  step-only:
+    # No job-level guard — only the step is conditional.
+    runs-on: ubuntu-latest
+    steps:
+      - if: matrix.os == 'ubuntu-latest'
+        uses: actions/setup-node@v4
+  unconditional:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/cache@v4

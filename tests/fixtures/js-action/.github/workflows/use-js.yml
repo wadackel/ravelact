@@ -1,0 +1,9 @@
+name: Use JS
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./js-action
+        with:
+          mode: prod

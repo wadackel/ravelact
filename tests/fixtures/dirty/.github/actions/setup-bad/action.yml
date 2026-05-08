@@ -1,0 +1,11 @@
+name: Setup Bad
+inputs:
+  declared:
+    description: Declared but coexists with an undeclared reference
+runs:
+  using: composite
+  steps:
+    - run: |
+        echo "declared=${{ inputs.declared }}"
+        echo "unknown=${{ inputs.unknown }}"
+      shell: bash

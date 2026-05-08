@@ -1,0 +1,12 @@
+name: Mid
+on:
+  workflow_call:
+    secrets:
+      TOKEN_A:
+        required: true
+        description: forwarded from caller
+jobs:
+  forward:
+    uses: ./.github/workflows/leaf.yml
+    secrets:
+      TOKEN_A: ${{ secrets.TOKEN_A }}

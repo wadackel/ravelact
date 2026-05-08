@@ -1,0 +1,13 @@
+name: Reusable Release
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo release ${{ inputs.tag }}

@@ -1,0 +1,8 @@
+name: Cross Call
+on:
+  workflow_dispatch:
+jobs:
+  call-shared:
+    uses: example-org/shared-workflows/.github/workflows/foo.yml@0000000000000000000000000000000000000000
+    with:
+      mode: ci

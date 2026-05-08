@@ -1,0 +1,21 @@
+name: Unit
+on:
+  pull_request:
+    branches: [main]
+jobs:
+  unit:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: ["18", "20", "22"]
+        exclude:
+          - os: macos-latest
+            node-version: "18"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: unit-${{ matrix.os }}-${{ matrix.node-version }}
+      - run: echo unit

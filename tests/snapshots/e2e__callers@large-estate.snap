@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+callers  1 caller for .github/workflows/_reusable-build.yml
+
+CALLERS
+kind      location                  detail
+job-call  .github/workflows/ci.yml  call-build::_jobcall

@@ -1,0 +1,71 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/downstream.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "go",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Downstream",
+      "triggers": [
+        "workflow_run"
+      ]
+    },
+    {
+      "id": ".github/workflows/middle.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "go",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Middle",
+      "triggers": [
+        "workflow_run"
+      ]
+    },
+    {
+      "id": ".github/workflows/nightly.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "go",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Nightly",
+      "triggers": [
+        "workflow_run"
+      ]
+    },
+    {
+      "id": ".github/workflows/trigger.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "go",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Trigger",
+      "triggers": [
+        "push"
+      ]
+    }
+  ]
+}

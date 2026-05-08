@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+callers  1 caller for .github/workflows/leaf.yml
+
+CALLERS
+kind      location                      detail
+job-call  .github/workflows/caller.yml  call::_jobcall

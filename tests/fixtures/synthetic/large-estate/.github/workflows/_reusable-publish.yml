@@ -1,0 +1,24 @@
+name: Reusable Publish
+on:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    secrets:
+      NPM_TOKEN:
+        required: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/publish-artifact
+        with:
+          name: ${{ inputs.tag }}
+      - env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: echo publish ${{ inputs.tag }}

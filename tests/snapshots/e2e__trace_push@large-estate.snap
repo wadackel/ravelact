@@ -1,0 +1,27 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  5 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/ci.yml  [wf]
+│   ╰─→ .github/workflows/_reusable-build.yml  [wf]
+│       ├─→ actions/checkout  [ext-ac]  @v4
+│       ╰─→ .github/actions/setup-build  [ac]
+│
+├─→ .github/workflows/docs.yml  [wf]
+│   ╰─→ actions/checkout  [ext-ac]  @v4
+│
+├─→ .github/workflows/release.yml  [wf]
+│   ╰─→ .github/workflows/_reusable-publish.yml  [wf]
+│       ├─→ actions/checkout  [ext-ac]  @v4
+│       ╰─→ .github/actions/publish-artifact  [ac]
+│
+├─→ .github/workflows/test-integration.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ .github/actions/setup-build  [ac]
+│
+╰─→ .github/workflows/test-unit.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ╰─→ .github/actions/setup-build  [ac]

@@ -1,0 +1,20 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+dedup  1 workflow cluster  (threshold=0.80)
+
+CLUSTER 1
+metric           value
+workflows        2
+representative   .github/workflows/a.yml
+triggers differ  no
+
+MEMBERS
+member                   similarity
+.github/workflows/b.yml  0.84
+
+USES
+label      value
+common     ext:actions/checkout, ext:peter-evans/create-pull-request
+divergent  (none)

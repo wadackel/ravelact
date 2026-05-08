@@ -1,0 +1,64 @@
+---
+source: tests/e2e.rs
+assertion_line: 292
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".github/actions/notify",
+      "kind": "composite"
+    }
+  ],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/entry.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "notify",
+          "step_uses_kinds": [
+            "localaction"
+          ]
+        }
+      ],
+      "name": "Entry",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/manifest-target.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "noop",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "ManifestTarget",
+      "triggers": [
+        "workflow_call"
+      ]
+    },
+    {
+      "id": ".github/workflows/step-target.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "noop",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "StepTarget",
+      "triggers": [
+        "workflow_dispatch"
+      ]
+    }
+  ]
+}

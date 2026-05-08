@@ -1,0 +1,10 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  1 entry workflow
+
+╭─ push   (filters=none)
+╰─→ .github/workflows/caller.yml  [wf]
+    ╰─→ .github/workflows/leaf.yml  [wf]
+        ╰─→ acme/shared/.github/workflows/deploy.yml  [ext-wf]  @v1

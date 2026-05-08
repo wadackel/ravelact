@@ -1,0 +1,100 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".",
+      "kind": "docker"
+    },
+    {
+      "id": ".github/actions/inner",
+      "kind": "composite"
+    }
+  ],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/ci.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "run-docker",
+          "step_uses_kinds": [
+            "external",
+            "localaction",
+            "localaction"
+          ]
+        }
+      ],
+      "name": "CI",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/lint.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "lint",
+          "step_uses_kinds": [
+            "external",
+            "localaction"
+          ]
+        }
+      ],
+      "name": "Lint",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/release.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "publish",
+          "step_uses_kinds": [
+            "external",
+            "localaction"
+          ]
+        }
+      ],
+      "name": "Release",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/smoke.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "smoke",
+          "step_uses_kinds": [
+            "external",
+            "localaction"
+          ]
+        }
+      ],
+      "name": "Smoke",
+      "triggers": [
+        "workflow_dispatch"
+      ]
+    }
+  ]
+}

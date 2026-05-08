@@ -1,0 +1,80 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+permissions  15 findings  (15 medium)
+
+  !  medium  implicit-repo-default
+  .github/workflows/codeql.yml
+
+    entry-point workflow `.github/workflows/codeql.yml` declares no `permissions:` and jobs [analyze] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/cross-call.yml
+
+    entry-point workflow `.github/workflows/cross-call.yml` declares no `permissions:` and jobs [call-shared] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/docs.yml
+
+    entry-point workflow `.github/workflows/docs.yml` declares no `permissions:` and jobs [docs] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/entry-a.yml
+
+    entry-point workflow `.github/workflows/entry-a.yml` declares no `permissions:` and jobs [call-build] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/entry-b.yml
+
+    entry-point workflow `.github/workflows/entry-b.yml` declares no `permissions:` and jobs [call-build] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/format.yml
+
+    entry-point workflow `.github/workflows/format.yml` declares no `permissions:` and jobs [format] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/integration.yml
+
+    entry-point workflow `.github/workflows/integration.yml` declares no `permissions:` and jobs [integration] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/labeler.yml
+
+    entry-point workflow `.github/workflows/labeler.yml` declares no `permissions:` and jobs [label] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/lint.yml
+
+    entry-point workflow `.github/workflows/lint.yml` declares no `permissions:` and jobs [lint] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/perf.yml
+
+    entry-point workflow `.github/workflows/perf.yml` declares no `permissions:` and jobs [perf] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/release.yml
+
+    entry-point workflow `.github/workflows/release.yml` declares no `permissions:` and jobs [call-release] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/security.yml
+
+    entry-point workflow `.github/workflows/security.yml` declares no `permissions:` and jobs [security] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/stale.yml
+
+    entry-point workflow `.github/workflows/stale.yml` declares no `permissions:` and jobs [stale] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/typecheck.yml
+
+    entry-point workflow `.github/workflows/typecheck.yml` declares no `permissions:` and jobs [typecheck] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/unit.yml
+
+    entry-point workflow `.github/workflows/unit.yml` declares no `permissions:` and jobs [unit] inherit the repository default

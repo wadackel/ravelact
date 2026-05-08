@@ -1,0 +1,10 @@
+name: Downstream
+on:
+  workflow_run:
+    workflows: [Nightly]
+    types: [completed]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo downstream

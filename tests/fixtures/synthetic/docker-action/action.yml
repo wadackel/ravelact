@@ -1,0 +1,12 @@
+name: 'Synthetic Docker Action'
+description: 'Synthetic Docker action for fixture coverage'
+inputs:
+  message:
+    description: 'Message to log'
+    required: false
+    default: 'hello'
+runs:
+  using: 'docker'
+  image: 'docker://alpine:3'
+  args:
+    - ${{ inputs.message }}

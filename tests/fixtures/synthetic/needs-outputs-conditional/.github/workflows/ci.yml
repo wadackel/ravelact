@@ -1,0 +1,40 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  detect:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      docs_only: ${{ steps.classify.outputs.docs_only }}
+      release_kind: ${{ steps.classify.outputs.release_kind }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: classify
+        run: |
+          echo "docs_only=false" >> "$GITHUB_OUTPUT"
+          echo "release_kind=minor" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build
+    needs: detect
+    if: needs.detect.outputs.docs_only != 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_id: ${{ steps.pack.outputs.artifact_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: pack
+        run: echo "artifact_id=widget-$(date +%s)" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish
+    needs: [detect, build]
+    if: needs.detect.outputs.release_kind == 'minor' && needs.build.outputs.artifact_id != ''
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "publishing ${{ needs.build.outputs.artifact_id }}"

@@ -1,0 +1,5 @@
+name: Node24 Action
+description: Synthetic JavaScript action pinned to node24 runtime.
+runs:
+  using: node24
+  main: index.js

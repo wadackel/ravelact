@@ -1,0 +1,11 @@
+name: Dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        required: true
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "dispatched"

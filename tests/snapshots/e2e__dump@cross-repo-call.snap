@@ -1,0 +1,332 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "dependency-review-action",
+      "subpath": null
+    },
+    {
+      "gitref": "v5",
+      "owner": "actions",
+      "repo": "labeler",
+      "subpath": null
+    },
+    {
+      "gitref": "v9",
+      "owner": "actions",
+      "repo": "stale",
+      "subpath": null
+    },
+    {
+      "gitref": "0000000000000000000000000000000000000000",
+      "owner": "example-org",
+      "repo": "shared-workflows",
+      "subpath": ".github/workflows/foo.yml"
+    },
+    {
+      "gitref": "v3",
+      "owner": "github",
+      "repo": "codeql-action",
+      "subpath": "analyze"
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/_reusable.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Reusable Build",
+      "triggers": [
+        "workflow_call"
+      ]
+    },
+    {
+      "id": ".github/workflows/_reusable_release.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "release",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Reusable Release",
+      "triggers": [
+        "workflow_call"
+      ]
+    },
+    {
+      "id": ".github/workflows/codeql.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "analyze",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "CodeQL",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/cross-call.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": "external:example-org/shared-workflows/.github/workflows/foo.yml@0000000000000000000000000000000000000000",
+          "id": "call-shared",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Cross Call",
+      "triggers": [
+        "workflow_dispatch"
+      ]
+    },
+    {
+      "id": ".github/workflows/docs.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "docs",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Docs",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/entry-a.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": "local:.github/workflows/_reusable.yml",
+          "id": "call-build",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Entry A",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/entry-b.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": "local:.github/workflows/_reusable.yml",
+          "id": "call-build",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Entry B",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/format.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "format",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Format",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/integration.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "integration",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Integration",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/labeler.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "label",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Labeler",
+      "triggers": [
+        "pull_request_target"
+      ]
+    },
+    {
+      "id": ".github/workflows/lint.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "lint",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Lint",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/perf.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "perf",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Perf",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/release.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": "local:.github/workflows/_reusable_release.yml",
+          "id": "call-release",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Release",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/security.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "security",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Security",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/stale.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "stale",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Stale",
+      "triggers": [
+        "schedule"
+      ]
+    },
+    {
+      "id": ".github/workflows/typecheck.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "typecheck",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Typecheck",
+      "triggers": [
+        "pull_request"
+      ]
+    },
+    {
+      "id": ".github/workflows/unit.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "unit",
+          "step_uses_kinds": [
+            "external"
+          ]
+        }
+      ],
+      "name": "Unit",
+      "triggers": [
+        "pull_request",
+        "push"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+name: Caller
+on: push
+jobs:
+  call:
+    uses: ./.github/workflows/callee.yml
+    with:
+      extra-key: foo
+      typed-number: oops
+    secrets: inherit

@@ -1,0 +1,25 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+permissions  4 findings  (4 medium)
+
+  !  medium  implicit-repo-default
+  .github/workflows/ci.yml
+
+    entry-point workflow `.github/workflows/ci.yml` declares no `permissions:` and jobs [run-docker] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/lint.yml
+
+    entry-point workflow `.github/workflows/lint.yml` declares no `permissions:` and jobs [lint] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/release.yml
+
+    entry-point workflow `.github/workflows/release.yml` declares no `permissions:` and jobs [publish] inherit the repository default
+
+  !  medium  implicit-repo-default
+  .github/workflows/smoke.yml
+
+    entry-point workflow `.github/workflows/smoke.yml` declares no `permissions:` and jobs [smoke] inherit the repository default

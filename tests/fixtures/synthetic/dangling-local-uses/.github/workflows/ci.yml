@@ -1,0 +1,12 @@
+name: Dangling Local Uses
+on:
+  push:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/typo
+        with:
+          message: hello

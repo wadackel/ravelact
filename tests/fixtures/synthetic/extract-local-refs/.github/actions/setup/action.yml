@@ -1,0 +1,7 @@
+name: setup
+description: Local composite invoked by the extract-local-refs fixture.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: echo setup

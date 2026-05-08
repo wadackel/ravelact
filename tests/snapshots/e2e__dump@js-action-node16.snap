@@ -1,0 +1,15 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".",
+      "kind": "javascript:node16"
+    }
+  ],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": []
+}

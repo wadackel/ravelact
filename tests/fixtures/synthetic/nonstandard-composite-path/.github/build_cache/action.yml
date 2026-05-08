@@ -1,0 +1,14 @@
+name: 'Build Cache'
+description: 'Composite action that lives outside the canonical .github/actions path'
+inputs:
+  key:
+    description: 'Cache key'
+    required: false
+    default: 'default'
+runs:
+  using: 'composite'
+  steps:
+    - run: echo restore ${{ inputs.key }}
+      shell: bash
+    - run: echo save ${{ inputs.key }}
+      shell: bash

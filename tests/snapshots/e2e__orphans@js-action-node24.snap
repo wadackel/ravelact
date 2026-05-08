@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+orphans  1 unused declaration  (1 actions)
+
+ACTIONS
+kind        target
+javascript  .

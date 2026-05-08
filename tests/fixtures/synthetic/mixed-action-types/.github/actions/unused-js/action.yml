@@ -1,0 +1,5 @@
+name: Unused JS
+description: JavaScript action that no workflow references — fixture for orphans per-kind label coverage.
+runs:
+  using: node20
+  main: index.js

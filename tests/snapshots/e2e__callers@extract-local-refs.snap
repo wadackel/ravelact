@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+callers  3 callers for .github/workflows/reusable.yml
+
+CALLERS
+kind  location                 detail
+step  .github/workflows/a.yml  build:3
+step  .github/workflows/b.yml  build:3
+step  .github/workflows/c.yml  build:3

@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Extract
+
+1 extraction candidate found.
+
+| Score | Length | Occurrences | First citation |
+|---:|---:|---:|---|
+| 6 | 3 | 3 | `.github/workflows/a.yml:build:0..3` |

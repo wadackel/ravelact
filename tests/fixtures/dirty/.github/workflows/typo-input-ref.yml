@@ -1,0 +1,13 @@
+name: Typo Input Ref
+on:
+  workflow_call:
+    inputs:
+      declared:
+        required: false
+jobs:
+  job:
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "declared=${{ inputs.declared }}"
+          echo "typo=${{ inputs.typo }}"

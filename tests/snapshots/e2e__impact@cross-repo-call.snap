@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+impact  2 impacted targets  (2 workflows)
+
+WORKFLOWS
+  - .github/workflows/entry-a.yml
+  - .github/workflows/entry-b.yml

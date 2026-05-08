@@ -1,0 +1,10 @@
+name: Notify
+description: composite action with both manifest-level and step-level ravelact annotations
+runs:
+  using: composite
+  steps:
+    # ravelact:dispatches .github/workflows/step-target.yml
+    - name: kick off downstream
+      run: gh workflow run step-target.yml
+      shell: bash
+# ravelact:triggers .github/workflows/manifest-target.yml

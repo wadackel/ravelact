@@ -1,0 +1,10 @@
+name: Middle
+on:
+  workflow_run:
+    workflows: [Trigger]
+    types: [completed]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo middle

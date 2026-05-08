@@ -1,0 +1,8 @@
+name: Setup
+description: Configure toolchain (used by ci.yml and build.yml)
+runs:
+  using: composite
+  steps:
+    - name: noop
+      run: echo "setup"
+      shell: bash

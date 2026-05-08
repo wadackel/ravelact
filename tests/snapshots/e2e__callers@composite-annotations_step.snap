@@ -1,0 +1,9 @@
+---
+source: tests/e2e.rs
+expression: step
+---
+callers  1 caller for .github/workflows/step-target.yml
+
+CALLERS
+kind                 location                detail
+annotated-composite  .github/actions/notify  _composite:0 via dispatches  name="kick off downstream"

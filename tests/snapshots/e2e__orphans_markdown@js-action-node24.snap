@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Orphans
+
+1 unused declaration found: 0 workflows, 1 local action, 0 inputs, 0 outputs.
+
+| Kind | Target | Detail |
+|---|---|---|
+| local-action-javascript | `.` | unused |

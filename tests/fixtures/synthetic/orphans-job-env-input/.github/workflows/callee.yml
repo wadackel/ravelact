@@ -1,0 +1,23 @@
+name: Callee
+on:
+  workflow_call:
+    inputs:
+      via-job-env:
+        required: true
+        type: string
+      via-wf-env:
+        required: true
+        type: string
+      via-job-if:
+        required: true
+        type: string
+env:
+  WF_GREETING: ${{ inputs.via-wf-env }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.via-job-if == 'yes' }}
+    env:
+      JOB_GREETING: ${{ inputs.via-job-env }}
+    steps:
+      - run: echo "ok"

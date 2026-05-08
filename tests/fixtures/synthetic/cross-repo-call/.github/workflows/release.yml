@@ -1,0 +1,9 @@
+name: Release
+on:
+  push:
+    tags: ["v*"]
+jobs:
+  call-release:
+    uses: ./.github/workflows/_reusable_release.yml
+    with:
+      tag: ${{ github.ref_name }}

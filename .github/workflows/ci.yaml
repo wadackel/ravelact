@@ -1,0 +1,352 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: just format
+        run: nix develop --command just format
+      - name: Check formatting diff
+        run: git diff --exit-code
+
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: just lint
+        run: nix develop --command just lint
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: just test
+        run: nix develop --command just test
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: just lint-actions
+        run: nix develop --command just lint-actions
+
+  skills:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: Build ravelact
+        # check-skill-drift.sh shells out to ./target/debug/ravelact --help
+        # to assert subcommand-name parity with SKILL.md.
+        run: nix develop --command cargo build --locked
+      - name: Check skill drift
+        run: nix develop --command script/check-skill-drift.sh
+      - name: Install gh CLI
+        # ubuntu-latest ships gh 2.89.0 < 2.90.0 required for `gh skill`.
+        # Install a SHA-pinned deb from the upstream cli/cli release. We pin
+        # the version (not "latest") so an upstream gh skill spec change
+        # cannot silently break this CI step.
+        run: |
+          set -euo pipefail
+          GH_VER=2.92.0
+          GH_SHA=8f8212b1a9cec261a8839e0893168f50d3fc70f095da257feef4229234cefdf8
+          curl -fsSL -o /tmp/gh.deb \
+            "https://github.com/cli/cli/releases/download/v${GH_VER}/gh_${GH_VER}_linux_amd64.deb"
+          echo "${GH_SHA}  /tmp/gh.deb" | sha256sum -c
+          sudo dpkg -i /tmp/gh.deb
+          gh --version
+      - name: Validate skill against agentskills.io spec
+        # Local-only validation; no GITHUB_TOKEN, agent-skills topic, or git
+        # remote required (verified during /plan Phase 4 against gh 2.92.0).
+        run: gh skill publish --dry-run
+
+  coverage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Visualization-only: must not block PR merge. Surface failures without
+    # failing the job so the PR comment can still post.
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: Run coverage
+        run: nix develop --command just coverage
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: lcov
+          path: lcov.info
+          if-no-files-found: error
+      - name: Download base coverage from main
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p base-coverage
+          # Find the most recent successful coverage artifact from main. Tolerate
+          # absence (first run, retention expiry) — the report falls back to a
+          # no-baseline view.
+          run_id=$(gh run list \
+            --workflow ci.yaml \
+            --branch main \
+            --status success \
+            --limit 20 \
+            --json databaseId,conclusion \
+            --jq 'map(select(.conclusion == "success")) | .[0].databaseId // empty')
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" --name lcov --dir base-coverage || true
+          fi
+          if [ -f base-coverage/lcov.info ]; then
+            echo "base coverage downloaded from run $run_id"
+          else
+            echo "no base coverage found; diff column will be N/A"
+          fi
+      - name: Build coverage report
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          MARKER="<!-- ravelact-coverage-report:v1 -->"
+          REPORT=coverage-report.md
+
+          # Parse an lcov file into "<file>\t<percent>\t<hit>/<found>" lines plus
+          # a TOTAL line. Awk is sufficient: lcov.info is line-oriented (SF=,
+          # LF:, LH:, end_of_record) with no quoting edge cases.
+          parse_lcov() {
+            local root="$PWD/"
+            awk -v root="$root" '
+              function strip_root(p) {
+                if (index(p, root) == 1) return substr(p, length(root) + 1)
+                return p
+              }
+              /^SF:/ { sf = strip_root(substr($0, 4)); next }
+              /^LF:/ { lf = substr($0, 4) + 0; next }
+              /^LH:/ { lh = substr($0, 4) + 0; next }
+              /^end_of_record/ {
+                if (sf != "") {
+                  pct = (lf > 0) ? (lh * 100.0 / lf) : 0.0
+                  printf "%s\t%.2f\t%d/%d\n", sf, pct, lh, lf
+                  total_lh += lh; total_lf += lf
+                }
+                sf = ""; lf = 0; lh = 0
+              }
+              END {
+                pct = (total_lf > 0) ? (total_lh * 100.0 / total_lf) : 0.0
+                printf "TOTAL\t%.2f\t%d/%d\n", pct, total_lh, total_lf
+              }
+            ' "$1"
+          }
+
+          parse_lcov lcov.info | sort > head.tsv
+          if [ -f base-coverage/lcov.info ]; then
+            parse_lcov base-coverage/lcov.info | sort > base.tsv
+          else
+            : > base.tsv
+          fi
+
+          {
+            echo "$MARKER"
+            echo
+            echo "## Coverage report"
+            echo
+            head_total=$(awk -F'\t' '$1=="TOTAL" {print $2}' head.tsv)
+            base_total=$(awk -F'\t' '$1=="TOTAL" {print $2}' base.tsv)
+            head_lines=$(awk -F'\t' '$1=="TOTAL" {print $3}' head.tsv)
+            if [ -n "$base_total" ]; then
+              delta=$(awk -v a="$head_total" -v b="$base_total" 'BEGIN { printf "%+.2f", a - b }')
+              echo "**Total: ${head_total}% (${head_lines}) — Δ vs main: ${delta} pp**"
+            else
+              echo "**Total: ${head_total}% (${head_lines}) — Δ vs main: N/A**"
+            fi
+            echo
+            echo "| File | Coverage | Hit/Found | Δ vs main |"
+            echo "|---|---:|---:|---:|"
+            # Per-file rows (skip the TOTAL row; sort is already lexicographic).
+            join -t $'\t' -a 1 -e '' -o '0,1.2,1.3,2.2' \
+              <(grep -v $'^TOTAL\t' head.tsv) \
+              <(grep -v $'^TOTAL\t' base.tsv) \
+              | awk -F'\t' '
+                {
+                  file=$1; head_pct=$2; hf=$3; base_pct=$4
+                  if (base_pct == "") {
+                    delta = "new"
+                  } else {
+                    d = head_pct - base_pct
+                    delta = sprintf("%+.2f pp", d)
+                  }
+                  printf "| `%s` | %s%% | %s | %s |\n", file, head_pct, hf, delta
+                }'
+            echo
+            echo "<sub>Generated by ravelact coverage CI · commit <code>$GITHUB_SHA</code> · informational only, no merge gating.</sub>"
+          } > "$REPORT"
+      - name: Upsert coverage PR comment
+        # Skip on fork PRs: the default GITHUB_TOKEN is read-only there.
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          nix develop --command bash -euo pipefail <<'BASH'
+          set +H
+          MARKER="<!-- ravelact-coverage-report:v1 -->"
+          existing=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+            --jq "first(.[] | select(.body | contains(\"$MARKER\")) | .id) // empty")
+          if [ -n "$existing" ]; then
+            jq -Rn --rawfile body coverage-report.md '{body: $body}' \
+              | gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" --input -
+          else
+            jq -Rn --rawfile body coverage-report.md '{body: $body}' \
+              | gh api -X POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" --input -
+          fi
+          BASH
+
+  ravelact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      - name: Build ravelact
+        run: nix develop --command cargo build --locked
+      - name: Build ravelact IR
+        run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' build
+      - name: Check permissions
+        run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' permissions
+      - name: Check secrets propagation
+        run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' secrets
+      - name: Check workflow wiring
+        run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' wiring
+      - name: Prepare ravelact-report directory
+        run: mkdir -p ravelact-report
+      - name: Run dedup analysis
+        run: |
+          nix develop --command bash -euo pipefail <<'BASH'
+          ./target/debug/ravelact --root . --exclude 'tests/**' dedup --format json | tee ravelact-report/dedup.json
+          BASH
+      - name: Gate on near-duplicate workflows
+        run: nix develop --command jq -e 'length == 0' ravelact-report/dedup.json
+      - name: Export push graph
+        run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' graph --event push > ravelact-push.mmd
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ravelact-push-graph
+          path: ravelact-push.mmd
+          if-no-files-found: error
+
+      - name: Build markdown report
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          nix develop --command bash -euo pipefail <<'BASH'
+          set +H
+
+          # Sticky-comment marker, must match the upsert step. Versioned so future
+          # format changes can spawn a fresh comment without colliding with old ones.
+          MARKER="<!-- ravelact-dogfood-report:v1 -->"
+          REPORT=ravelact-report/report.md
+
+          # `ravelact impact` errors on empty stdin (no input is a usage error,
+          # not a zero-finding result), so the empty diff case is handled inline
+          # by emitting `_No findings._` directly instead of invoking the CLI.
+          diff_files=$(git diff --name-only "origin/${BASE_REF}...HEAD")
+
+          {
+            echo "$MARKER"
+            echo
+            echo "## ravelact dogfood report"
+            echo
+            if [ -z "$diff_files" ]; then
+              echo "### Impact"
+              echo
+              echo "_No findings._"
+            else
+              printf '%s\n' "$diff_files" \
+                | ./target/debug/ravelact --root . --exclude 'tests/**' impact --format markdown
+            fi
+            echo
+            ./target/debug/ravelact --root . --exclude 'tests/**' orphans --format markdown
+            echo
+            ./target/debug/ravelact --root . --exclude 'tests/**' extract --format markdown
+            echo
+            ./target/debug/ravelact --root . --exclude 'tests/**' dedup --format markdown
+            echo
+            echo "<sub>Generated by ravelact dogfood CI · commit <code>$GITHUB_SHA</code></sub>"
+          } > "$REPORT"
+          BASH
+      - name: Upsert sticky PR comment
+        # Skip on fork PRs: the default GITHUB_TOKEN is read-only there and a
+        # write call would 403. Fork-PR support is tracked as a follow-up issue
+        # (workflow_run split).
+        if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          nix develop --command bash -euo pipefail <<'BASH'
+          set +H
+          MARKER="<!-- ravelact-dogfood-report:v1 -->"
+          # The GET-then-PATCH/POST window is racy under cancel-in-progress, but
+          # the marker scheme is idempotent: the next CI run reconciles by
+          # finding the same comment and PATCHing it.
+          existing=$(gh api --paginate "repos/$GH_REPO/issues/$PR_NUMBER/comments" \
+            --jq "first(.[] | select(.body | contains(\"$MARKER\")) | .id) // empty")
+          if [ -n "$existing" ]; then
+            jq -Rn --rawfile body ravelact-report/report.md '{body: $body}' \
+              | gh api -X PATCH "repos/$GH_REPO/issues/comments/$existing" --input -
+          else
+            jq -Rn --rawfile body ravelact-report/report.md '{body: $body}' \
+              | gh api -X POST "repos/$GH_REPO/issues/$PR_NUMBER/comments" --input -
+          fi
+          BASH

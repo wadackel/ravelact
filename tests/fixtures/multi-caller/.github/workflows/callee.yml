@@ -1,0 +1,21 @@
+name: Multi-Caller Callee
+on:
+  workflow_call:
+    inputs:
+      mode:
+        required: false
+        default: "build"
+    outputs:
+      result:
+        description: build url
+        value: ${{ jobs.build.outputs.url }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.compute.outputs.url }}
+    steps:
+      - id: compute
+        run: |
+          echo "mode=${{ inputs.mode }}"
+          echo "url=https://example.com" >> "$GITHUB_OUTPUT"

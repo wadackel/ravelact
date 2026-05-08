@@ -1,0 +1,20 @@
+name: Multi-line if guard demo
+on:
+  push:
+    branches: [main]
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # Block-scalar `if:` — saphyr preserves the embedded newlines in the IR.
+      # The R4 trace-tree renderer must split this into one row per source
+      # line, with continuation rows indented under the `if:` text column.
+      - if: |
+          github.event_name == 'push'
+          && startsWith(github.ref, 'refs/tags/')
+          && !contains(github.ref, '-rc')
+        uses: actions/checkout@v4
+      # Single long `if:` — kept on a single source line to verify that the
+      # renderer does not mistakenly split it.
+      - if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-rc')
+        uses: actions/upload-artifact@v4

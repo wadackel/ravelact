@@ -1,0 +1,5 @@
+name: Node16 Action
+description: Synthetic JavaScript action pinned to node16 runtime.
+runs:
+  using: node16
+  main: index.js

@@ -1,0 +1,13 @@
+name: Test Unit
+on:
+  push:
+    branches: [main]
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-build
+        with:
+          toolchain: nightly
+      - run: echo unit

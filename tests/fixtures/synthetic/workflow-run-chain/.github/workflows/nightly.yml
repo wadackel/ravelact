@@ -1,0 +1,10 @@
+name: Nightly
+on:
+  workflow_run:
+    workflows: [Middle]
+    types: [completed]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo nightly

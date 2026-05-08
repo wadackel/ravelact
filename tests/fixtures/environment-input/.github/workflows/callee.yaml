@@ -1,0 +1,12 @@
+name: Callee
+on:
+  workflow_call:
+    inputs:
+      deploy-env:
+        type: environment
+        required: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ inputs.deploy-env }}"

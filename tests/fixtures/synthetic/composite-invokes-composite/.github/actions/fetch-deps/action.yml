@@ -1,0 +1,16 @@
+name: Fetch Deps
+description: Nested composite invoked by setup-toolchain.
+inputs:
+  manifest:
+    description: Lock-file manifest path
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Resolve manifest
+      shell: bash
+      run: echo "fetching deps from ${{ inputs.manifest }}"
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/widget
+        key: widget-${{ inputs.manifest }}

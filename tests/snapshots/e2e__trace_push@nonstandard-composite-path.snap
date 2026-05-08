@@ -1,0 +1,17 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  3 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/ci.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ .github/build_cache  [ac]
+│
+├─→ .github/workflows/docs.yml  [wf]
+│   ╰─→ actions/checkout  [ext-ac]  @v4
+│
+╰─→ .github/workflows/release.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ╰─→ .github/build_cache  [ac]

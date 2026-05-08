@@ -1,0 +1,11 @@
+name: 'Publish Artifact'
+description: 'Composite that publishes a build artifact'
+inputs:
+  name:
+    description: 'Artifact name'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - run: echo publish ${{ inputs.name }}
+      shell: bash

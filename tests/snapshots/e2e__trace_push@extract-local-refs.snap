@@ -1,0 +1,21 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  3 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/a.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ├─→ .github/actions/setup  [ac]
+│   ╰─→ .github/workflows/reusable.yml  [wf]
+│
+├─→ .github/workflows/b.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ├─→ .github/actions/setup  [ac]
+│   ╰─→ .github/workflows/reusable.yml  [wf]
+│
+╰─→ .github/workflows/c.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ├─→ .github/actions/setup  [ac]
+    ╰─→ .github/workflows/reusable.yml  [wf]

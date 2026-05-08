@@ -1,0 +1,3 @@
+[workspace]
+publish = false   # never run cargo publish
+git_only = true   # detect versions from git tags, not crates.io

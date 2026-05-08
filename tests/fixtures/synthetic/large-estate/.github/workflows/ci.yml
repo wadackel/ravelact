@@ -1,0 +1,14 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  call-build:
+    uses: ./.github/workflows/_reusable-build.yml
+    secrets: inherit
+    with:
+      target: ci

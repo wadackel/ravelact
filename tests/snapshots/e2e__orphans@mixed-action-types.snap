@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+orphans  3 unused declarations  (3 actions)
+
+ACTIONS
+kind        target
+composite   .github/actions/unused-composite
+docker      .github/actions/unused-docker
+javascript  .github/actions/unused-js

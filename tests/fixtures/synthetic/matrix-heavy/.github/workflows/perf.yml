@@ -1,0 +1,19 @@
+name: Perf
+on:
+  schedule:
+    - cron: "0 7 * * 1"
+jobs:
+  perf:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: ["20", "22"]
+        size: [small, medium, large]
+        exclude:
+          - size: large
+            os: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+      - run: echo perf ${{ matrix.size }}

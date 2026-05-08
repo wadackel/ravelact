@@ -1,0 +1,42 @@
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      release_kind:
+        description: Release channel
+        type: choice
+        required: true
+        default: stable
+        options:
+          - stable
+          - beta
+          - canary
+      target_environment:
+        description: Deployment environment
+        type: environment
+        required: true
+      dry_run:
+        description: Skip publish steps
+        type: boolean
+        default: false
+      semver_bump:
+        description: Bump kind
+        type: string
+        required: false
+        default: patch
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "kind=${{ inputs.release_kind }} env=${{ inputs.target_environment }} dry=${{ inputs.dry_run }} bump=${{ inputs.semver_bump }}"
+
+  publish:
+    needs: prepare
+    if: inputs.dry_run != true
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target_environment }}
+    steps:
+      - run: echo "publishing ${{ inputs.release_kind }}"

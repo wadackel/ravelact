@@ -1,0 +1,9 @@
+name: Entry
+on:
+  push:
+    branches: [main]
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ./.github/actions/notify

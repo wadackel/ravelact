@@ -1,0 +1,21 @@
+name: Audit
+on:
+  schedule:
+    - cron: "0 8 * * *"
+jobs:
+  audit:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node-version: ["18", "20", "22"]
+        include:
+          - os: ubuntu-latest
+            node-version: "23"
+            audit-level: high
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+      - run: echo audit ${{ matrix.audit-level || 'low' }}

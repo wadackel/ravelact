@@ -1,0 +1,14 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  1 entry workflow
+
+╭─ push   (filters=none)
+╰─→ .github/workflows/release.yaml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    │   ╰─ if: github.event_name == 'push'
+    │          && startsWith(github.ref, 'refs/tags/')
+    │          && !contains(github.ref, '-rc')
+    ╰─→ actions/upload-artifact  [ext-ac]  @v4
+        ╰─ if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-rc')

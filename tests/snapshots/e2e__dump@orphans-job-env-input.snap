@@ -1,0 +1,41 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/callee.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Callee",
+      "triggers": [
+        "workflow_call"
+      ]
+    },
+    {
+      "id": ".github/workflows/caller.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": "local:.github/workflows/callee.yml",
+          "id": "call",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "Caller",
+      "triggers": [
+        "push"
+      ]
+    }
+  ]
+}

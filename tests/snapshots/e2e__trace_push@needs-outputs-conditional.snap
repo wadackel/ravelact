@@ -1,0 +1,11 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  1 entry workflow
+
+╭─ push   (filters=none)
+╰─→ .github/workflows/ci.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ╰─→ actions/checkout  [ext-ac]  @v4
+        ╰─ if: needs.detect.outputs.docs_only != 'true'

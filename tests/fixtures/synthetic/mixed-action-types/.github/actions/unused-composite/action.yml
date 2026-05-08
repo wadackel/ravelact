@@ -1,0 +1,7 @@
+name: Unused Composite
+description: Composite action that no workflow references — fixture for orphans per-kind label coverage.
+runs:
+  using: composite
+  steps:
+    - run: echo composite
+      shell: bash

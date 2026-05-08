@@ -1,0 +1,13 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  1 entry workflow
+
+╭─ push   (filters=none)
+╰─→ .github/workflows/ci.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    │   ╰─ if: (github.event_name == 'push') && (runner.os == 'Linux')
+    ├─→ actions/setup-node  [ext-ac]  @v4
+    │   ╰─ if: matrix.os == 'ubuntu-latest'
+    ╰─→ actions/cache  [ext-ac]  @v4

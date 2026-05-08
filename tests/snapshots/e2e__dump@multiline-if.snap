@@ -1,0 +1,42 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    },
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "upload-artifact",
+      "subpath": null
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/release.yaml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "release",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "Multi-line if guard demo",
+      "triggers": [
+        "push"
+      ]
+    }
+  ]
+}

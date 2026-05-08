@@ -1,0 +1,22 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  4 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/build.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ actions/setup-node  [ext-ac]  @v4
+│
+├─→ .github/workflows/coverage.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ codecov/codecov-action  [ext-ac]  @v4
+│
+├─→ .github/workflows/integration.yml  [wf]
+│   ├─→ actions/checkout  [ext-ac]  @v4
+│   ╰─→ actions/setup-python  [ext-ac]  @v5
+│
+╰─→ .github/workflows/release.yml  [wf]
+    ├─→ actions/checkout  [ext-ac]  @v4
+    ╰─→ softprops/action-gh-release  [ext-ac]  @v2

@@ -1,0 +1,42 @@
+[package]
+name = "ravelact"
+version = "0.0.1"
+edition = "2021"
+description = "Static analysis CLI for GitHub Actions workflow estates"
+license = "MIT"
+repository = "https://github.com/wadackel/ravelact"
+
+[[bin]]
+name = "ravelact"
+path = "src/main.rs"
+
+[lib]
+name = "ravelact"
+path = "src/lib.rs"
+
+[dependencies]
+anstyle = "1"
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+clap_complete = { version = "4.5", features = ["unstable-dynamic"] }
+globset = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+saphyr = "0.0.6"
+unicode-width = "0.2"
+walkdir = "2"
+
+[dev-dependencies]
+assert_cmd = "2"
+criterion = { version = "0.5", features = ["html_reports"] }
+insta = { version = "1", features = ["json"] }
+predicates = "3"
+serial_test = "3"
+tempfile = "3"
+
+[[bench]]
+name = "queries"
+harness = false
+
+[profile.release]
+lto = "thin"

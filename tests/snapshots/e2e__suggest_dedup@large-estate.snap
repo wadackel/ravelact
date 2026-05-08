@@ -1,0 +1,41 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+dedup  2 workflow clusters  (threshold=0.80)
+
+CLUSTER 1
+metric           value
+workflows        2
+representative   .github/workflows/ci.yml
+triggers differ  yes
+
+MEMBERS
+member                         similarity
+.github/workflows/release.yml  0.83
+
+USES
+label      value
+common     (none)
+divergent  (none)
+
+CLUSTER 2
+metric           value
+workflows        8
+representative   .github/workflows/update-cares.yml
+triggers differ  no
+
+MEMBERS
+member                                similarity
+.github/workflows/update-curl.yml     0.82
+.github/workflows/update-icu.yml      0.82
+.github/workflows/update-libffi.yml   0.82
+.github/workflows/update-openssl.yml  0.82
+.github/workflows/update-sqlite.yml   0.82
+.github/workflows/update-zlib.yml     0.82
+.github/workflows/update-zstd.yml     0.82
+
+USES
+label      value
+common     ext:actions/checkout, ext:peter-evans/create-pull-request
+divergent  (none)

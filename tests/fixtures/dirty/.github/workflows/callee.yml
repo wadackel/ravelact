@@ -1,0 +1,28 @@
+name: Callee
+on:
+  workflow_call:
+    inputs:
+      required:
+        required: true
+      with-default:
+        default: hello
+      typed-number:
+        type: number
+      referenced:
+        required: false
+    outputs:
+      result:
+        description: artifact url
+        value: ${{ jobs.build.outputs.url }}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.compute.outputs.url }}
+    steps:
+      - id: compute
+        run: |
+          echo "required=${{ inputs.required }}"
+          echo "default=${{ inputs.with-default }}"
+          echo "ref=${{ inputs.referenced }}"
+          echo "url=https://example.com" >> "$GITHUB_OUTPUT"

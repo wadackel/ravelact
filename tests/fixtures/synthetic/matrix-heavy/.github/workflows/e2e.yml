@@ -1,0 +1,22 @@
+name: E2E
+on:
+  schedule:
+    - cron: "0 6 * * *"
+jobs:
+  e2e:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node-version: ["20", "22"]
+        browser: [chromium, firefox]
+        exclude:
+          - os: macos-latest
+            browser: firefox
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: echo e2e ${{ matrix.browser }}

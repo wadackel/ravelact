@@ -1,0 +1,7 @@
+name: Caller
+on: push
+jobs:
+  call:
+    uses: ./.github/workflows/callee.yaml
+    with:
+      deploy-env: production
