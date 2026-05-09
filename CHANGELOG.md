@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.3](https://github.com/wadackel/ravelact/compare/v0.0.2...v0.0.3) - 2026-05-09
+
+### Other
+
+- *(release)* enable trusted publishing ([#7](https://github.com/wadackel/ravelact/pull/7))
+
 ## [0.0.2](https://github.com/wadackel/ravelact/compare/v0.0.1...v0.0.2) - 2026-05-09
 
 ### Other
