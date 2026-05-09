@@ -1,5 +1,6 @@
 use crate::cache;
 use crate::ir::{ActionId, AnnotationVerb, Ir, WorkflowId};
+use crate::markdown;
 use crate::query::{
     self,
     callers::{AnnotationAnchor, CallerHit, CompositeAnnotationAnchor},
@@ -9,7 +10,7 @@ use crate::ui::{self, Status, Ui};
 use anyhow::Result;
 use globset::GlobSet;
 
-use crate::cli::{build_or_load, stdin_input, unsupported_markdown_error, OutputFormat};
+use crate::cli::{build_or_load, stdin_input, ReportFormat};
 
 const TABLE_HEADERS: [&str; 3] = ["kind", "location", "detail"];
 
@@ -18,7 +19,7 @@ pub(in crate::cli) fn run(
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     targets: &[String],
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let inputs = stdin_input::collect(targets)?;
@@ -31,15 +32,50 @@ pub(in crate::cli) fn run(
         })
         .collect();
     match format {
-        OutputFormat::Markdown => return Err(unsupported_markdown_error()),
-        OutputFormat::Json => {
+        ReportFormat::Markdown => {
+            println!("### Callers");
+            println!();
+            let total_hits: usize = per_target.iter().map(|(_, h)| h.len()).sum();
+            if total_hits == 0 {
+                println!(
+                    "No callers found across {}.",
+                    ui::plural(per_target.len(), "target", "targets")
+                );
+            } else {
+                println!(
+                    "{} found across {}.",
+                    ui::plural(total_hits, "caller", "callers"),
+                    ui::plural(per_target.len(), "target", "targets")
+                );
+                println!();
+                println!("| Target | Kind | Location | Detail |");
+                println!("|---|---|---|---|");
+                for (target, hits) in &per_target {
+                    if hits.is_empty() {
+                        println!("| {} | - | - | no callers |", markdown::code_cell(target));
+                        continue;
+                    }
+                    for hit in hits {
+                        let row = format_caller_row(hit, &ir);
+                        println!(
+                            "| {} | {} | {} | {} |",
+                            markdown::code_cell(target),
+                            markdown::code_cell(&row[0]),
+                            markdown::code_cell(&row[1]),
+                            markdown::code_cell(&row[2])
+                        );
+                    }
+                }
+            }
+        }
+        ReportFormat::Json => {
             let payload: Vec<serde_json::Value> = per_target
                 .iter()
                 .map(|(t, hits)| serde_json::json!({ "target": t, "hits": hits }))
                 .collect();
             println!("{}", serde_json::to_string_pretty(&payload)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             let total_hits: usize = per_target.iter().map(|(_, h)| h.len()).sum();
             if total_hits == 0 {
                 println!(

@@ -730,8 +730,8 @@ fn graph_format_json_errors() {
     let assert = run(tmp.path(), &["graph", "--format", "json"]).failure();
     let stderr = String::from_utf8(assert.get_output().stderr.clone()).expect("utf8 stderr");
     assert!(
-        stderr.contains("--format json is not supported for graph"),
-        "stderr must mention graph json rejection, got:\n{stderr}"
+        stderr.contains("invalid value 'json'"),
+        "stderr must reject json as a graph format value, got:\n{stderr}"
     );
 }
 
@@ -755,6 +755,102 @@ fn trace_walks_from_event() {
     assert!(
         !stdout.contains(".github/workflows/dispatch.yml"),
         "dispatch.yml has no push trigger and should not be in trace: {stdout}"
+    );
+}
+
+#[test]
+fn trace_json_and_markdown_outputs() {
+    let tmp = fresh_simple_fixture();
+    let json_stdout = String::from_utf8(
+        run(tmp.path(), &["trace", "push", "--format", "json"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let json: Value = serde_json::from_str(&json_stdout).expect("valid trace JSON");
+    let first = json
+        .as_array()
+        .and_then(|items| items.first())
+        .expect("at least one trace entry");
+    assert_eq!(
+        first
+            .get("root")
+            .and_then(|root| root.get("kind"))
+            .and_then(Value::as_str),
+        Some("workflow")
+    );
+    assert_eq!(
+        first
+            .get("trigger")
+            .and_then(|trigger| trigger.get("event"))
+            .and_then(Value::as_str),
+        Some("push")
+    );
+    assert!(
+        first
+            .get("trigger")
+            .and_then(|trigger| trigger.get("types"))
+            .is_none(),
+        "push has no activity-type concept, so trace JSON must omit trigger.types: {json_stdout}"
+    );
+
+    let markdown = String::from_utf8(
+        run(tmp.path(), &["trace", "push", "--format", "markdown"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(markdown.starts_with("### Trace\n\n"), "{markdown}");
+    assert!(
+        markdown.contains("| Dep | Kind | Edge | Target | Note |")
+            && markdown.contains(".github/workflows/ci.yml"),
+        "markdown trace table missing expected workflow row: {markdown}"
+    );
+}
+
+#[test]
+fn trace_repository_dispatch_json_preserves_custom_type_dimension() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let wf = root.join(".github/workflows/dispatch.yml");
+    std::fs::create_dir_all(wf.parent().unwrap()).unwrap();
+    std::fs::write(
+        &wf,
+        r#"
+on:
+  repository_dispatch:
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
+"#,
+    )
+    .unwrap();
+
+    let json_stdout = String::from_utf8(
+        run(root, &["trace", "repository_dispatch", "--format", "json"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let json: Value = serde_json::from_str(&json_stdout).expect("valid trace JSON");
+    let types = json
+        .as_array()
+        .and_then(|items| items.first())
+        .and_then(|entry| entry.get("trigger"))
+        .and_then(|trigger| trigger.get("types"))
+        .expect("repository_dispatch must retain custom activity-type dimension");
+    assert_eq!(
+        types.get("kind").and_then(Value::as_str),
+        Some("implicit-all")
     );
 }
 
@@ -879,6 +975,39 @@ jobs:
         future_idx < pull_request_idx && pull_request_idx < workflow_call_idx,
         "tie rows must sort by event name, then workflow_call with zero entries last: {stdout}"
     );
+
+    let json_stdout = String::from_utf8(
+        run(root, &["triggers", "--format", "json"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    let json: Value = serde_json::from_str(&json_stdout).expect("valid triggers JSON");
+    let push = json
+        .as_array()
+        .expect("top-level array")
+        .iter()
+        .find(|row| row.get("event").and_then(Value::as_str) == Some("push"))
+        .expect("push row");
+    assert_eq!(push.get("entry_workflows").and_then(Value::as_u64), Some(2));
+
+    let markdown = String::from_utf8(
+        run(root, &["triggers", "--format", "markdown"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(markdown.starts_with("### Triggers\n\n"), "{markdown}");
+    assert!(
+        markdown
+            .contains("| Event | Entry workflows | Declarations | Typed | Filtered | Examples |")
+            && markdown.contains("| <code>push</code> | 2 | 2 | 0 | 2 |"),
+        "markdown trigger table missing push row: {markdown}"
+    );
 }
 
 #[test]
@@ -973,9 +1102,9 @@ jobs:
         "tree must surface the matched trigger types as a sub-line: {stdout}"
     );
 
-    // Table view embeds the same info in the note column.
+    // Table format embeds the same info in the note column.
     let stdout_table = String::from_utf8(
-        run(root, &["trace", "issues", "--view", "table"])
+        run(root, &["trace", "issues", "--format", "table"])
             .success()
             .get_output()
             .stdout
@@ -1111,7 +1240,7 @@ jobs:
 }
 
 /// Build an inline fixture exercising WF + EX + ANN node kinds in a single
-/// trace, used by `--view` tests below.
+/// trace, used by trace format tests below.
 fn fresh_view_fixture() -> TempDir {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
@@ -1242,10 +1371,10 @@ fn color_never_permissions_suppresses_ansi() {
 }
 
 #[test]
-fn trace_view_table_outputs_columns() {
+fn trace_format_table_outputs_columns() {
     let tmp = fresh_view_fixture();
     let stdout = String::from_utf8(
-        run(tmp.path(), &["trace", "push", "--view", "table"])
+        run(tmp.path(), &["trace", "push", "--format", "table"])
             .success()
             .get_output()
             .stdout
@@ -1293,14 +1422,17 @@ fn trace_view_table_outputs_columns() {
 }
 
 #[test]
-fn trace_view_table_with_ascii_uses_pipe_chars() {
+fn trace_format_table_with_ascii_uses_pipe_chars() {
     let tmp = fresh_view_fixture();
     let stdout = String::from_utf8(
-        run(tmp.path(), &["trace", "push", "--view", "table", "--ascii"])
-            .success()
-            .get_output()
-            .stdout
-            .clone(),
+        run(
+            tmp.path(),
+            &["trace", "push", "--format", "table", "--ascii"],
+        )
+        .success()
+        .get_output()
+        .stdout
+        .clone(),
     )
     .unwrap();
     assert!(
@@ -1314,11 +1446,11 @@ fn trace_view_table_with_ascii_uses_pipe_chars() {
 }
 
 #[test]
-fn trace_empty_result_message_is_view_independent() {
+fn trace_empty_result_message_is_format_independent() {
     let tmp = fresh_simple_fixture();
-    for view in ["tree", "table"] {
+    for format in ["tree", "table"] {
         let stdout = String::from_utf8(
-            run(tmp.path(), &["trace", "schedule", "--view", view])
+            run(tmp.path(), &["trace", "schedule", "--format", format])
                 .success()
                 .get_output()
                 .stdout
@@ -1327,9 +1459,20 @@ fn trace_empty_result_message_is_view_independent() {
         .unwrap();
         assert!(
             stdout.contains("trace schedule  no entry-point matches"),
-            "view `{view}` did not emit empty-result header: {stdout}"
+            "format `{format}` did not emit empty-result header: {stdout}"
         );
     }
+}
+
+#[test]
+fn trace_view_flag_is_removed() {
+    let tmp = fresh_simple_fixture();
+    let assert = run(tmp.path(), &["trace", "push", "--view", "table"]).failure();
+    let stderr = String::from_utf8(assert.get_output().stderr.clone()).expect("utf8 stderr");
+    assert!(
+        stderr.contains("unexpected argument '--view'"),
+        "stderr must reject removed --view flag, got:\n{stderr}"
+    );
 }
 
 #[test]
@@ -1433,6 +1576,23 @@ fn check_permissions_overly_broad_write_all() {
         Some(".github/workflows/wide.yml")
     );
     assert!(f.get("job").map(|v| v.is_null()).unwrap_or(false));
+
+    let markdown = String::from_utf8(
+        run(root, &["permissions", "--format", "markdown"])
+            .failure()
+            .code(1)
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(markdown.starts_with("### Permissions\n\n"), "{markdown}");
+    assert!(
+        markdown.contains("| Severity | Kind | Location | Message |")
+            && markdown.contains("`high`")
+            && markdown.contains("`overly-broad-coarse`"),
+        "permissions markdown missing finding row: {markdown}"
+    );
 }
 
 #[test]
@@ -2039,6 +2199,23 @@ fn check_secrets_missing_propagation_depth1() {
         stdout.contains("  .github/workflows/caller.yml:call"),
         "secrets text output should keep the path on its own line: {stdout}"
     );
+
+    let markdown = String::from_utf8(
+        run(root, &["secrets", "--format", "markdown"])
+            .failure()
+            .code(1)
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(markdown.starts_with("### Secrets\n\n"), "{markdown}");
+    assert!(
+        markdown.contains("| Severity | Kind | Location | Message |")
+            && markdown.contains("`high`")
+            && markdown.contains("`missing-secret-propagation`"),
+        "secrets markdown missing finding row: {markdown}"
+    );
 }
 
 #[test]
@@ -2419,6 +2596,34 @@ fn callers_json_output() {
     );
 }
 
+#[test]
+fn callers_markdown_output() {
+    let tmp = fresh_simple_fixture();
+    let stdout = String::from_utf8(
+        run(
+            tmp.path(),
+            &[
+                "callers",
+                ".github/workflows/build.yml",
+                "--format",
+                "markdown",
+            ],
+        )
+        .success()
+        .get_output()
+        .stdout
+        .clone(),
+    )
+    .unwrap();
+    assert!(stdout.starts_with("### Callers\n\n"), "stdout: {stdout}");
+    assert!(
+        stdout.contains("| Target | Kind | Location | Detail |")
+            && stdout.contains("<code>.github/workflows/build.yml</code>")
+            && stdout.contains("<code>job-call</code>"),
+        "markdown callers table missing expected row: {stdout}"
+    );
+}
+
 /// Issue #83: `callers --format text` appends `  (name: "...")` after the
 /// step locator when the step has a `name:` field. Covers Step (named /
 /// unnamed / multi-line) and CompositeStep variants. `Annotated::Step` is
@@ -2697,6 +2902,22 @@ jobs:
     assert!(
         kinds.contains("DanglingAnnotation"),
         "expected DanglingAnnotation in: {kinds:?}"
+    );
+
+    let markdown = String::from_utf8(
+        run(root, &["wiring", "--format", "markdown"])
+            .failure()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(markdown.starts_with("### Wiring\n\n"), "{markdown}");
+    assert!(
+        markdown.contains("| Kind | Location | Message |")
+            && markdown.contains("`unannotated-dispatch`")
+            && markdown.contains("`dangling-annotation`"),
+        "wiring markdown missing expected finding rows: {markdown}"
     );
 }
 

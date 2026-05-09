@@ -1,5 +1,6 @@
 use crate::ir::*;
 use crate::query::walk::{for_each_outgoing_edge, Edge, Node, SourceTier};
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
 /// Tree node returned by [`trace`]. Renders via the helpers in
@@ -79,6 +80,83 @@ pub struct TraceEntry {
     pub trigger: TriggerMatch,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraceJsonEntry {
+    pub root: TraceJsonNode,
+    pub trigger: TraceJsonTrigger,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraceJsonTrigger {
+    pub event: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub types: Option<TraceJsonTriggerTypes>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TraceJsonTriggerTypes {
+    Explicit { values: Vec<String> },
+    ImplicitAll,
+    ImplicitDefault { values: Vec<String> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TraceJsonNode {
+    Workflow {
+        id: String,
+        children: Vec<TraceJsonNode>,
+    },
+    Action {
+        id: String,
+        children: Vec<TraceJsonNode>,
+    },
+    ExternalAction {
+        owner: String,
+        repo: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subpath: Option<String>,
+        gitref: String,
+    },
+    ExternalWorkflow {
+        owner: String,
+        repo: String,
+        path: String,
+        gitref: String,
+    },
+    Docker {
+        image: String,
+    },
+    Annotated {
+        verb: AnnotationVerb,
+        dangling: bool,
+        label: String,
+        children: Vec<TraceJsonNode>,
+    },
+    Cycle {
+        target_kind: &'static str,
+        target: String,
+    },
+    Guarded {
+        if_expr: String,
+        inner: Box<TraceJsonNode>,
+    },
+}
+
+pub fn trace_json_entries(entries: &[TraceEntry]) -> Vec<TraceJsonEntry> {
+    entries
+        .iter()
+        .map(|entry| TraceJsonEntry {
+            root: trace_json_node(&entry.root),
+            trigger: TraceJsonTrigger {
+                event: entry.trigger.event.name().to_string(),
+                types: entry.trigger.types.json_display(&entry.trigger.event),
+            },
+        })
+        .collect()
+}
+
 /// Trigger declaration that allowed an entry workflow to match the trace
 /// query. Surfaced so renderers can show which `types:` declaration (explicit,
 /// implicit-all, implicit-default subset) selected the workflow.
@@ -116,6 +194,81 @@ impl TriggerTypesDisplay {
             (None, None) => TriggerTypesDisplay::ImplicitAll,
         }
     }
+
+    fn json_display(&self, event: &EventKind) -> Option<TraceJsonTriggerTypes> {
+        match self {
+            TriggerTypesDisplay::Explicit(values) => Some(TraceJsonTriggerTypes::Explicit {
+                values: values.clone(),
+            }),
+            TriggerTypesDisplay::ImplicitDefault(values) => {
+                Some(TraceJsonTriggerTypes::ImplicitDefault {
+                    values: values.clone(),
+                })
+            }
+            TriggerTypesDisplay::ImplicitAll if event.supports_activity_types() => {
+                Some(TraceJsonTriggerTypes::ImplicitAll)
+            }
+            TriggerTypesDisplay::ImplicitAll => None,
+        }
+    }
+}
+
+fn trace_json_node(node: &TraceNode) -> TraceJsonNode {
+    match node {
+        TraceNode::Workflow { id, children } => TraceJsonNode::Workflow {
+            id: id.0.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::Action { id, children } => TraceJsonNode::Action {
+            id: id.0.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::External(e) => TraceJsonNode::ExternalAction {
+            owner: e.owner.clone(),
+            repo: e.repo.clone(),
+            subpath: e.subpath.clone(),
+            gitref: e.gitref.clone(),
+        },
+        TraceNode::ExternalWorkflow {
+            owner,
+            repo,
+            path,
+            gitref,
+        } => TraceJsonNode::ExternalWorkflow {
+            owner: owner.clone(),
+            repo: repo.clone(),
+            path: path.clone(),
+            gitref: gitref.clone(),
+        },
+        TraceNode::Docker(d) => TraceJsonNode::Docker {
+            image: d.display_str(),
+        },
+        TraceNode::Annotated {
+            verb,
+            dangling,
+            label,
+            children,
+        } => TraceJsonNode::Annotated {
+            verb: *verb,
+            dangling: *dangling,
+            label: label.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::Cycle(target) => {
+            let (target_kind, target) = match target {
+                CycleTarget::Workflow(id) => ("workflow", id.0.clone()),
+                CycleTarget::Action(id) => ("action", id.0.clone()),
+            };
+            TraceJsonNode::Cycle {
+                target_kind,
+                target,
+            }
+        }
+        TraceNode::Guarded { if_expr, inner } => TraceJsonNode::Guarded {
+            if_expr: if_expr.clone(),
+            inner: Box::new(trace_json_node(inner)),
+        },
+    }
 }
 
 impl TriggerMatch {
@@ -131,7 +284,7 @@ impl TriggerMatch {
                 Some(format!("types: {} (default)", values.join(", ")))
             }
             TriggerTypesDisplay::ImplicitAll => {
-                if self.event.allowed_activity_types().is_some() {
+                if self.event.supports_activity_types() {
                     Some("types: any".to_string())
                 } else {
                     None
@@ -505,6 +658,16 @@ mod tests {
         };
         assert_eq!(
             implicit_all_issues.sub_line_text(),
+            Some("types: any".to_string()),
+        );
+
+        // ImplicitAll on repository_dispatch (custom event_type values)
+        let implicit_all_repository_dispatch = TriggerMatch {
+            event: EventKind::RepositoryDispatch,
+            types: TriggerTypesDisplay::ImplicitAll,
+        };
+        assert_eq!(
+            implicit_all_repository_dispatch.sub_line_text(),
             Some("types: any".to_string()),
         );
 

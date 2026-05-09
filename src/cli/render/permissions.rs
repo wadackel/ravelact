@@ -1,27 +1,51 @@
 use crate::cache;
 use crate::check_permissions;
+use crate::markdown;
 use crate::ui::{Severity, Status, Ui};
 use anyhow::Result;
 use globset::GlobSet;
 
-use crate::cli::{build_or_load, unsupported_markdown_error, OutputFormat};
+use crate::cli::{build_or_load, ReportFormat};
 use crate::ui;
 
 pub(in crate::cli) fn run(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<i32> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let findings = check_permissions::check(&ir);
     match format {
-        OutputFormat::Markdown => return Err(unsupported_markdown_error()),
-        OutputFormat::Json => {
+        ReportFormat::Markdown => {
+            println!("### Permissions");
+            println!();
+            if findings.is_empty() {
+                println!("No findings.");
+            } else {
+                println!(
+                    "{} found.",
+                    ui::plural(findings.len(), "finding", "findings")
+                );
+                println!();
+                println!("| Severity | Kind | Location | Message |");
+                println!("|---|---|---|---|");
+                for f in &findings {
+                    println!(
+                        "| `{}` | `{}` | {} | {} |",
+                        severity_label(f.severity),
+                        kind_label(&f.kind),
+                        markdown::code_cell(&location(&f.location, root, ui)),
+                        markdown::table_cell(&f.message)
+                    );
+                }
+            }
+        }
+        ReportFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&findings)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             if findings.is_empty() {
                 println!(
                     "{}",
@@ -62,6 +86,13 @@ pub(in crate::cli) fn run(
         }
     }
     Ok(if findings.is_empty() { 0 } else { 1 })
+}
+
+fn severity_label(severity: check_permissions::Severity) -> &'static str {
+    match severity {
+        check_permissions::Severity::High => "high",
+        check_permissions::Severity::Medium => "medium",
+    }
 }
 
 fn severity_for(severity: check_permissions::Severity) -> Severity {

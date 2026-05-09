@@ -250,23 +250,24 @@ The following flags are global and apply to every subcommand:
 
 ### Output format matrix
 
-The shared `--format` flag is opt-in per command. `text` renders human-readable output; `json` emits machine-readable output suitable for `jq`; `markdown` (where supported) emits a self-contained `### <Section>` heading plus a Markdown table — ready to drop into a PR comment or GitHub Job Summary.
+The `--format` flag is opt-in per command. Most report commands accept `text|json|markdown`; `trace` uses command-specific formats (`tree|table|json|markdown`); `graph` emits Mermaid as `text|markdown`. `text`, `tree`, and `table` render human-readable output; `json` emits machine-readable output suitable for `jq`; `markdown` emits a self-contained `### <Section>` heading plus a Markdown table or Mermaid block — ready to drop into a PR comment or GitHub Job Summary.
 
-| Command | text | json | markdown | Notes |
-|---|:-:|:-:|:-:|---|
-| `trace` | ✓ | — | — | Uses `--view tree\|table` instead (rendering style, not serialization). |
-| `triggers` | ✓ | — | — | Fixed text table; no `--format` flag. |
-| `callers` | ✓ | ✓ | — | `--format markdown` is rejected. |
-| `impact` | ✓ | ✓ | ✓ | |
-| `orphans` | ✓ | ✓ | ✓ | |
-| `permissions` | ✓ | ✓ | — | |
-| `secrets` | ✓ | ✓ | — | |
-| `wiring` | ✓ | ✓ | — | |
-| `extract` | ✓ | ✓ | ✓ | |
-| `dedup` | ✓ | ✓ | ✓ | |
-| `graph` | ✓ | — | ✓ | `--format json` is rejected — use `dump` for IR JSON. |
-| `dump` | (fixed JSON) | — | — | No `--format` flag. |
-| `build` | (fixed text) | — | — | No `--format` flag. |
+| Command | Formats | Notes |
+|---|---|---|
+| `trace` | `tree`, `table`, `json`, `markdown` | Default `tree`; `--ascii` affects `tree` only. |
+| `triggers` | `text`, `json`, `markdown` | |
+| `callers` | `text`, `json`, `markdown` | |
+| `impact` | `text`, `json`, `markdown` | |
+| `orphans` | `text`, `json`, `markdown` | |
+| `permissions` | `text`, `json`, `markdown` | Exits `1` when findings exist. |
+| `secrets` | `text`, `json`, `markdown` | Exits `1` when findings exist. |
+| `wiring` | `text`, `json`, `markdown` | Exits `1` when findings exist. |
+| `extract` | `text`, `json`, `markdown` | |
+| `dedup` | `text`, `json`, `markdown` | |
+| `graph` | `text`, `markdown` | Use `dump` for IR JSON. |
+| `dump` | fixed JSON | No `--format` flag. |
+| `build` | fixed text | No `--format` flag. |
+| `completion` | shell snippet | No `--format` flag. |
 
 Human `text` output uses compact status lines such as `impact  no impacted targets` and `dedup  no near-duplicate clusters  (threshold=0.80)` for empty states — when present, the parens-wrapped trailing segment is the run summary (counts, descriptors). Markdown-capable reports keep the longer "No … found" prose for PR comments and GitHub Job Summaries.
 
@@ -274,13 +275,13 @@ Human `text` output uses compact status lines such as `impact  no impacted targe
 
 #### `trace <event>`
 
-Forward walk from a trigger (`push`, `pull_request`, `workflow_dispatch`, `schedule`, `workflow_run`, …). `--view tree|table` chooses the rendering style; `--ascii` falls back to ASCII border characters for terminals that mangle Unicode.
+Forward walk from a trigger (`push`, `pull_request`, `workflow_dispatch`, `schedule`, `workflow_run`, …). `--format tree|table|json|markdown` chooses the output; `--ascii` falls back to ASCII border characters for terminals that mangle Unicode in `tree` output.
 
 When you do not know which trigger event to inspect, run `ravelact triggers` first to list the events declared in the repository.
 
 ```sh
 ravelact trace push
-ravelact trace push --view table
+ravelact trace push --format table
 ravelact trace pull_request --type opened --branch main
 ```
 
@@ -329,13 +330,15 @@ dep  kind    edge   target                                       note
 2    ext-wf  uses   acme/shared/.github/workflows/deploy.yml@v1  -
 ```
 
-In `--view table`, the same trigger metadata is embedded in the entry row's `note` column — for example `entry, types: labeled, opened` for an `issues:` workflow with explicit types — so grep workflows that scan the table stay self-contained.
+In `--format table`, the same trigger metadata is embedded in the entry row's `note` column — for example `entry, types: labeled, opened` for an `issues:` workflow with explicit types — so grep workflows that scan the table stay self-contained.
 
 <details>
 <summary>Notes &amp; rendering details</summary>
 
-- **Default view**: `--view tree` renders a Unicode rounded box-drawing tree with the trigger event as a synthetic root (`╭─ <event>   (<summary>)`) and every entry workflow hanging beneath it via `├─→ ` / `╰─→ ` (branch connectors) and `│` (vertical guides), plus a colored `[kind]` tag column on the right (`[wf]` cyan, `[ext-wf]` magenta, `[ac]` cyan, `[ext-ac]` magenta, `[docker]` yellow, `[ann]` cyan, `[cyc]` red). Top-level entry workflows are separated by a single `│` spacer line for breathing room; deeper rows flow tightly to keep related items visually grouped. Step-level `if:` conditions render as a `╰─ if: <expr>` synthetic child line under the guarded step, so multi-line block-scalar guards stay readable without breaking the grid. Pass `--ascii` to fall back to `+- ` / `|-> ` / `\-> ` / `|`.
-- **`--view table`**: emits a lightweight 5-column table (`dep / kind / edge / target / note`) suitable for grep, CI logs, and audit diffs. KIND values: `wf` (workflow), `ac` (local action — composite / JavaScript / Docker), `ext-ac` (external action), `ext-wf` (external reusable workflow), `docker` (Docker action ref — `uses: docker://...`), `ann` (annotation edge), `cyc` (cycle guard). Annotation edges (`# ravelact:dispatches` / `triggers`) appear as `ann` rows whose `edge` column carries the verb; the resolved target workflow then appears on the next row as a separate `wf` entry.
+- **Default format**: `--format tree` renders a Unicode rounded box-drawing tree with the trigger event as a synthetic root (`╭─ <event>   (<summary>)`) and every entry workflow hanging beneath it via `├─→ ` / `╰─→ ` (branch connectors) and `│` (vertical guides), plus a colored `[kind]` tag column on the right (`[wf]` cyan, `[ext-wf]` magenta, `[ac]` cyan, `[ext-ac]` magenta, `[docker]` yellow, `[ann]` cyan, `[cyc]` red). Top-level entry workflows are separated by a single `│` spacer line for breathing room; deeper rows flow tightly to keep related items visually grouped. Step-level `if:` conditions render as a `╰─ if: <expr>` synthetic child line under the guarded step, so multi-line block-scalar guards stay readable without breaking the grid. Pass `--ascii` to fall back to `+- ` / `|-> ` / `\-> ` / `|`.
+- **`--format table`**: emits a lightweight 5-column table (`dep / kind / edge / target / note`) suitable for grep, CI logs, and audit diffs. KIND values: `wf` (workflow), `ac` (local action — composite / JavaScript / Docker), `ext-ac` (external action), `ext-wf` (external reusable workflow), `docker` (Docker action ref — `uses: docker://...`), `ann` (annotation edge), `cyc` (cycle guard). Annotation edges (`# ravelact:dispatches` / `triggers`) appear as `ann` rows whose `edge` column carries the verb; the resolved target workflow then appears on the next row as a separate `wf` entry.
+- **`--format json`**: emits structured trace entries for machine consumers.
+- **`--format markdown`**: emits a `### Trace` heading plus the same trace rows as a Markdown table.
 - **Empty result**: when no entry-point workflow matches the requested `<event>`, both `tree` and `table` print the same status header (e.g. `trace schedule  no entry-point matches  (filters=none)`, with a `types=[...]` summary entry when `--type` is set).
 - **`--type <name>`**: filters entry-points whose `types:` declaration includes the listed activity (OR semantics across repeats). When omitted, `pull_request` / `pull_request_target` workflows that omit `types:` still match the GitHub default subset (`opened` / `synchronize` / `reopened`). `repository_dispatch.types` (custom `event_type` values) is matched the same way.
 - **Ref / path filters**: `--branch <name>`, `--tag <name>`, and `--path <pattern>` (each repeatable) further narrow the result by the trigger's `branches:` / `branches-ignore:` / `tags:` / `tags-ignore:` / `paths:` / `paths-ignore:` filter fields. A trigger that omits a filter is treated as "fires for all values" (matches GitHub Actions behaviour). Repeating a flag is **OR within** that filter; combining different flags is **AND across** filter types. Each `--path X` is interpreted as the **single-file changeset of `X`** — so a workflow with `paths-ignore: [docs/**]` rejects `--path docs/x.md` but accepts `--path src/foo.rs`. Pattern syntax follows the [globset crate's][globset] glob subset; `*`, `**`, `[abc]`, and the leading `!` negation behave per the GitHub [Filter pattern cheat sheet][gha-filter-cheat-sheet], while `?` is treated as exactly one character (vs. GHA's zero-or-one) and the GHA-only `+` quantifier is unsupported. Patterns globset cannot compile print a warning to stderr and are treated as non-matching.
@@ -344,7 +347,7 @@ In `--view table`, the same trigger metadata is embedded in the entry row's `not
 
 #### `triggers`
 
-Summarize trigger events declared across `.github/workflows/*.{yml,yaml}`. This is a discovery command for large workflow estates where you may not know whether to start with `trace push`, `trace pull_request`, `trace schedule`, or another event.
+Summarize trigger events declared across `.github/workflows/*.{yml,yaml}`. This is a discovery command for large workflow estates where you may not know whether to start with `trace push`, `trace pull_request`, `trace schedule`, or another event. Use `--format json` for automation or `--format markdown` for PR comments.
 
 ```sh
 ravelact triggers
@@ -690,7 +693,7 @@ wf_1 --> extwf_0
 
 Paste the resulting Mermaid into a renderer (mermaid.live, GitHub Flavored Markdown ` ```mermaid ` block, etc.) to visualise the call graph.
 
-`--format text` (default) emits raw Mermaid suitable for `> graph.mmd` or for piping into a renderer. `--format markdown` wraps the same Mermaid in a `### Graph` heading + fenced ` ```mermaid ` block, ready to drop into a PR comment or GitHub Job Summary (GitHub renders ` ```mermaid ` blocks natively). `--format json` is rejected — use `dump` for IR JSON instead. When `--event <event>` matches no entry-points, the Markdown output still emits the fenced block; the body is a `%% (no entry-point matches event <event>)` diagnostic comment.
+`--format text` (default) emits raw Mermaid suitable for `> graph.mmd` or for piping into a renderer. `--format markdown` wraps the same Mermaid in a `### Graph` heading + fenced ` ```mermaid ` block, ready to drop into a PR comment or GitHub Job Summary (GitHub renders ` ```mermaid ` blocks natively). Use `dump` for IR JSON. When `--event <event>` matches no entry-points, the Markdown output still emits the fenced block; the body is a `%% (no entry-point matches event <event>)` diagnostic comment.
 
 ### Build & cache
 
@@ -737,7 +740,7 @@ The cache is keyed by an internal `SCHEMA_VERSION`; schema-changing releases reb
 
 ### Shell completion
 
-`ravelact` ships dynamic shell completion for **bash**, **zsh**, and **fish** via [`clap_complete`](https://crates.io/crates/clap_complete)'s `unstable-dynamic` mode. Completion includes subcommand names, flags, `ValueEnum` choices (`--format text|json|markdown`, `--view tree|table`), known trigger event names (`push`, `pull_request`, `workflow_dispatch`, …), and workflow / local-action paths under `.github/workflows/` and `.github/actions/` (rooted at `--root` if given, otherwise the current directory).
+`ravelact` ships dynamic shell completion for **bash**, **zsh**, and **fish** via [`clap_complete`](https://crates.io/crates/clap_complete)'s `unstable-dynamic` mode. Completion includes subcommand names, flags, `ValueEnum` choices (`--format text|json|markdown` for reports, `--format tree|table|json|markdown` for `trace`, `--format text|markdown` for `graph`), known trigger event names (`push`, `pull_request`, `workflow_dispatch`, …), and workflow / local-action paths under `.github/workflows/` and `.github/actions/` (rooted at `--root` if given, otherwise the current directory).
 
 > [!NOTE]
 > Empty-prefix completion intentionally omits flag candidates — type a leading `-` to surface them.

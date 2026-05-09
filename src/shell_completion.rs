@@ -6,7 +6,7 @@
 //!
 //! Ported 1:1 from the `ofsht` project (https://github.com/wadackel/ofsht/blob/main/src/shell_completion.rs)
 //! with the inline test module adapted to ravelact's `Cli` (no top-level global `ValueEnum`,
-//! so the `option-value` regression test exercises `trace --view` instead of `--color`).
+//! so the `option-value` regression test exercises `trace --format` instead of `--color`).
 
 use std::ffi::{OsStr, OsString};
 use std::io::{self, Write};
@@ -452,7 +452,7 @@ mod tests {
         FilteredFish
             .write_complete(
                 &mut cmd,
-                args(&["ravelact", "trace", "push", "--view", ""]),
+                args(&["ravelact", "trace", "push", "--format", ""]),
                 None,
                 &mut out,
             )
@@ -496,8 +496,9 @@ mod tests {
         assert_eq!(escape_zsh_help("a\\b"), "a\\\\b");
     }
 
-    /// Option value completion path must not be affected by the filter — `--view` takes
-    /// a `ValueEnum` (`tree`/`table`); none of them start with `-`.
+    /// Option value completion path must not be affected by the filter — trace
+    /// `--format` takes a `ValueEnum` (`tree`/`table`/`json`/`markdown`);
+    /// none of them start with `-`.
     /// ravelact analog of ofsht's `--color` regression test.
     #[test]
     #[serial]
@@ -505,7 +506,7 @@ mod tests {
         let mut cmd = Cli::command();
         let result = filtered_candidates(
             &mut cmd,
-            args(&["ravelact", "trace", "push", "--view", ""]),
+            args(&["ravelact", "trace", "push", "--format", ""]),
             4,
             None,
         )

@@ -1,4 +1,5 @@
 use crate::ir::{AnnotationVerb, ExternalActionRef};
+use crate::markdown;
 use crate::query::trace::{CycleTarget, TraceEntry, TraceNode};
 use crate::ui::{KindTag, Ui};
 use unicode_width::UnicodeWidthStr;
@@ -12,7 +13,7 @@ pub struct TreeStyle {
 }
 
 /// Optional event-grouping header injected as the synthetic root of the tree.
-/// When `cmd_trace` runs in `--view tree`, the trigger event is hoisted from
+/// When `cmd_trace` runs in tree format, the trigger event is hoisted from
 /// the status header into the tree itself so each entry workflow visibly hangs
 /// off the event that triggered it. Pass `None` to render roots side by side
 /// (used by unit tests that exercise the connector mechanics in isolation).
@@ -407,8 +408,31 @@ fn verb_str(v: AnnotationVerb) -> &'static str {
 /// lowercase hyphenated identifiers (`wf` / `ac` / `ext-ac` / `ext-wf` /
 /// `docker` / `ann` / `cyc`) matching the bracket tags used in the tree view.
 pub fn render_table(entries: &[TraceEntry], _unicode: bool) -> String {
-    let mut rows = Vec::new();
+    let rows = table_rows(entries);
+    render_rows(&["dep", "kind", "edge", "target", "note"], &rows)
+}
 
+pub fn render_markdown_table(entries: &[TraceEntry]) -> String {
+    let rows = table_rows(entries);
+    let headers = ["Dep", "Kind", "Edge", "Target", "Note"];
+    let mut out = String::new();
+    out.push_str("| Dep | Kind | Edge | Target | Note |\n");
+    out.push_str("|---:|---|---|---|---|\n");
+    for row in rows {
+        debug_assert_eq!(row.len(), headers.len());
+        out.push('|');
+        for cell in row {
+            out.push(' ');
+            out.push_str(&markdown::table_cell(&cell));
+            out.push_str(" |");
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn table_rows(entries: &[TraceEntry]) -> Vec<Vec<String>> {
+    let mut rows = Vec::new();
     for entry in entries {
         let entry_row_idx = rows.len();
         walk_table(&entry.root, 0, &mut rows);
@@ -423,8 +447,7 @@ pub fn render_table(entries: &[TraceEntry], _unicode: bool) -> String {
             }
         }
     }
-
-    render_rows(&["dep", "kind", "edge", "target", "note"], &rows)
+    rows
 }
 
 fn walk_table(node: &TraceNode, depth: usize, rows: &mut Vec<Vec<String>>) {

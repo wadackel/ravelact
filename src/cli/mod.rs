@@ -2,6 +2,7 @@ use crate::cache;
 use crate::ir::{
     ActionKind, DanglingLocalUsesKind, EventKind, Ir, ParseDiagnostic, WiringFinding, WiringKind,
 };
+use crate::markdown;
 use crate::query::{self, impact::ImpactResult, trace_render::TreeStyle};
 use crate::ui::{self, ColorMode, Status, Ui};
 use anyhow::{Context, Result};
@@ -128,14 +129,13 @@ pub enum Command {
         /// filter, interpreted as a single-file changeset. Repeatable.
         #[arg(long = "path")]
         paths: Vec<String>,
-        /// Rendering style. `tree` (default) renders a Unicode box-drawing tree
-        /// suitable for human inspection; `table` renders a 5-column audit
-        /// table (`DEP / KIND / EDGE / TARGET / NOTE`) suitable for grep and
-        /// CI logs.
-        #[arg(long, value_enum, default_value_t = TraceView::Tree)]
-        view: TraceView,
+        /// Output format. `tree` (default) renders a Unicode box-drawing tree;
+        /// `table` renders a 5-column audit table; `json` emits structured
+        /// trace nodes; `markdown` emits a PR-comment-friendly table.
+        #[arg(long, value_enum, default_value_t = TraceFormat::Tree)]
+        format: TraceFormat,
         /// Use ASCII fallback border characters instead of Unicode. Affects
-        /// the `tree` borders only (`├──` → `|--`); the `table` view is
+        /// the `tree` borders only (`├──` → `|--`); the `table` format is
         /// always plain regardless of this flag. Color output is independently
         /// controlled by `NO_COLOR` and TTY detection.
         #[arg(long, default_value_t = false)]
@@ -143,7 +143,13 @@ pub enum Command {
     },
 
     /// Summarize trigger events declared across workflows.
-    Triggers,
+    Triggers {
+        /// Output format. `text` (default) renders a fixed table; `json`
+        /// emits structured summary rows; `markdown` emits a PR-comment-ready
+        /// table.
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
+    },
 
     /// List call sites that reference the given workflow / action.
     Callers {
@@ -159,8 +165,8 @@ pub enum Command {
         /// `file:job:index` with a `# <target>` header per input; `json`
         /// emits an array of `{target, hits}` objects (one entry per input,
         /// preserving order; empty hits are not filtered).
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Reverse impact analysis: given a list of changed files, list the
@@ -179,8 +185,8 @@ pub enum Command {
         files: Vec<String>,
         /// Output format. `text` (default) renders a line-based human-readable
         /// list; `json` emits a machine-readable object suitable for jq.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Report declared-but-unused items across the workflow estate. Emits four
@@ -194,8 +200,8 @@ pub enum Command {
         /// kind (`local-action-<kind>` rows for actions); `json` emits an
         /// object with four keys: `workflows`, `actions`,
         /// `unreferenced_inputs`, `unused_outputs`.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Verify that declared dependency edges resolve and that observable
@@ -206,8 +212,8 @@ pub enum Command {
     Wiring {
         /// Output format. `text` (default) renders findings as
         /// `file:line: message`; `json` emits a JSON array of structured findings.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Compute the effective `permissions:` scope across caller→callee
@@ -218,8 +224,8 @@ pub enum Command {
     Permissions {
         /// Output format. `text` (default) renders human-readable findings;
         /// `json` emits a JSON array on stdout.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Trace `secrets:` propagation across entry-point → reusable workflow
@@ -230,8 +236,8 @@ pub enum Command {
     Secrets {
         /// Output format. `text` (default) renders human-readable findings;
         /// `json` emits a JSON array on stdout.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Detect duplicated step sequences across workflows / composite actions
@@ -246,8 +252,8 @@ pub enum Command {
         min_occurrences: usize,
         /// Output format. `text` (default) renders the candidate sketches as
         /// human-readable blocks; `json` emits a JSON array on stdout.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Cluster near-duplicate workflows by structural + run-script similarity.
@@ -262,8 +268,8 @@ pub enum Command {
 
         /// Output format. `text` (default) renders cluster blocks; `json`
         /// emits a JSON array on stdout.
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
+        format: ReportFormat,
     },
 
     /// Print the IR as JSON.
@@ -291,9 +297,8 @@ pub enum Command {
         /// Output format. `text` (default) emits raw Mermaid; `markdown`
         /// wraps the Mermaid in a `### Graph` heading + fenced ```mermaid
         /// block for inline embedding in PR comments / GitHub Job Summaries.
-        /// `json` is not supported (use `dump` for IR JSON).
-        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
-        format: OutputFormat,
+        #[arg(long, value_enum, default_value_t = GraphFormat::Text)]
+        format: GraphFormat,
     },
 
     /// Generate shell completion setup snippet for bash / zsh / fish.
@@ -307,26 +312,27 @@ pub enum Command {
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]
-pub enum TraceView {
+pub enum TraceFormat {
     #[default]
     Tree,
     Table,
+    Json,
+    Markdown,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]
-pub enum OutputFormat {
+pub enum ReportFormat {
     #[default]
     Text,
     Json,
     Markdown,
 }
 
-/// Shared error for commands that do not support `--format markdown`. Centralised
-/// so the supported-command list stays in one place when it next changes.
-pub(in crate::cli) fn unsupported_markdown_error() -> anyhow::Error {
-    anyhow::anyhow!(
-        "--format markdown is not supported for this command (supported: impact, orphans, extract, dedup, graph)"
-    )
+#[derive(ValueEnum, Clone, Debug, Default)]
+pub enum GraphFormat {
+    #[default]
+    Text,
+    Markdown,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]
@@ -372,19 +378,21 @@ impl Cli {
                 branches,
                 tags,
                 paths,
-                view,
+                format,
                 ascii,
             } => match event {
                 Some(event) => cmd_trace(
-                    root, cache_mode, &excludes, event, types, branches, tags, paths, view, *ascii,
-                    &ui,
+                    root, cache_mode, &excludes, event, types, branches, tags, paths, format,
+                    *ascii, &ui,
                 )
                 .map(|_| 0),
                 None => Err(anyhow::anyhow!(
                     "`trace` requires a trigger event\n\nTry `ravelact triggers` to list trigger events found in this repository.\nThen run `ravelact trace <event>`, for example `ravelact trace push`."
                 )),
             },
-            Command::Triggers => cmd_triggers(root, cache_mode, &excludes, &ui).map(|_| 0),
+            Command::Triggers { format } => {
+                cmd_triggers(root, cache_mode, &excludes, format, &ui).map(|_| 0)
+            }
             Command::Callers { targets, format } => {
                 render::callers::run(root, cache_mode, &excludes, targets, format, &ui).map(|_| 0)
             }
@@ -711,14 +719,14 @@ fn cmd_graph(
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     event: Option<&str>,
-    format: &OutputFormat,
+    format: &GraphFormat,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     match format {
-        OutputFormat::Text => {
+        GraphFormat::Text => {
             print!("{}", query::mermaid::render(&ir, event));
         }
-        OutputFormat::Markdown => {
+        GraphFormat::Markdown => {
             println!("### Graph");
             println!();
             println!("```mermaid");
@@ -727,11 +735,6 @@ fn cmd_graph(
             // separated by exactly one newline.
             print!("{}", query::mermaid::render(&ir, event));
             println!("```");
-        }
-        OutputFormat::Json => {
-            return Err(anyhow::anyhow!(
-                "--format json is not supported for graph (graph emits Mermaid; use --format markdown to wrap in a fenced code block, or `dump` for IR JSON)"
-            ));
         }
     }
     Ok(())
@@ -753,61 +756,101 @@ fn cmd_triggers(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let rows = query::triggers::triggers(&ir);
-    if rows.is_empty() {
-        println!(
-            "{}",
-            ui.status_header("triggers", Status::Clean, "no trigger declarations", &[])
-        );
-        return Ok(());
-    }
+    match format {
+        ReportFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&rows)?);
+        }
+        ReportFormat::Markdown => {
+            println!("### Triggers");
+            println!();
+            if rows.is_empty() {
+                println!("No trigger declarations found.");
+            } else {
+                println!(
+                    "{} found.",
+                    ui::plural(rows.len(), "trigger event", "trigger events")
+                );
+                println!();
+                println!(
+                    "| Event | Entry workflows | Declarations | Typed | Filtered | Examples |"
+                );
+                println!("|---|---:|---:|---:|---:|---|");
+                for row in rows {
+                    println!(
+                        "| {} | {} | {} | {} | {} | {} |",
+                        markdown::code_cell(&row.event),
+                        row.entry_workflows,
+                        row.declarations,
+                        row.typed,
+                        row.filtered,
+                        row.examples
+                            .iter()
+                            .map(|example| markdown::code_cell(example))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    );
+                }
+            }
+        }
+        ReportFormat::Text => {
+            if rows.is_empty() {
+                println!(
+                    "{}",
+                    ui.status_header("triggers", Status::Clean, "no trigger declarations", &[])
+                );
+                return Ok(());
+            }
 
-    let total_declarations: usize = rows.iter().map(|row| row.declarations).sum();
-    let summary = vec![ui::plural(
-        total_declarations,
-        "trigger declaration",
-        "trigger declarations",
-    )];
-    println!(
-        "{}",
-        ui.status_header(
-            "triggers",
-            Status::Found,
-            ui::plural(rows.len(), "trigger event", "trigger events"),
-            &summary,
-        )
-    );
-    println!();
-    let table_rows: Vec<Vec<String>> = rows
-        .into_iter()
-        .map(|row| {
-            vec![
-                row.event,
-                row.entry_workflows.to_string(),
-                row.declarations.to_string(),
-                row.typed.to_string(),
-                row.filtered.to_string(),
-                row.examples.join(", "),
-            ]
-        })
-        .collect();
-    print!(
-        "{}",
-        ui.table(
-            &[
-                "event",
-                "entry workflows",
-                "declarations",
-                "typed",
-                "filtered",
-                "examples",
-            ],
-            &table_rows,
-        )
-    );
+            let total_declarations: usize = rows.iter().map(|row| row.declarations).sum();
+            let summary = vec![ui::plural(
+                total_declarations,
+                "trigger declaration",
+                "trigger declarations",
+            )];
+            println!(
+                "{}",
+                ui.status_header(
+                    "triggers",
+                    Status::Found,
+                    ui::plural(rows.len(), "trigger event", "trigger events"),
+                    &summary,
+                )
+            );
+            println!();
+            let table_rows: Vec<Vec<String>> = rows
+                .into_iter()
+                .map(|row| {
+                    vec![
+                        row.event,
+                        row.entry_workflows.to_string(),
+                        row.declarations.to_string(),
+                        row.typed.to_string(),
+                        row.filtered.to_string(),
+                        row.examples.join(", "),
+                    ]
+                })
+                .collect();
+            print!(
+                "{}",
+                ui.table(
+                    &[
+                        "event",
+                        "entry workflows",
+                        "declarations",
+                        "typed",
+                        "filtered",
+                        "examples",
+                    ],
+                    &table_rows,
+                )
+            );
+        }
+    }
     Ok(())
 }
 
@@ -821,7 +864,7 @@ fn cmd_trace(
     branches: &[String],
     tags: &[String],
     paths: &[String],
-    view: &TraceView,
+    format: &TraceFormat,
     ascii: bool,
     ui: &Ui,
 ) -> Result<()> {
@@ -830,19 +873,38 @@ fn cmd_trace(
         query::trace::trace(&ir, event, types, branches, tags, paths);
     let metadata = trace_filter_metadata(types, branches, tags, paths);
     let command = format!("trace {event}");
-    if entries.is_empty() {
-        println!(
-            "{}",
-            ui.status_header(&command, Status::Clean, "no entry-point matches", &metadata)
-        );
-        return Ok(());
-    }
     let unicode = !ascii;
-    let entry_count = ui::plural(entries.len(), "entry workflow", "entry workflows");
-    match view {
-        TraceView::Tree => {
+    match format {
+        TraceFormat::Json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&query::trace::trace_json_entries(&entries))?
+            );
+        }
+        TraceFormat::Markdown => {
+            println!("### Trace");
+            println!();
+            if entries.is_empty() {
+                println!("No entry-point matches found for `{event}`.");
+            } else {
+                println!(
+                    "{} found for `{event}`.",
+                    ui::plural(entries.len(), "entry workflow", "entry workflows")
+                );
+                println!();
+                print!("{}", query::trace_render::render_markdown_table(&entries));
+            }
+        }
+        TraceFormat::Tree | TraceFormat::Table if entries.is_empty() => {
+            println!(
+                "{}",
+                ui.status_header(&command, Status::Clean, "no entry-point matches", &metadata)
+            );
+        }
+        TraceFormat::Tree => {
             // Tree mode hoists the event + filter metadata into the tree's
             // synthetic root, so the status header carries only the count.
+            let entry_count = ui::plural(entries.len(), "entry workflow", "entry workflows");
             println!(
                 "{}",
                 ui.status_header(&command, Status::Found, entry_count, &[])
@@ -858,9 +920,10 @@ fn cmd_trace(
                 query::trace_render::render_tree(&entries, Some(event_meta), &style, ui)
             );
         }
-        TraceView::Table => {
+        TraceFormat::Table => {
             // Table mode keeps filter metadata in the status header — the
             // 5-column table has no event-row concept.
+            let entry_count = ui::plural(entries.len(), "entry workflow", "entry workflows");
             println!(
                 "{}",
                 ui.status_header(&command, Status::Found, entry_count, &metadata)
@@ -902,7 +965,7 @@ fn cmd_impact(
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     files: &[String],
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let inputs = stdin_input::collect(files)?;
@@ -914,7 +977,7 @@ fn cmd_impact(
     }
 
     match format {
-        OutputFormat::Markdown => {
+        ReportFormat::Markdown => {
             println!("### Impact");
             println!();
             if workflows.is_empty() && actions.is_empty() {
@@ -938,7 +1001,7 @@ fn cmd_impact(
                 }
             }
         }
-        OutputFormat::Json => {
+        ReportFormat::Json => {
             let actions_json: Vec<serde_json::Value> = actions
                 .iter()
                 .map(|(id, kind)| {
@@ -954,7 +1017,7 @@ fn cmd_impact(
             });
             println!("{}", serde_json::to_string_pretty(&payload)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             if workflows.is_empty() && actions.is_empty() {
                 println!(
                     "{}",
@@ -1009,16 +1072,40 @@ fn cmd_wiring(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<i32> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let findings = query::wiring(&ir);
     match format {
-        OutputFormat::Json => {
+        ReportFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&findings)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Markdown => {
+            println!("### Wiring");
+            println!();
+            if findings.is_empty() {
+                println!("No findings.");
+            } else {
+                println!(
+                    "{} found.",
+                    ui::plural(findings.len(), "finding", "findings")
+                );
+                println!();
+                println!("| Kind | Location | Message |");
+                println!("|---|---|---|");
+                for f in &findings {
+                    let location = format!("{}:{}", ui.path(root, &f.file), f.line);
+                    println!(
+                        "| `{}` | {} | {} |",
+                        wiring_kind_label(&f.kind),
+                        markdown::code_cell(&location),
+                        markdown::table_cell(&wiring_message(f))
+                    );
+                }
+            }
+        }
+        ReportFormat::Text => {
             if findings.is_empty() {
                 println!(
                     "{}",
@@ -1050,7 +1137,6 @@ fn cmd_wiring(
                 }
             }
         }
-        OutputFormat::Markdown => return Err(unsupported_markdown_error()),
     }
     Ok(if findings.is_empty() { 0 } else { 1 })
 }
@@ -1155,13 +1241,13 @@ mod tests {
         assert_eq!(cli.exclude, vec!["tests/fixtures/**"]);
         assert!(matches!(cli.color, ColorChoice::Never));
         match cli.command {
-            Command::Orphans { format } => assert!(matches!(format, OutputFormat::Json)),
+            Command::Orphans { format } => assert!(matches!(format, ReportFormat::Json)),
             other => panic!("expected orphans command, got {other:?}"),
         }
     }
 
     #[test]
-    fn cli_parses_trace_filters_view_and_ascii_flag() {
+    fn cli_parses_trace_filters_format_and_ascii_flag() {
         let cli = Cli::try_parse_from([
             "ravelact",
             "trace",
@@ -1174,7 +1260,7 @@ mod tests {
             "v*",
             "--path",
             "src/lib.rs",
-            "--view",
+            "--format",
             "table",
             "--ascii",
         ])
@@ -1187,7 +1273,7 @@ mod tests {
                 branches,
                 tags,
                 paths,
-                view,
+                format,
                 ascii,
             } => {
                 assert_eq!(event.as_deref(), Some("pull_request"));
@@ -1195,11 +1281,22 @@ mod tests {
                 assert_eq!(branches, vec!["main"]);
                 assert_eq!(tags, vec!["v*"]);
                 assert_eq!(paths, vec!["src/lib.rs"]);
-                assert!(matches!(view, TraceView::Table));
+                assert!(matches!(format, TraceFormat::Table));
                 assert!(ascii);
             }
             other => panic!("expected trace command, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn cli_rejects_removed_trace_view_flag() {
+        let err = Cli::try_parse_from(["ravelact", "trace", "push", "--view", "table"])
+            .expect_err("trace --view must be removed");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("unexpected argument '--view'"),
+            "expected unknown --view error, got: {msg}"
+        );
     }
 
     #[test]
@@ -1291,10 +1388,7 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_markdown_and_completion_errors_name_supported_commands() {
-        let markdown = unsupported_markdown_error().to_string();
-        assert!(markdown.contains("supported: impact, orphans, extract, dedup, graph"));
-
+    fn completion_errors_name_supported_commands() {
         let completion = cmd_completion("powershell").expect_err("invalid shell must fail");
         assert!(
             completion

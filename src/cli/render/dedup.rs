@@ -4,20 +4,20 @@ use crate::ui::{self, Status, Ui};
 use anyhow::Result;
 use globset::GlobSet;
 
-use crate::cli::{build_or_load, OutputFormat};
+use crate::cli::{build_or_load, ReportFormat};
 
 pub(in crate::cli) fn run(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     threshold: f32,
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let clusters = query::dedup::dedup(&ir, threshold);
     match format {
-        OutputFormat::Markdown => {
+        ReportFormat::Markdown => {
             println!("### Near-duplicate workflows");
             println!();
             if clusters.is_empty() {
@@ -48,10 +48,10 @@ pub(in crate::cli) fn run(
                 }
             }
         }
-        OutputFormat::Json => {
+        ReportFormat::Json => {
             println!("{}", serde_json::to_string_pretty(&clusters)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             if clusters.is_empty() {
                 println!(
                     "{}",
