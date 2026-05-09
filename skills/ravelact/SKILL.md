@@ -6,7 +6,7 @@ description: >-
   trigger discovery, PR-diff impact, orphan detection, permissions/secrets propagation auditing across
   reusable-workflow chains, refactor helpers (composite extraction, near-duplicate
   clusters), and IR export (JSON, Mermaid). Use when working with
-  `.github/workflows/*.yaml` and `action.yaml` files — for PR impact analysis,
+  `.github/workflows/*.{yml,yaml}` and `action.{yml,yaml}` files — for PR impact analysis,
   dependency-graph questions ("who calls this reusable workflow?", "what runs on
   push?"), permissions auditing, or refactoring a large GitHub Actions estate.
   Requires the `ravelact` binary on PATH first.
@@ -61,6 +61,25 @@ the cache automatically).
 ```sh
 ravelact build --root .
 ```
+
+## Operating conventions
+
+- If the user asks for an answer about the current repository, run the relevant
+  `ravelact` command when the binary is available. If they ask for a CI snippet,
+  review comment, dry-run, or plan, return the command sequence without running
+  it.
+- Prefer `--root .` in reusable snippets and CI examples. Omit it only when the
+  current working directory is clearly the repository root.
+- Start executable workflows with `ravelact build --root .` to populate the
+  cache. Use `--no-cache` only when results may be stale after edits, not as the
+  default substitute for `build`.
+- For `impact`, guard empty diffs before invoking the command. Empty stdin is a
+  usage error; it is not a clean "no impacted targets" result.
+- `impact` reports downstream consumers of changed workflows/actions. It does
+  not list the changed input nodes themselves; if the user wants those too,
+  report them separately from the `impact` result.
+- In CI, keep `permissions`, `secrets`, and `wiring` as the merge-gating checks.
+  Put them in separate steps when the user wants clearer failure attribution.
 
 ## Global flags (apply to every subcommand)
 
