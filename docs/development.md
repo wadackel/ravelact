@@ -48,13 +48,13 @@ nix build .#default                       # Nix-built release binary at result/b
 
 Crate publishing runs from `.github/workflows/release.yaml` on `v*` tag pushes only. Manual `workflow_dispatch` runs build the release artifacts but do not publish to crates.io.
 
-The `publish-crate` job uses the GitHub environment named `crates-io`. Maintainers must configure a `CRATES_IO_TOKEN` secret with permission to publish the `ravelact` crate, preferably scoped to that environment. The workflow passes that secret to Cargo as `CARGO_REGISTRY_TOKEN`, verifies that the tag name matches `v<package.version>`, and skips `cargo publish` when the exact crate version already exists on crates.io so release reruns can still upload binary assets. If the `crates-io` environment has required reviewers, reruns still require that approval before the preflight can determine that a version is already published.
+The `publish-crate` job uses the GitHub environment named `crates-io` and crates.io trusted publishing. Maintainers must configure the crate's trusted publisher entry for this repository, workflow, and environment. The workflow authenticates with `rust-lang/crates-io-auth-action`, verifies that the tag name matches `v<package.version>`, and skips `cargo publish` when the exact crate version already exists on crates.io. If the `crates-io` environment has required reviewers, reruns still require that approval before the preflight can determine that a version is already published.
 
-`release-plz` remains responsible for release PRs, tags, and GitHub release orchestration, but it must not publish crates directly. Keep `release-plz.toml` set to `publish = false` and `git_only = true`; crate upload belongs to the tag release workflow so the publish job can use the `crates-io` environment and its token.
+`release-plz` remains responsible for release PRs and tags, but it must not publish crates or create GitHub Releases directly. Keep `release-plz.toml` set to `publish = false`, `git_only = true`, and `git_release_enable = false`; crate publishing and GitHub Release creation belong to the tag release workflow so artifacts can be attached before immutable releases are published.
 
-For the first crates.io release after this workflow lands, create a new release tag rather than rerunning the old `v0.0.1` tag. That tag points at an older commit and will not contain the publish workflow changes.
+For the first crates.io release after this workflow lands, create a new release tag rather than rerunning an old tag. Old tags point at older commits and will not contain the current publishing workflow changes. If an immutable GitHub Release already exists for a tag, create a new tag or resolve the existing release manually; the workflow intentionally refuses to attach assets after publication.
 
-Future migration to crates.io trusted publishing should replace the long-lived token with crates.io trusted publisher configuration plus a SHA-pinned authentication action in `release.yaml`. Re-read the current [crates.io trusted publishing documentation](https://crates.io/docs/trusted-publishing) before making that change; it will require OIDC permissions such as `id-token: write` and should remove the `CRATES_IO_TOKEN` dependency once tokenless publishing is active.
+Re-read the current [crates.io trusted publishing documentation](https://crates.io/docs/trusted-publishing) before changing the publish job; the workflow depends on OIDC permissions such as `id-token: write` and a SHA-pinned authentication action in `release.yaml`.
 
 ## Snapshot tests
 

@@ -1,3 +1,4 @@
 [workspace]
 publish = false   # crate upload is handled by release.yaml
 git_only = true   # detect versions from git tags, not crates.io
+git_release_enable = false # GitHub releases are created by release.yaml after assets are ready
