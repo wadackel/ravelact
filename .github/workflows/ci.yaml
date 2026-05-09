@@ -18,11 +18,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: just format
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: just format
-        run: nix develop --command just format
+          command: just format
       - name: Check formatting diff
         run: git diff --exit-code
 
@@ -31,33 +31,33 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: just lint
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: just lint
-        run: nix develop --command just lint
+          command: just lint
 
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: just test
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: just test
-        run: nix develop --command just test
+          command: just test
 
   actionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: just lint-actions
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: just lint-actions
-        run: nix develop --command just lint-actions
+          command: just lint-actions
 
   skills:
     runs-on: ubuntu-latest
@@ -66,13 +66,13 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
       - name: Build ravelact
+        uses: ./.github/actions/devshell-run
         # check-skill-drift.sh shells out to ./target/debug/ravelact --help
         # to assert subcommand-name parity with SKILL.md.
-        run: nix develop --command cargo build --locked
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: cargo build --locked
       - name: Check skill drift
         run: nix develop --command script/check-skill-drift.sh
       - name: Install gh CLI
@@ -108,11 +108,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: Run coverage
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: Run coverage
-        run: nix develop --command just coverage
+          command: just coverage
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov
@@ -253,11 +253,11 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-nix-devshell
+      - name: Build ravelact
+        uses: ./.github/actions/devshell-run
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-      - name: Build ravelact
-        run: nix develop --command cargo build --locked
+          command: cargo build --locked
       - name: Build ravelact IR
         run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' build
       - name: Check permissions

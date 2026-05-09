@@ -1,0 +1,27 @@
+name: devshell-run
+description: Install Nix, restore the dev-shell cache, and run one command inside `nix develop`.
+inputs:
+  cache-key-prefix:
+    description: Cache key prefix, e.g. nix-ci-Linux.
+    required: true
+  command:
+    description: Command to run inside the Nix dev shell.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/setup-nix-devshell
+      with:
+        cache-key-prefix: ${{ inputs.cache-key-prefix }}
+    - name: Run command
+      shell: bash
+      env:
+        RAVELACT_DEVSHELL_COMMAND: ${{ inputs.command }}
+      run: |
+        set -euo pipefail
+        if [ -z "${RAVELACT_DEVSHELL_COMMAND:-}" ]; then
+          echo "::error::command input is required"
+          exit 1
+        fi
+        printf '+ nix develop --command %s\n' "$RAVELACT_DEVSHELL_COMMAND"
+        nix develop --command bash -euo pipefail -c "$RAVELACT_DEVSHELL_COMMAND"
