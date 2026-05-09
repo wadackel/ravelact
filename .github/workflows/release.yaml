@@ -49,8 +49,77 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  release:
+  publish-crate:
     needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    environment: crates-io
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-publish-crate-${{ runner.os }}
+      - name: Preflight crate publish
+        id: publish-preflight
+        run: |
+          set -euo pipefail
+
+          read -r crate_name crate_version < <(
+            nix develop --command bash -c \
+              'set -euo pipefail; cargo metadata --no-deps --format-version 1 | jq -r ".packages[0] | [.name, .version] | @tsv"'
+          )
+
+          expected_tag="v${crate_version}"
+          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
+            echo "::error::release tag $GITHUB_REF_NAME does not match Cargo package version $crate_version"
+            exit 1
+          fi
+
+          status=$(curl --fail-with-body --retry 3 --retry-delay 2 --retry-all-errors -sS -o /tmp/crates-version.json -w '%{http_code}' \
+            -H "User-Agent: ravelact-release-ci/${crate_version} (https://github.com/wadackel/ravelact)" \
+            "https://crates.io/api/v1/crates/${crate_name}/${crate_version}" || true)
+
+          case "$status" in
+            200)
+              already_published=true
+              ;;
+            404)
+              already_published=false
+              ;;
+            *)
+              echo "::error::unexpected crates.io API status ${status} for ${crate_name} ${crate_version}"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "crate_name=${crate_name}"
+            echo "crate_version=${crate_version}"
+            echo "already_published=${already_published}"
+          } >> "$GITHUB_OUTPUT"
+      - name: Publish crate
+        if: steps.publish-preflight.outputs.already_published != 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo "::error::CRATES_IO_TOKEN is not configured for the crates-io environment"
+            exit 1
+          fi
+          nix develop --command cargo publish --locked
+      - name: Skip already published crate
+        if: steps.publish-preflight.outputs.already_published == 'true'
+        run: |
+          echo "${{ steps.publish-preflight.outputs.crate_name }} ${{ steps.publish-preflight.outputs.crate_version }} is already published on crates.io"
+
+  release:
+    needs:
+      - build
+      - publish-crate
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
