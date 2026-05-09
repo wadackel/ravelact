@@ -2624,6 +2624,75 @@ fn callers_markdown_output() {
     );
 }
 
+#[test]
+fn callers_markdown_no_callers_output() {
+    let tmp = fresh_simple_fixture();
+    let stdout = String::from_utf8(
+        run(
+            tmp.path(),
+            &[
+                "callers",
+                ".github/workflows/missing.yml",
+                "--format",
+                "markdown",
+            ],
+        )
+        .success()
+        .get_output()
+        .stdout
+        .clone(),
+    )
+    .unwrap();
+    assert_eq!(
+        stdout, "### Callers\n\nNo callers found across 1 target.\n",
+        "stdout: {stdout}"
+    );
+}
+
+#[test]
+fn callers_markdown_marks_empty_targets_when_some_targets_have_callers() {
+    let tmp = fresh_simple_fixture();
+    let stdout = String::from_utf8(
+        run_capture_with_stdin(
+            tmp.path(),
+            &["callers", "--format", "markdown"],
+            ".github/workflows/build.yml\n.github/workflows/missing.yml\n",
+        )
+        .success()
+        .get_output()
+        .stdout
+        .clone(),
+    )
+    .unwrap();
+    let build_row = stdout
+        .find("| <code>.github/workflows/build.yml</code> | <code>job-call</code> |")
+        .unwrap_or_else(|| panic!("missing non-empty target caller row: {stdout}"));
+    let missing_row = stdout
+        .find("| <code>.github/workflows/missing.yml</code> | - | - | no callers |")
+        .unwrap_or_else(|| panic!("missing empty target row: {stdout}"));
+    assert!(
+        build_row < missing_row,
+        "markdown rows must preserve input order: {stdout}"
+    );
+}
+
+#[test]
+fn callers_text_no_callers_output() {
+    let tmp = fresh_simple_fixture();
+    let stdout = String::from_utf8(
+        run(tmp.path(), &["callers", ".github/workflows/missing.yml"])
+            .success()
+            .get_output()
+            .stdout
+            .clone(),
+    )
+    .unwrap();
+    assert!(
+        stdout.starts_with("callers  no callers found  (1 targets)\n"),
+        "stdout: {stdout}"
+    );
+}
+
 /// Issue #83: `callers --format text` appends `  (name: "...")` after the
 /// step locator when the step has a `name:` field. Covers Step (named /
 /// unnamed / multi-line) and CompositeStep variants. `Annotated::Step` is
@@ -3044,7 +3113,7 @@ fn callers_reads_multiple_targets_from_stdin_text() {
         run_capture_with_stdin(
             tmp.path(),
             &["callers"],
-            ".github/workflows/build.yml\n.github/actions/setup\n",
+            ".github/workflows/build.yml\n.github/actions/setup\n.github/workflows/missing.yml\n",
         )
         .success()
         .get_output()
@@ -3058,8 +3127,11 @@ fn callers_reads_multiple_targets_from_stdin_text() {
     let h2 = stdout
         .find(".github/actions/setup\n  2 callers\n")
         .unwrap_or_else(|| panic!("missing setup sub-section: {stdout}"));
+    let h3 = stdout
+        .find(".github/workflows/missing.yml\n  no callers\n")
+        .unwrap_or_else(|| panic!("missing no-callers sub-section: {stdout}"));
     assert!(
-        h1 < h2,
+        h1 < h2 && h2 < h3,
         "headers must appear in input order. stdout: {stdout}"
     );
 }
