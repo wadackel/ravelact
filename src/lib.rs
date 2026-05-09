@@ -3,6 +3,7 @@ pub(crate) mod check_permissions;
 pub(crate) mod check_secrets;
 pub mod cli;
 pub mod ir;
+pub(crate) mod markdown;
 pub(crate) mod parser;
 pub mod query;
 pub(crate) mod suggest_extract;

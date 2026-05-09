@@ -462,6 +462,18 @@ impl EventKind {
             _ => None,
         }
     }
+
+    /// Whether the event accepts an `on.<event>.types` filter.
+    ///
+    /// `repository_dispatch` accepts user-defined `event_type` values, so it
+    /// supports `types:` even though [`Self::allowed_activity_types`] returns
+    /// `None` because there is no closed validation set.
+    ///
+    /// Reference: Events that trigger workflows —
+    /// https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#repository_dispatch
+    pub fn supports_activity_types(&self) -> bool {
+        matches!(self, EventKind::RepositoryDispatch) || self.allowed_activity_types().is_some()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -1424,6 +1436,7 @@ mod tests {
         assert!(EventKind::RepositoryDispatch
             .allowed_activity_types()
             .is_none());
+        assert!(EventKind::RepositoryDispatch.supports_activity_types());
     }
 
     #[test]
@@ -1432,6 +1445,8 @@ mod tests {
         assert!(EventKind::WorkflowDispatch
             .allowed_activity_types()
             .is_none());
+        assert!(!EventKind::WorkflowCall.supports_activity_types());
+        assert!(!EventKind::WorkflowDispatch.supports_activity_types());
     }
 
     #[test]

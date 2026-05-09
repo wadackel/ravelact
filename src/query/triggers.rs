@@ -1,7 +1,8 @@
 use crate::ir::Ir;
+use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TriggerSummary {
     pub event: String,
     pub entry_workflows: usize,

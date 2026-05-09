@@ -4,7 +4,7 @@ use crate::ui::{self, Status, Ui};
 use anyhow::Result;
 use globset::GlobSet;
 
-use crate::cli::{build_or_load, OutputFormat};
+use crate::cli::{build_or_load, ReportFormat};
 
 fn extract_metadata(min_length: usize, min_occurrences: usize) -> Vec<String> {
     vec![
@@ -19,13 +19,13 @@ pub(in crate::cli) fn run(
     excludes: &GlobSet,
     min_length: usize,
     min_occurrences: usize,
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let candidates = suggest_extract::find_candidates(&ir, min_length, min_occurrences);
     match format {
-        OutputFormat::Markdown => {
+        ReportFormat::Markdown => {
             println!("### Extract");
             println!();
             if candidates.is_empty() {
@@ -59,10 +59,10 @@ pub(in crate::cli) fn run(
                 }
             }
         }
-        OutputFormat::Json => {
+        ReportFormat::Json => {
             println!("{}", suggest_extract::render_json(&candidates)?);
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             render_text(&candidates, min_length, min_occurrences, ui);
         }
     }

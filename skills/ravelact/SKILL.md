@@ -77,31 +77,27 @@ ravelact build --root .
 
 ## Output formats
 
-`--format text|json|markdown` (default `text`) is accepted by `callers`,
-`impact`, `orphans`, `wiring`, `permissions`, `secrets`, `extract`, and
-`dedup`. The remaining commands have their own conventions (see the matrix
-below): `trace` uses `--view`, `dump` is always JSON, `graph` emits Mermaid
-(text or markdown only), `triggers` is a fixed text table, `build` and `completion` produce no formatted
-output.
+`--format` is opt-in per command. Most report commands accept
+`text|json|markdown` (default `text`); `trace` accepts
+`tree|table|json|markdown` (default `tree`); `graph` accepts `text|markdown`.
+`dump` is always JSON, and `build` / `completion` produce no formatted output.
 
-| Command       | text | json | markdown | Notes                                 |
-|---------------|:----:|:----:|:--------:|---------------------------------------|
-| `callers`     |  ✓   |  ✓   |    —     | rejects `--format markdown`           |
-| `impact`      |  ✓   |  ✓   |    ✓     |                                       |
-| `orphans`     |  ✓   |  ✓   |    ✓     |                                       |
-| `wiring`      |  ✓   |  ✓   |    —     | rejects `--format markdown`           |
-| `permissions` |  ✓   |  ✓   |    —     | rejects `--format markdown`           |
-| `secrets`     |  ✓   |  ✓   |    —     | rejects `--format markdown`           |
-| `extract`     |  ✓   |  ✓   |    ✓     |                                       |
-| `dedup`       |  ✓   |  ✓   |    ✓     |                                       |
-| `dump`        |  —   |  ✓   |    —     | always JSON, no `--format` flag       |
-| `graph`       |  ✓   |  —   |    ✓     | rejects `--format json` (use `dump`)  |
-| `trace`       |  —   |  —   |    —     | uses `--view tree\|table` instead — see below |
-| `triggers`    |  ✓   |  —   |    —     | fixed text table, no `--format` flag  |
-
-`trace` does not accept `--format` because the choice between tree and table is
-a rendering style within a textual format, not a serialization choice. Use
-`--view tree` (default) or `--view table`.
+| Command       | Formats                              | Notes                                 |
+|---------------|--------------------------------------|---------------------------------------|
+| `trace`       | `tree`, `table`, `json`, `markdown`  | `--ascii` affects `tree` only         |
+| `triggers`    | `text`, `json`, `markdown`           |                                       |
+| `callers`     | `text`, `json`, `markdown`           |                                       |
+| `impact`      | `text`, `json`, `markdown`           |                                       |
+| `orphans`     | `text`, `json`, `markdown`           |                                       |
+| `wiring`      | `text`, `json`, `markdown`           | exits 1 when findings exist           |
+| `permissions` | `text`, `json`, `markdown`           | exits 1 when findings exist           |
+| `secrets`     | `text`, `json`, `markdown`           | exits 1 when findings exist           |
+| `extract`     | `text`, `json`, `markdown`           |                                       |
+| `dedup`       | `text`, `json`, `markdown`           |                                       |
+| `dump`        | fixed JSON                           | no `--format` flag                    |
+| `graph`       | `text`, `markdown`                   | use `dump` for IR JSON                |
+| `build`       | fixed text                           | no `--format` flag                    |
+| `completion`  | shell snippet                        | no `--format` flag                    |
 
 `text` is human-readable; `json` is suitable for `jq`; `markdown` emits a
 self-contained `### <Section>` heading + table (or a per-command "No … found"
@@ -163,20 +159,22 @@ Filtering flags (all repeatable; OR within one flag, AND across flags):
 
 Rendering:
 
-- `--view tree` (default) — Unicode box-drawing tree.
-- `--view table` — 5-column audit table (`DEP / KIND / EDGE / TARGET / NOTE`)
+- `--format tree` (default) — Unicode box-drawing tree.
+- `--format table` — 5-column audit table (`DEP / KIND / EDGE / TARGET / NOTE`)
   suitable for grep and CI logs.
+- `--format json` — structured trace entries for automation.
+- `--format markdown` — `### Trace` heading plus the trace rows as a Markdown table.
 - `--ascii` — fall back to ASCII border characters in the tree view.
 
 ```sh
 ravelact trace push
 ravelact trace pull_request --type opened --branch main
-ravelact trace push --view table
+ravelact trace push --format table
 ```
 
 #### `triggers`
 
-List trigger events declared across workflows, with entry workflow counts, declarations, typed/filtered counts, and up to three examples. Use this before `trace <event>` when the right event is unknown.
+List trigger events declared across workflows, with entry workflow counts, declarations, typed/filtered counts, and up to three examples. Use this before `trace <event>` when the right event is unknown. Use `--format json` for automation or `--format markdown` for PR comments.
 
 ```sh
 ravelact triggers
@@ -196,7 +194,8 @@ echo .github/workflows/_build.yaml | ravelact callers
 
 `text` output renders one caller per line as `file:job:index` with a
 `# <target>` header per input. `json` emits an array of `{target, hits}`
-objects, preserving input order.
+objects, preserving input order. `markdown` emits a `### Callers` heading plus
+a table of targets and call sites.
 
 #### `impact`
 
@@ -355,7 +354,7 @@ are shared nodes; edges follow `uses` / `workflow_call` / `workflow_run`.
 - `--format markdown` — wraps the same Mermaid in a `### Graph` heading + a
   fenced ` ```mermaid ` block, ready to paste into a PR comment or GitHub Job
   Summary.
-- `--format json` — **rejected**; use `dump` for IR JSON.
+- Use `dump` for IR JSON.
 
 ```sh
 ravelact graph --event push > push.mmd

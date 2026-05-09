@@ -1,5 +1,6 @@
 use crate::ir::*;
 use crate::query::walk::{for_each_outgoing_edge, Edge, Node, SourceTier};
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 
 /// Tree node returned by [`trace`]. Renders via the helpers in
@@ -79,6 +80,83 @@ pub struct TraceEntry {
     pub trigger: TriggerMatch,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraceJsonEntry {
+    pub root: TraceJsonNode,
+    pub trigger: TraceJsonTrigger,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct TraceJsonTrigger {
+    pub event: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub types: Option<TraceJsonTriggerTypes>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TraceJsonTriggerTypes {
+    Explicit { values: Vec<String> },
+    ImplicitAll,
+    ImplicitDefault { values: Vec<String> },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum TraceJsonNode {
+    Workflow {
+        id: String,
+        children: Vec<TraceJsonNode>,
+    },
+    Action {
+        id: String,
+        children: Vec<TraceJsonNode>,
+    },
+    ExternalAction {
+        owner: String,
+        repo: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        subpath: Option<String>,
+        gitref: String,
+    },
+    ExternalWorkflow {
+        owner: String,
+        repo: String,
+        path: String,
+        gitref: String,
+    },
+    Docker {
+        image: String,
+    },
+    Annotated {
+        verb: AnnotationVerb,
+        dangling: bool,
+        label: String,
+        children: Vec<TraceJsonNode>,
+    },
+    Cycle {
+        target_kind: &'static str,
+        target: String,
+    },
+    Guarded {
+        if_expr: String,
+        inner: Box<TraceJsonNode>,
+    },
+}
+
+pub fn trace_json_entries(entries: &[TraceEntry]) -> Vec<TraceJsonEntry> {
+    entries
+        .iter()
+        .map(|entry| TraceJsonEntry {
+            root: trace_json_node(&entry.root),
+            trigger: TraceJsonTrigger {
+                event: entry.trigger.event.name().to_string(),
+                types: entry.trigger.types.json_display(&entry.trigger.event),
+            },
+        })
+        .collect()
+}
+
 /// Trigger declaration that allowed an entry workflow to match the trace
 /// query. Surfaced so renderers can show which `types:` declaration (explicit,
 /// implicit-all, implicit-default subset) selected the workflow.
@@ -116,6 +194,81 @@ impl TriggerTypesDisplay {
             (None, None) => TriggerTypesDisplay::ImplicitAll,
         }
     }
+
+    fn json_display(&self, event: &EventKind) -> Option<TraceJsonTriggerTypes> {
+        match self {
+            TriggerTypesDisplay::Explicit(values) => Some(TraceJsonTriggerTypes::Explicit {
+                values: values.clone(),
+            }),
+            TriggerTypesDisplay::ImplicitDefault(values) => {
+                Some(TraceJsonTriggerTypes::ImplicitDefault {
+                    values: values.clone(),
+                })
+            }
+            TriggerTypesDisplay::ImplicitAll if event.supports_activity_types() => {
+                Some(TraceJsonTriggerTypes::ImplicitAll)
+            }
+            TriggerTypesDisplay::ImplicitAll => None,
+        }
+    }
+}
+
+fn trace_json_node(node: &TraceNode) -> TraceJsonNode {
+    match node {
+        TraceNode::Workflow { id, children } => TraceJsonNode::Workflow {
+            id: id.0.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::Action { id, children } => TraceJsonNode::Action {
+            id: id.0.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::External(e) => TraceJsonNode::ExternalAction {
+            owner: e.owner.clone(),
+            repo: e.repo.clone(),
+            subpath: e.subpath.clone(),
+            gitref: e.gitref.clone(),
+        },
+        TraceNode::ExternalWorkflow {
+            owner,
+            repo,
+            path,
+            gitref,
+        } => TraceJsonNode::ExternalWorkflow {
+            owner: owner.clone(),
+            repo: repo.clone(),
+            path: path.clone(),
+            gitref: gitref.clone(),
+        },
+        TraceNode::Docker(d) => TraceJsonNode::Docker {
+            image: d.display_str(),
+        },
+        TraceNode::Annotated {
+            verb,
+            dangling,
+            label,
+            children,
+        } => TraceJsonNode::Annotated {
+            verb: *verb,
+            dangling: *dangling,
+            label: label.clone(),
+            children: children.iter().map(trace_json_node).collect(),
+        },
+        TraceNode::Cycle(target) => {
+            let (target_kind, target) = match target {
+                CycleTarget::Workflow(id) => ("workflow", id.0.clone()),
+                CycleTarget::Action(id) => ("action", id.0.clone()),
+            };
+            TraceJsonNode::Cycle {
+                target_kind,
+                target,
+            }
+        }
+        TraceNode::Guarded { if_expr, inner } => TraceJsonNode::Guarded {
+            if_expr: if_expr.clone(),
+            inner: Box::new(trace_json_node(inner)),
+        },
+    }
 }
 
 impl TriggerMatch {
@@ -131,7 +284,7 @@ impl TriggerMatch {
                 Some(format!("types: {} (default)", values.join(", ")))
             }
             TriggerTypesDisplay::ImplicitAll => {
-                if self.event.allowed_activity_types().is_some() {
+                if self.event.supports_activity_types() {
                     Some("types: any".to_string())
                 } else {
                     None
@@ -508,6 +661,16 @@ mod tests {
             Some("types: any".to_string()),
         );
 
+        // ImplicitAll on repository_dispatch (custom event_type values)
+        let implicit_all_repository_dispatch = TriggerMatch {
+            event: EventKind::RepositoryDispatch,
+            types: TriggerTypesDisplay::ImplicitAll,
+        };
+        assert_eq!(
+            implicit_all_repository_dispatch.sub_line_text(),
+            Some("types: any".to_string()),
+        );
+
         // ImplicitDefault on pull_request
         let implicit_default = TriggerMatch {
             event: EventKind::PullRequest,
@@ -528,6 +691,176 @@ mod tests {
             types: TriggerTypesDisplay::ImplicitAll,
         };
         assert_eq!(push.sub_line_text(), None);
+    }
+
+    #[test]
+    fn trace_json_entries_preserve_trigger_type_display() {
+        let root = || TraceNode::Workflow {
+            id: WorkflowId(".github/workflows/ci.yml".into()),
+            children: vec![],
+        };
+        let entries = trace_json_entries(&[
+            TraceEntry {
+                root: root(),
+                trigger: TriggerMatch {
+                    event: EventKind::Issues,
+                    types: TriggerTypesDisplay::Explicit(vec!["opened".into(), "labeled".into()]),
+                },
+            },
+            TraceEntry {
+                root: root(),
+                trigger: TriggerMatch {
+                    event: EventKind::PullRequest,
+                    types: TriggerTypesDisplay::ImplicitDefault(vec![
+                        "opened".into(),
+                        "synchronize".into(),
+                        "reopened".into(),
+                    ]),
+                },
+            },
+            TraceEntry {
+                root: root(),
+                trigger: TriggerMatch {
+                    event: EventKind::Issues,
+                    types: TriggerTypesDisplay::ImplicitAll,
+                },
+            },
+            TraceEntry {
+                root: root(),
+                trigger: TriggerMatch {
+                    event: EventKind::Push,
+                    types: TriggerTypesDisplay::ImplicitAll,
+                },
+            },
+        ]);
+
+        assert_eq!(
+            entries[0].trigger.types,
+            Some(TraceJsonTriggerTypes::Explicit {
+                values: vec!["opened".into(), "labeled".into()]
+            }),
+        );
+        assert_eq!(
+            entries[1].trigger.types,
+            Some(TraceJsonTriggerTypes::ImplicitDefault {
+                values: vec!["opened".into(), "synchronize".into(), "reopened".into()]
+            }),
+        );
+        assert_eq!(
+            entries[2].trigger.types,
+            Some(TraceJsonTriggerTypes::ImplicitAll)
+        );
+        assert_eq!(entries[3].trigger.types, None);
+    }
+
+    #[test]
+    fn trace_json_entries_convert_all_node_variants() {
+        let entries = trace_json_entries(&[TraceEntry {
+            root: TraceNode::Workflow {
+                id: WorkflowId(".github/workflows/ci.yml".into()),
+                children: vec![TraceNode::Action {
+                    id: ActionId(".github/actions/setup".into()),
+                    children: vec![
+                        TraceNode::External(ExternalActionRef {
+                            owner: "actions".into(),
+                            repo: "checkout".into(),
+                            subpath: Some("dist".into()),
+                            gitref: "v4".into(),
+                        }),
+                        TraceNode::ExternalWorkflow {
+                            owner: "acme".into(),
+                            repo: "automation".into(),
+                            path: ".github/workflows/deploy.yml".into(),
+                            gitref: "main".into(),
+                        },
+                        TraceNode::Docker(DockerRef {
+                            host: Some("ghcr.io".into()),
+                            image: "acme/build".into(),
+                            tag: Some("1.2.3".into()),
+                        }),
+                        TraceNode::Annotated {
+                            verb: AnnotationVerb::Dispatches,
+                            dangling: false,
+                            label: ".github/workflows/deploy.yml".into(),
+                            children: vec![TraceNode::Cycle(CycleTarget::Workflow(WorkflowId(
+                                ".github/workflows/ci.yml".into(),
+                            )))],
+                        },
+                        TraceNode::Cycle(CycleTarget::Action(ActionId(
+                            ".github/actions/setup".into(),
+                        ))),
+                        TraceNode::Guarded {
+                            if_expr: "github.ref == 'refs/heads/main'".into(),
+                            inner: Box::new(TraceNode::External(ExternalActionRef {
+                                owner: "docker".into(),
+                                repo: "login-action".into(),
+                                subpath: None,
+                                gitref: "v3".into(),
+                            })),
+                        },
+                    ],
+                }],
+            },
+            trigger: TriggerMatch {
+                event: EventKind::RepositoryDispatch,
+                types: TriggerTypesDisplay::ImplicitAll,
+            },
+        }]);
+
+        assert_eq!(
+            entries[0],
+            TraceJsonEntry {
+                root: TraceJsonNode::Workflow {
+                    id: ".github/workflows/ci.yml".into(),
+                    children: vec![TraceJsonNode::Action {
+                        id: ".github/actions/setup".into(),
+                        children: vec![
+                            TraceJsonNode::ExternalAction {
+                                owner: "actions".into(),
+                                repo: "checkout".into(),
+                                subpath: Some("dist".into()),
+                                gitref: "v4".into(),
+                            },
+                            TraceJsonNode::ExternalWorkflow {
+                                owner: "acme".into(),
+                                repo: "automation".into(),
+                                path: ".github/workflows/deploy.yml".into(),
+                                gitref: "main".into(),
+                            },
+                            TraceJsonNode::Docker {
+                                image: "ghcr.io/acme/build:1.2.3".into(),
+                            },
+                            TraceJsonNode::Annotated {
+                                verb: AnnotationVerb::Dispatches,
+                                dangling: false,
+                                label: ".github/workflows/deploy.yml".into(),
+                                children: vec![TraceJsonNode::Cycle {
+                                    target_kind: "workflow",
+                                    target: ".github/workflows/ci.yml".into(),
+                                }],
+                            },
+                            TraceJsonNode::Cycle {
+                                target_kind: "action",
+                                target: ".github/actions/setup".into(),
+                            },
+                            TraceJsonNode::Guarded {
+                                if_expr: "github.ref == 'refs/heads/main'".into(),
+                                inner: Box::new(TraceJsonNode::ExternalAction {
+                                    owner: "docker".into(),
+                                    repo: "login-action".into(),
+                                    subpath: None,
+                                    gitref: "v3".into(),
+                                }),
+                            },
+                        ],
+                    }],
+                },
+                trigger: TraceJsonTrigger {
+                    event: "repository_dispatch".into(),
+                    types: Some(TraceJsonTriggerTypes::ImplicitAll),
+                },
+            },
+        );
     }
 
     fn wf_with_annotations(id: &str, anns: Vec<Annotation>) -> Workflow {

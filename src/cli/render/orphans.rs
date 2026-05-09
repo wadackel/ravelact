@@ -5,13 +5,13 @@ use anyhow::Result;
 use globset::GlobSet;
 use std::fmt::Write as _;
 
-use crate::cli::{action_kind_label, build_or_load, OutputFormat};
+use crate::cli::{action_kind_label, build_or_load, ReportFormat};
 
 pub(in crate::cli) fn run(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
-    format: &OutputFormat,
+    format: &ReportFormat,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
@@ -20,7 +20,7 @@ pub(in crate::cli) fn run(
     Ok(())
 }
 
-fn render_result(result: OrphanResult, format: &OutputFormat, ui: &Ui) -> Result<String> {
+fn render_result(result: OrphanResult, format: &ReportFormat, ui: &Ui) -> Result<String> {
     let OrphanResult {
         unused_workflows,
         unused_actions,
@@ -29,7 +29,7 @@ fn render_result(result: OrphanResult, format: &OutputFormat, ui: &Ui) -> Result
     } = result;
     let mut out = String::new();
     match format {
-        OutputFormat::Markdown => {
+        ReportFormat::Markdown => {
             writeln!(out, "### Orphans")?;
             writeln!(out)?;
             if unused_workflows.is_empty()
@@ -74,7 +74,7 @@ fn render_result(result: OrphanResult, format: &OutputFormat, ui: &Ui) -> Result
                 }
             }
         }
-        OutputFormat::Json => {
+        ReportFormat::Json => {
             // shape: {"workflows": [...],
             //         "actions": [{"id": "...", "kind": "composite|javascript|docker"}, ...],
             //         "unreferenced_inputs": [[target, name], ...],
@@ -97,7 +97,7 @@ fn render_result(result: OrphanResult, format: &OutputFormat, ui: &Ui) -> Result
             });
             writeln!(out, "{}", serde_json::to_string_pretty(&payload)?)?;
         }
-        OutputFormat::Text => {
+        ReportFormat::Text => {
             if unused_workflows.is_empty()
                 && unused_actions.is_empty()
                 && unreferenced_inputs.is_empty()
@@ -222,7 +222,7 @@ mod tests {
     #[test]
     fn markdown_empty_result_renders_no_findings_message() {
         let out =
-            render_result(empty_result(), &OutputFormat::Markdown, &ui()).expect("render markdown");
+            render_result(empty_result(), &ReportFormat::Markdown, &ui()).expect("render markdown");
 
         assert_eq!(out, "### Orphans\n\nNo unused declarations found.\n");
     }
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn markdown_non_empty_result_renders_summary_and_all_kinds() {
         let out =
-            render_result(full_result(), &OutputFormat::Markdown, &ui()).expect("render markdown");
+            render_result(full_result(), &ReportFormat::Markdown, &ui()).expect("render markdown");
 
         assert_eq!(
             out,
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn json_empty_result_emits_all_four_arrays() {
-        let out = render_result(empty_result(), &OutputFormat::Json, &ui()).expect("render json");
+        let out = render_result(empty_result(), &ReportFormat::Json, &ui()).expect("render json");
 
         assert_eq!(
             out,
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn json_non_empty_result_emits_all_four_arrays() {
-        let out = render_result(full_result(), &OutputFormat::Json, &ui()).expect("render json");
+        let out = render_result(full_result(), &ReportFormat::Json, &ui()).expect("render json");
 
         assert_eq!(
             out,
@@ -307,14 +307,14 @@ mod tests {
 
     #[test]
     fn text_empty_result_renders_clean_status() {
-        let out = render_result(empty_result(), &OutputFormat::Text, &ui()).expect("render text");
+        let out = render_result(empty_result(), &ReportFormat::Text, &ui()).expect("render text");
 
         assert_eq!(out, "orphans  no unused declarations\n");
     }
 
     #[test]
     fn text_non_empty_result_renders_each_optional_section() {
-        let out = render_result(full_result(), &OutputFormat::Text, &ui()).expect("render text");
+        let out = render_result(full_result(), &ReportFormat::Text, &ui()).expect("render text");
 
         assert_eq!(
             out,
