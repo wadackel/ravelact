@@ -28,10 +28,10 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
   - [Cheat sheet](#cheat-sheet)
   - [Global flags](#global-flags)
   - [Output format matrix](#output-format-matrix)
-  - [Inspect (exit 0; non-blocking reports)](#inspect-exit-0-non-blocking-reports)
-  - [Check (exit 0/1; non-zero on findings)](#check-exit-01-non-zero-on-findings)
-  - [Suggest (exit 0; refactor candidates, non-mutating)](#suggest-exit-0-refactor-candidates-non-mutating)
-  - [Export (output artifacts)](#export-output-artifacts)
+  - [Inspect](#inspect)
+  - [Check](#check)
+  - [Suggest](#suggest)
+  - [Export](#export)
   - [Build & cache](#build--cache)
   - [Shell completion](#shell-completion)
   - [Exit codes](#exit-codes)
@@ -271,7 +271,9 @@ The `--format` flag is opt-in per command. Most report commands accept `text|jso
 
 Human `text` output uses compact status lines such as `impact  no impacted targets` and `dedup  no near-duplicate clusters  (threshold=0.80)` for empty states — when present, the parens-wrapped trailing segment is the run summary (counts, descriptors). Markdown-capable reports keep the longer "No … found" prose for PR comments and GitHub Job Summaries.
 
-### Inspect (exit 0; non-blocking reports)
+### Inspect
+
+Inspect commands are non-blocking reports and exit `0`.
 
 #### `trace <event>`
 
@@ -436,7 +438,9 @@ javascript  .
 
 </details>
 
-### Check (exit 0/1; non-zero on findings)
+### Check
+
+Check commands exit `0` when no findings are present and exit `1` when findings exist.
 
 > [!WARNING]
 > `permissions`, `secrets`, and `wiring` exit non-zero on findings. Wire them as **required** PR checks deliberately — they will block merges.
@@ -543,7 +547,9 @@ wiring  1 finding  dangling-local-uses=1
   `uses: ./.github/actions/typo` references a local action that is not present in the IR
 ```
 
-### Suggest (exit 0; refactor candidates, non-mutating)
+### Suggest
+
+Suggest commands report refactor candidates, never mutate files, and exit `0`.
 
 #### `extract [--min-length N] [--min-occurrences N]`
 
@@ -644,7 +650,9 @@ divergent  (none)
 
 </details>
 
-### Export (output artifacts)
+### Export
+
+Export commands emit output artifacts for downstream tools or renderers.
 
 #### `dump`
 
