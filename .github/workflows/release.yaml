@@ -55,6 +55,7 @@ jobs:
     environment: crates-io
     permissions:
       contents: read
+      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -100,17 +101,15 @@ jobs:
             echo "crate_version=${crate_version}"
             echo "already_published=${already_published}"
           } >> "$GITHUB_OUTPUT"
+      - name: Authenticate with crates.io
+        if: steps.publish-preflight.outputs.already_published != 'true'
+        id: crates-io-auth
+        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
       - name: Publish crate
         if: steps.publish-preflight.outputs.already_published != 'true'
         env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
-            echo "::error::CRATES_IO_TOKEN is not configured for the crates-io environment"
-            exit 1
-          fi
-          nix develop --command cargo publish --locked
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
+        run: nix develop --command cargo publish --locked
       - name: Skip already published crate
         if: steps.publish-preflight.outputs.already_published == 'true'
         run: |
