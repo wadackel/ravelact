@@ -1,6 +1,6 @@
 [package]
 name = "ravelact"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 description = "Static analysis CLI for GitHub Actions workflow estates"
 license = "MIT"

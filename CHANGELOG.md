@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4](https://github.com/wadackel/ravelact/compare/v0.0.3...v0.0.4) - 2026-05-09
+
+### Fixed
+
+- *(ci)* publish immutable release with assets ([#9](https://github.com/wadackel/ravelact/pull/9))
+
 ## [0.0.3](https://github.com/wadackel/ravelact/compare/v0.0.2...v0.0.3) - 2026-05-09
 
 ### Other
