@@ -1,0 +1,20 @@
+name: Setup ravelact
+description: Install the ravelact CLI from GitHub Releases and add it to PATH.
+inputs:
+  version:
+    description: ravelact release version to install, e.g. v0.0.5. Defaults to the action ref when it is a v* tag; required for other action refs unless set to latest explicitly.
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Install ravelact
+      shell: bash
+      env:
+        RAVELACT_VERSION: ${{ inputs.version }}
+        RAVELACT_ACTION_REF: ${{ github.action_ref }}
+        RAVELACT_ACTION_PATH: ${{ github.action_path }}
+        RAVELACT_RELEASE_BASE_URL: ${{ env.RAVELACT_RELEASE_BASE_URL }}
+      run: |
+        set -euo pipefail
+        bash "$RAVELACT_ACTION_PATH/script/install-ravelact-action.sh"

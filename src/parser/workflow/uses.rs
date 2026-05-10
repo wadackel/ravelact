@@ -40,6 +40,15 @@ pub(super) fn parse_docker_ref(rest: &str) -> DockerRef {
     DockerRef { host, image, tag }
 }
 
+fn normalize_local_uses_path(rest: &str) -> String {
+    let normalized = rest.trim_end_matches('/');
+    if normalized.is_empty() {
+        ".".to_string()
+    } else {
+        normalized.to_string()
+    }
+}
+
 /// Parse a `uses:` string into a [`UsesRef`].
 pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
     let s = s.trim();
@@ -49,7 +58,7 @@ pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
     }
 
     if let Some(rest) = s.strip_prefix("./") {
-        let normalized = rest.trim_end_matches('/').to_string();
+        let normalized = normalize_local_uses_path(rest);
         if normalized.starts_with(".github/workflows/")
             && (normalized.ends_with(".yml") || normalized.ends_with(".yaml"))
         {
@@ -82,7 +91,7 @@ pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
 pub(super) fn parse_workflow_ref(s: &str) -> Result<WorkflowRef> {
     let s = s.trim();
     if let Some(rest) = s.strip_prefix("./") {
-        let normalized = rest.trim_end_matches('/').to_string();
+        let normalized = normalize_local_uses_path(rest);
         return Ok(WorkflowRef::Local(WorkflowId(normalized)));
     }
     let (path_part, gitref) = s

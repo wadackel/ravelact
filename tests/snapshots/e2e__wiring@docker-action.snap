@@ -2,19 +2,4 @@
 source: tests/e2e.rs
 expression: out
 ---
-wiring  3 findings  (3 dangling-local-uses)
-
-  !  dangling-local-uses
-  .github/workflows/ci.yml:10
-
-    `uses: ./` references a local action that is not present in the IR
-
-  !  dangling-local-uses
-  .github/workflows/release.yml:10
-
-    `uses: ./` references a local action that is not present in the IR
-
-  !  dangling-local-uses
-  .github/workflows/smoke.yml:9
-
-    `uses: ./` references a local action that is not present in the IR
+wiring  no findings

@@ -59,6 +59,85 @@ jobs:
           cache-key-prefix: nix-ci-${{ runner.os }}
           command: just lint-actions
 
+  setup-action:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      RAVELACT_SETUP_ACTION_SMOKE_VERSION: v0.0.0-smoke
+      RAVELACT_RELEASE_FIXTURE_PORT: 8765
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Build local release fixture
+        run: |
+          set -euo pipefail
+          cargo build --release --locked
+
+          release_dir="staging/releases/download/${RAVELACT_SETUP_ACTION_SMOKE_VERSION}"
+          mkdir -p "$release_dir"
+          cp target/release/ravelact "$release_dir/ravelact-linux-amd64"
+          chmod 0755 "$release_dir/ravelact-linux-amd64"
+          "$release_dir/ravelact-linux-amd64" --version
+
+          (
+            cd "$release_dir"
+            shasum -a 256 ravelact-* > checksums.txt
+          )
+      - name: Start local release fixture
+        run: |
+          set -euo pipefail
+          log_file="${RUNNER_TEMP}/ravelact-release-fixture.log"
+          python3 -m http.server "$RAVELACT_RELEASE_FIXTURE_PORT" --bind 127.0.0.1 --directory staging > "$log_file" 2>&1 &
+          fixture_pid="$!"
+          release_base_url="http://127.0.0.1:${RAVELACT_RELEASE_FIXTURE_PORT}/releases"
+
+          {
+            echo "RAVELACT_RELEASE_FIXTURE_PID=${fixture_pid}"
+            echo "RAVELACT_RELEASE_BASE_URL=${release_base_url}"
+          } >> "$GITHUB_ENV"
+
+          for _ in $(seq 1 20); do
+            if curl --fail --silent --show-error "${release_base_url}/download/${RAVELACT_SETUP_ACTION_SMOKE_VERSION}/checksums.txt" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat "$log_file"
+          echo "::error::local release fixture did not become ready"
+          exit 1
+      - name: Check action-ref version resolution
+        run: |
+          set -euo pipefail
+          resolved="$(
+            env \
+              RAVELACT_VERSION='' \
+              RAVELACT_ACTION_REF="$RAVELACT_SETUP_ACTION_SMOKE_VERSION" \
+              RUNNER_OS=Linux \
+              RUNNER_ARCH=X64 \
+            script/install-ravelact-action.sh --resolve-only
+          )"
+          printf '%s\n' "$resolved"
+          grep -Fx "version=$RAVELACT_SETUP_ACTION_SMOKE_VERSION" <<< "$resolved"
+          grep -Fx 'asset=ravelact-linux-amd64' <<< "$resolved"
+      - name: Install ravelact via local action
+        uses: ./
+        with:
+          version: ${{ env.RAVELACT_SETUP_ACTION_SMOKE_VERSION }}
+      - name: Check installed ravelact
+        run: |
+          set -euo pipefail
+          command -v ravelact
+          ravelact --version
+      - name: Stop local release fixture
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -n "${RAVELACT_RELEASE_FIXTURE_PID:-}" ]; then
+            kill "$RAVELACT_RELEASE_FIXTURE_PID"
+          fi
+
   skills:
     runs-on: ubuntu-latest
     timeout-minutes: 15
