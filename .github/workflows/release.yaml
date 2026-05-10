@@ -33,15 +33,52 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: ./.github/actions/setup-nix-devshell
-        with:
-          cache-key-prefix: nix-release-${{ matrix.target }}
-      - name: nix build
-        run: nix build .#default --print-build-logs
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal
+      - name: Validate runner architecture
+        env:
+          RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          rustc -vV
+          uname -a
+          arch="$(uname -m)"
+          case "${RAVELACT_RELEASE_ASSET}:${arch}" in
+            linux-amd64:x86_64|linux-arm64:aarch64|darwin-amd64:x86_64|darwin-arm64:arm64)
+              ;;
+            *)
+              echo "::error::runner architecture ${arch} does not match release asset ${RAVELACT_RELEASE_ASSET}"
+              exit 1
+              ;;
+          esac
+      - name: cargo build release
+        run: cargo build --release --locked
       - name: stage binary
         run: |
+          set -euo pipefail
           mkdir -p staging
-          cp result/bin/ravelact staging/ravelact-${{ matrix.asset }}
+          cp target/release/ravelact staging/ravelact-${{ matrix.asset }}
+      - name: Validate staged binary
+        env:
+          RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          bin="staging/ravelact-${RAVELACT_RELEASE_ASSET}"
+          "$bin" --version
+
+          if [[ "$RAVELACT_RELEASE_ASSET" == linux-* ]]; then
+            file "$bin"
+            readelf -l "$bin" | tee staging/readelf.txt
+            if grep -F '/nix/store' staging/readelf.txt; then
+              echo "::error::Linux release asset references /nix/store in ELF program headers"
+              exit 1
+            fi
+            ldd "$bin" | tee staging/ldd.txt
+            if grep -F '/nix/store' staging/ldd.txt; then
+              echo "::error::Linux release asset references /nix/store in dynamic dependencies"
+              exit 1
+            fi
+          fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ravelact-${{ matrix.asset }}

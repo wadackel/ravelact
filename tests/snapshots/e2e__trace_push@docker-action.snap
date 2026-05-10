@@ -7,9 +7,9 @@ trace push  2 entry workflows
 ╭─ push   (filters=none)
 ├─→ .github/workflows/ci.yml  [wf]
 │   ├─→ actions/checkout  [ext-ac]  @v4
-│   ├─→   [ac]
+│   ├─→ .  [ac]
 │   ╰─→ .github/actions/inner  [ac]
 │
 ╰─→ .github/workflows/release.yml  [wf]
     ├─→ actions/checkout  [ext-ac]  @v4
-    ╰─→   [ac]
+    ╰─→ .  [ac]

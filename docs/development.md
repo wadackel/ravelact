@@ -44,6 +44,22 @@ nix develop -c just build-release         # cargo-built release binary in target
 nix build .#default                       # Nix-built release binary at result/bin/ravelact
 ```
 
+### GitHub Action installer
+
+The repository root `action.yaml` is the public setup action used as `uses: wadackel/ravelact@...`. It installs a GitHub Release binary onto `PATH`, verifies its checksum, and fails if the installed binary cannot execute on the runner. It does not run analysis commands itself and does not fall back to `cargo install`. Keep the public input surface minimal. The initial supported input is `version`, which overrides the action ref when callers need to install a specific released binary.
+
+When changing the action or `script/install-ravelact-action.sh`, run:
+
+```sh
+nix develop -c just lint-actions
+bash -n script/install-ravelact-action.sh
+RAVELACT_VERSION= RAVELACT_ACTION_REF=v0.0.5 RUNNER_OS=Linux RUNNER_ARCH=X64 script/install-ravelact-action.sh --resolve-only
+```
+
+The CI smoke job builds a local release-shaped fixture, serves it with a job-local HTTP server, and points the action at that fixture with the internal `RAVELACT_RELEASE_BASE_URL` environment variable. This keeps the installer path deterministic without relying on an already-published release. The action itself is only available from the first release tag that contains `action.yaml`; older tags can still be installed through `with.version` from a newer action ref or by manual binary download. A non-`v*` action ref must set `version` explicitly; use `version: latest` only when intentionally opting in to the latest GitHub Release.
+
+GitHub Release assets are native `cargo build --release --locked` binaries built on each release runner. Do not publish `nix build .#default` outputs as GitHub Release assets; Nix-built outputs are for the Nix package path and can embed Nix store runtime paths that are not portable to regular Ubuntu runners.
+
 ### crates.io publishing
 
 Crate publishing runs from `.github/workflows/release.yaml` on `v*` tag pushes only. Manual `workflow_dispatch` runs build the release artifacts but do not publish to crates.io.

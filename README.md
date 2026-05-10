@@ -17,6 +17,7 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 - [Installation](#installation)
   - [From crates.io](#from-cratesio)
   - [From Binary Releases](#from-binary-releases)
+  - [In GitHub Actions](#in-github-actions)
   - [With Nix](#with-nix)
   - [From Source](#from-source)
 - [AgentSkill for AI Agents](#agentskill-for-ai-agents)
@@ -81,10 +82,9 @@ cargo install ravelact
 Prebuilt binaries are published for macOS (arm64 / x86_64) and Linux (arm64 / x86_64) on every release.
 
 ```sh
-# Pick your platform tarball from the latest release, then:
-gh release download --repo wadackel/ravelact --pattern '*aarch64-apple-darwin.tar.gz'
-tar -xzf ravelact-*-aarch64-apple-darwin.tar.gz
-install -m 0755 ravelact /usr/local/bin/
+# Pick your platform asset from the latest release, then:
+gh release download --repo wadackel/ravelact --pattern 'ravelact-darwin-arm64'
+install -m 0755 ravelact-darwin-arm64 /usr/local/bin/ravelact
 
 ravelact --version
 ```
@@ -92,9 +92,27 @@ ravelact --version
 The same binary works without `gh`:
 
 ```sh
-curl -L https://github.com/wadackel/ravelact/releases/latest/download/ravelact-aarch64-apple-darwin.tar.gz \
-  | tar -xz
+curl -L -o ravelact https://github.com/wadackel/ravelact/releases/latest/download/ravelact-darwin-arm64
 install -m 0755 ravelact /usr/local/bin/
+```
+
+### In GitHub Actions
+
+Use the repository's setup action to install `ravelact` on GitHub-hosted Linux and macOS runners:
+
+```yaml
+- uses: wadackel/ravelact@vX.Y.Z
+- run: ravelact --version
+```
+
+Replace `vX.Y.Z` with the first ravelact release that includes `action.yaml`, or any newer release. Older release tags cannot be used as the action ref because they do not contain the action metadata. For security-sensitive workflows, pin `wadackel/ravelact` to a full commit SHA and set `version` to the intended ravelact release so both the action code and installed binary are fixed.
+
+When the action is referenced from a branch or commit that is not a `v*` tag, pass `version` explicitly. Use a release tag to install a specific released binary, or `latest` to opt in to the latest GitHub Release:
+
+```yaml
+- uses: wadackel/ravelact@vX.Y.Z
+  with:
+    version: v0.0.5
 ```
 
 ### With Nix
@@ -807,7 +825,7 @@ Annotated edges show up in `trace`, `callers`, `impact`, and the `graph` output 
 - **Gates** — `permissions`, `secrets`, and `wiring` exit `1` when findings are reported, so they can fail the workflow directly.
 - **Reports** — `impact`, `trace`, `orphans`, `dedup`, and `graph` are useful for PR summaries, audit logs, optional policy gates, or artifacts. Use `--format json` when a `jq` policy decides whether the report should fail CI.
 
-The examples below assume `ravelact` is available on `PATH`. The simplest way is to download the prebuilt binary from the latest release; `cargo install --git ...` is an alternative if you prefer a from-source build. To test unreleased changes in this repository, build from source first and replace `ravelact` with `./target/debug/ravelact`.
+The examples below install `ravelact` with the repository setup action, then run the CLI from `PATH`. Replace `vX.Y.Z` with the first ravelact release that includes `action.yaml`, or any newer release. For security-sensitive workflows, pin action refs to full commit SHAs and set `version` to the intended ravelact release. To test unreleased changes in this repository, build from source first and replace `ravelact` with `./target/debug/ravelact`.
 
 > [!TIP]
 > Pipe `git diff --name-only origin/main...` into `ravelact impact` to surface affected entry-point workflows in PR summaries — this is the highest-signal report for the smallest configuration cost.
@@ -832,11 +850,7 @@ jobs:
       - uses: actions/checkout@v4  # Pin to a SHA in production
         with:
           fetch-depth: 0
-      - name: Install ravelact
-        run: |
-          curl -L https://github.com/wadackel/ravelact/releases/latest/download/ravelact-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz
-          install -m 0755 ravelact /usr/local/bin/
+      - uses: wadackel/ravelact@vX.Y.Z  # Pin to a SHA in production
       - name: Report impacted workflows
         run: |
           git diff --name-only origin/${{ github.base_ref }}...HEAD \
@@ -872,11 +886,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4  # Pin to a SHA in production
-      - name: Install ravelact
-        run: |
-          curl -L https://github.com/wadackel/ravelact/releases/latest/download/ravelact-x86_64-unknown-linux-gnu.tar.gz \
-            | tar -xz
-          install -m 0755 ravelact /usr/local/bin/
+      - uses: wadackel/ravelact@vX.Y.Z  # Pin to a SHA in production
       - run: ravelact build --root .
       - run: ravelact permissions --root .
       - run: ravelact secrets --root .
