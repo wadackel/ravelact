@@ -163,15 +163,17 @@ jobs:
           cache-key-prefix: nix-publish-crate-${{ runner.os }}
       - name: Build frontend bundle
         run: nix develop --command just frontend
-      - name: cargo publish --dry-run
-        # `--dry-run` performs Packaging + Verifying (full rebuild from the
-        # tarball) but does not upload to crates.io. Catches `include`
-        # whitelist gaps and any source drift between dev tree and tarball.
+      - name: cargo package (verify tarball builds)
+        # `cargo package` (with default --verify) performs the same
+        # Packaging + Verifying steps that `cargo publish` would run before
+        # upload — without needing crates.io auth and without bailing early
+        # when the current version already exists on the registry (which
+        # would make `cargo publish --dry-run` a no-op).
         # `--allow-dirty` is required because `just frontend` generates
-        # web/dist/ and web/node_modules/ on the runner, both of which
-        # are .gitignored. The published tarball is filtered via
-        # Cargo.toml `include`, so we whitelist what ships explicitly.
-        run: nix develop --command cargo publish --locked --dry-run --allow-dirty
+        # web/dist/ and web/node_modules/ on the runner, both .gitignored.
+        # The packaged tarball is filtered via Cargo.toml `include`, so
+        # dirty-tree contents do not leak into the .crate file.
+        run: nix develop --command cargo package --locked --allow-dirty
       - name: Assert tarball ships required runtime files
         # `cargo publish --dry-run` exits 0 even when web/dist/ is empty or
         # rust-toolchain.toml is missing (rust-embed silently embeds an
