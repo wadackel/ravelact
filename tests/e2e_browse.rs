@@ -115,17 +115,45 @@ fn parse_bind_port(line: &str) -> Option<u16> {
 }
 
 /// Issue a minimal `GET <path>` over a fresh TCP connection, return the full
-/// response (status line + headers + body) as bytes.
+/// response (status line + headers + body) as bytes. Retries on transient
+/// ECONNRESET because the server's accept loop on Linux briefly races the
+/// listener bind / port-announcement window (see Risk: spawn race in the
+/// e2e plan).
 fn http_get(port: u16, path: &str) -> Vec<u8> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port)).expect("connect");
-    stream
-        .set_read_timeout(Some(Duration::from_secs(5)))
-        .expect("set read timeout");
     let request = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",);
-    stream.write_all(request.as_bytes()).expect("write request");
-    let mut buf = Vec::new();
-    stream.read_to_end(&mut buf).expect("read response");
-    buf
+    let mut last_err: Option<std::io::Error> = None;
+    for attempt in 0..10 {
+        if attempt > 0 {
+            std::thread::sleep(Duration::from_millis(50 * attempt as u64));
+        }
+        let mut stream = match TcpStream::connect(("127.0.0.1", port)) {
+            Ok(s) => s,
+            Err(e) => {
+                last_err = Some(e);
+                continue;
+            }
+        };
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .expect("set read timeout");
+        if let Err(e) = stream.write_all(request.as_bytes()) {
+            last_err = Some(e);
+            continue;
+        }
+        let mut buf = Vec::new();
+        match stream.read_to_end(&mut buf) {
+            Ok(_) => return buf,
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {
+                last_err = Some(e);
+                continue;
+            }
+            Err(e) => panic!("read response: {e:?}"),
+        }
+    }
+    panic!(
+        "http_get exhausted retries against port {port} for {path}: {:?}",
+        last_err
+    );
 }
 
 fn assert_200(port: u16, path: &str) {
