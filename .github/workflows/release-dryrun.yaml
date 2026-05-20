@@ -179,20 +179,22 @@ jobs:
         # binary needs at runtime. The cargo `include` whitelist drives
         # what ships; this guards against future regressions where a
         # required path is silently dropped from include.
+        #
+        # NOTE: avoid `printf | head` pipelines here — under
+        # `set -o pipefail` printf gets SIGPIPE when head exits early,
+        # which `set -e` then treats as a script failure. Write listing
+        # to a file and operate on the file instead.
         run: |
           set -euo pipefail
-          echo "--- target/package layout ---"
-          ls -la target/package/ || true
           tarball="$(find target/package -maxdepth 1 -name 'ravelact-*.crate' -print -quit)"
           if [ -z "$tarball" ]; then
             echo "::error::no tarball found under target/package"
+            ls -la target/package/ || true
             exit 1
           fi
-          echo "tarball: $tarball ($(stat -c %s "$tarball" 2>/dev/null || stat -f %z "$tarball") bytes)"
-          listing="$(tar -tzf "$tarball")"
-          echo "--- tarball entry count: $(printf '%s\n' "$listing" | wc -l) ---"
-          echo "--- first 30 entries ---"
-          printf '%s\n' "$listing" | head -30
+          listing_file="$(mktemp)"
+          tar -tzf "$tarball" > "$listing_file"
+          echo "tarball: $tarball ($(wc -l < "$listing_file") entries)"
           required=(
             "web/dist/index.html"
             "web/dist/assets"
@@ -203,16 +205,14 @@ jobs:
           )
           missing=()
           for f in "${required[@]}"; do
-            if ! printf '%s\n' "$listing" | grep -qF "/$f"; then
+            if ! grep -qF "/$f" "$listing_file"; then
               missing+=("$f")
             fi
           done
           if [ "${#missing[@]}" -ne 0 ]; then
             echo "::error::tarball is missing required files: ${missing[*]}"
             echo "--- entries matching 'web/' ---"
-            printf '%s\n' "$listing" | grep -F 'web/' | head -10 || true
-            echo "--- entries matching 'README' ---"
-            printf '%s\n' "$listing" | grep -F 'README' | head -10 || true
+            grep -F 'web/' "$listing_file" | head -10 || true
             exit 1
           fi
           echo "all required files present in tarball"
