@@ -1,0 +1,43 @@
+{
+  "name": "ravelact-web",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vp dev",
+    "build": "vp build",
+    "preview": "vp preview",
+    "test": "vp test",
+    "typecheck": "tsc --noEmit",
+    "e2e": "playwright test",
+    "lint": "vp lint",
+    "format": "vp fmt -c .oxfmtrc.json",
+    "format:check": "vp fmt -c .oxfmtrc.json --check"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.10.2",
+    "dagre": "^0.8.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "@tailwindcss/vite": "^4.3.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/dagre": "^0.7.52",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "jsdom": "^25.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vite": "^8.0.0",
+    "vite-plus": "^0.1.22",
+    "vitest": "^4.0.0"
+  },
+  "packageManager": "pnpm@9.15.9"
+}

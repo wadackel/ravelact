@@ -47,6 +47,7 @@ Export (output artifacts):
   graph        Render the call graph as Mermaid (use --event to filter)
 
 Other:
+  browse       Launch local server and render the workflow graph in a browser (PoC)
   build        Build IR and persist to ${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
   completion   Generate shell completion setup snippet (bash / zsh / fish)
   help         Print this message or the help of the given subcommand(s)
@@ -309,6 +310,26 @@ pub enum Command {
         /// Shell type (`bash`, `zsh`, or `fish`).
         shell: String,
     },
+
+    /// Launch a local HTTP server and render the workflow graph in a
+    /// browser via Cytoscape.js. Minimal PoC — no filters, no detail
+    /// panels, no live reload. Binds to `127.0.0.1` on an ephemeral
+    /// port (override with `--port`), opens the default browser
+    /// (skip with `--no-open`), and serves until `Ctrl+C`.
+    Browse {
+        /// TCP port to listen on. Defaults to an OS-assigned ephemeral
+        /// port (`0`). Binds to `127.0.0.1` only.
+        #[arg(long, value_name = "PORT")]
+        port: Option<u16>,
+        /// Skip automatic browser launch (useful for headless or scripted use).
+        #[arg(long, default_value_t = false)]
+        no_open: bool,
+        /// Include local-action manifests under `tests/fixtures/**` in the
+        /// browse graph. By default `browse` excludes these to keep the
+        /// dogfood view focused on production workflows.
+        #[arg(long, default_value_t = false)]
+        include_test_fixtures: bool,
+    },
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]
@@ -431,6 +452,20 @@ impl Cli {
                 cmd_graph(root, cache_mode, &excludes, event.as_deref(), format).map(|_| 0)
             }
             Command::Completion { shell } => cmd_completion(shell).map(|_| 0),
+            Command::Browse {
+                port,
+                no_open,
+                include_test_fixtures,
+            } => {
+                let browse_excludes = if *include_test_fixtures {
+                    excludes.clone()
+                } else {
+                    let mut patterns = self.exclude.clone();
+                    patterns.insert(0, "tests/fixtures/**".to_string());
+                    build_exclude_set(&patterns)?
+                };
+                render::browse::run(root, cache_mode, &browse_excludes, *port, *no_open).map(|_| 0)
+            }
         }
     }
 }
@@ -1285,6 +1320,42 @@ mod tests {
                 assert!(ascii);
             }
             other => panic!("expected trace command, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn cli_parses_browse_flags() {
+        let cli = Cli::try_parse_from(["ravelact", "browse", "--no-open", "--port", "8765"])
+            .expect("valid browse invocation");
+        match cli.command {
+            Command::Browse {
+                port,
+                no_open,
+                include_test_fixtures,
+            } => {
+                assert_eq!(port, Some(8765));
+                assert!(no_open);
+                assert!(
+                    !include_test_fixtures,
+                    "--include-test-fixtures defaults to false",
+                );
+            }
+            other => panic!("expected browse command, got {other:?}"),
+        }
+
+        let cli = Cli::try_parse_from(["ravelact", "browse", "--include-test-fixtures"])
+            .expect("valid browse invocation with --include-test-fixtures");
+        match cli.command {
+            Command::Browse {
+                port,
+                no_open,
+                include_test_fixtures,
+            } => {
+                assert_eq!(port, None);
+                assert!(!no_open);
+                assert!(include_test_fixtures, "--include-test-fixtures sets true");
+            }
+            other => panic!("expected browse command, got {other:?}"),
         }
     }
 

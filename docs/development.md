@@ -41,8 +41,111 @@ nix develop -c just format lint test lint-actions
 
 ```sh
 nix develop -c just build-release         # cargo-built release binary in target/release/
-nix build .#default                       # Nix-built release binary at result/bin/ravelact
 ```
+
+> [!NOTE]
+> `nix build .#default` is intentionally unavailable while the `browse`
+> subcommand's web frontend is being modernised. `rust-embed` requires
+> `web/dist/` at compile time, but the Nix crane sandbox cannot run
+> `pnpm install && vite build`. A follow-up plan will restore the `nix
+> build` path via `pkgs.pnpm.fetchDeps`. Use `just build-release` in the
+> meantime.
+
+### Browse subcommand: dev workflow
+
+`ravelact browse` (the local GUI for the workflow graph) ships as a React +
+Vite SPA bundled into the binary via `rust-embed`. Two iteration modes:
+
+```sh
+# Production / smoke-test path. Builds web/dist/ then the Rust binary.
+nix develop -c just build-release
+./target/release/ravelact --root . browse              # opens http://127.0.0.1:<port>/
+
+# HMR dev loop (two terminals).
+# Terminal 1: backend API on :7878
+nix develop -c cargo run --release -- --root . browse --port 7878 --no-open
+# Terminal 2: Vite dev server with /api/* proxied to :7878
+cd web && nix develop -c pnpm dev          # http://localhost:5173
+```
+
+Frontend-only checks:
+
+```sh
+nix develop -c pnpm --dir web test             # vitest unit tests
+nix develop -c pnpm --dir web exec tsc --noEmit
+nix develop -c pnpm --dir web e2e              # playwright (requires browsers installed once)
+```
+
+#### Default exclude: `tests/fixtures/**`
+
+`browse` prepends `tests/fixtures/**` to the `--exclude` set so the dogfood
+view stays focused on production workflows. Test-fixture local-actions
+otherwise dominate the graph as orphan nodes (roughly three-quarters of
+ravelact's own local-actions live under that path). Pass
+`--include-test-fixtures` to opt out — for example when adopting `browse`
+in a repository that places real workflows under `tests/fixtures/`. The
+flag is intentionally browse-only; `impact`, `trace`, `orphans`, and the
+other subcommands continue to honour the user-supplied `--exclude` set
+without modification.
+
+Hub nodes — actions that are referenced from most workflows — can leave
+the highlight set close to the whole graph; that is an expected limit of
+bidirectional reachability rather than a bug.
+
+#### Interaction model
+
+Selecting a node fades the unrelated subgraph and opens the detail panel.
+Tapping empty graph space clears both: it closes the panel and removes
+the dim state. Escape and the panel's `×` button do the same thing. The
+`.faded` class has a single writer (a React effect keyed on the
+selection), so the visual state always matches the panel state.
+
+#### Performance check at 300-workflow scale
+
+`script/perf-check-browse.ts` is a Deno harness that measures the browse
+SPA at two scales — the host repo (~16 nodes) and a synthetic 300-workflow
+estate it generates in a TempDir. It captures initial load time, drag FPS,
+post-pan settle time, tap → highlight latency p50/p95 across 20 distinct
+nodes, `/api/graph` payload bytes, and a coarse JS heap snapshot. Output
+lands in `.wadackel/qa/<timestamp>_browse-perf-300/` (recording, screenshots,
+`report.md`), which is git-ignored by the user's global rules.
+
+Prerequisites:
+
+- A current release binary at `./target/release/ravelact` — run
+  `nix develop -c just build-release` first.
+- An agent-browser state file at `~/.agent-browser-state/main.json` —
+  refresh it with `ab-state-refresh` against a logged-in Chrome.
+- Deno on `PATH`. Deno is **not** wired into the flake.nix dev shell yet;
+  install it with `brew install deno`, or add it to `flake.nix` in a
+  follow-up PR if you want `nix develop -c` to provide it.
+
+Run it with:
+
+```sh
+deno run --allow-all script/perf-check-browse.ts
+```
+
+Baseline numbers from the May 2026 measurement (on the maintainer's
+machine — absolute values are machine-relative, only the dogfood vs.
+synthetic-300 delta is portable):
+
+- initial load (timeOrigin → first ready): ~265 ms / ~465 ms
+- drag FPS (texture path, `cy.panBy` 3 s sample): ~60 / ~60
+- highlight latency p95 across 20 distinct nodes: ~1 ms / ~3 ms
+- /api/graph payload: ~8.7 KB / ~100 KB
+- coarse JS heap initial: ~7 MB / ~13 MB
+
+All four guidance thresholds (load < 5 s, p95 highlight < 200 ms, drag
+FPS ≥ 30, sublinear heap growth) cleared with substantial margin at the
+300-workflow scale. Cytoscape and `cytoscape-dagre` versions are tracked
+via `web/package.json`.
+
+If you change `tests/e2e_browse.rs::write_synthetic_estate`, update the
+mirrored `writeSyntheticEstate` in `script/perf-check-browse.ts` to keep
+shape parity. The harness cross-checks parity each run by calling
+`ravelact dump | jq` on the generated estate and asserting the expected
+workflow / reusable counts.
 
 ### GitHub Action installer
 

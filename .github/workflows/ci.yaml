@@ -59,6 +59,46 @@ jobs:
           cache-key-prefix: nix-ci-${{ runner.os }}
           command: just lint-actions
 
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # Build web/dist/ first (just frontend = pnpm install + vite build).
+      # rust-embed in src/cli/render/browse.rs reads web/dist/ at compile
+      # time; without this step the browse subcommand serves an empty
+      # bundle at runtime.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
+      - name: pnpm typecheck
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web exec tsc --noEmit
+      - name: pnpm test (vitest)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web test
+      - name: Build ravelact release binary (needed by playwright webServer)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: cargo build --release --locked
+      - name: Install Playwright browsers
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web exec playwright install --with-deps chromium
+      - name: pnpm e2e (playwright)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web e2e
+
   setup-action:
     runs-on: ubuntu-latest
     timeout-minutes: 15

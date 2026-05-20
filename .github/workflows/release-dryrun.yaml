@@ -1,16 +1,51 @@
-name: Release
+name: Release (dry-run)
+
+# Mirrors release.yaml's build + publish-crate jobs without performing
+# the irreversible side effects (real GitHub release publication, real
+# cargo publish to crates.io).
+# The goal is to let a PR exercise the entire release pipeline so any
+# breakage surfaces before a tag is cut. Path filters keep PRs that
+# cannot affect release output (docs-only, unrelated tooling) cheap.
 
 on:
-  push:
-    tags: ['v*']
+  pull_request:
+    # Trigger on PRs that touch anything the release pipeline consumes.
+    # Two distinct categories live in this list:
+    #   1. Build-pipeline inputs — release.yaml/setup-nix-devshell/flake/
+    #      justfile/Cargo/src/web. A change here can break the build itself.
+    #   2. cargo publish tarball inputs (mirror Cargo.toml `include`) —
+    #      README/LICENSE/CHANGELOG/rust-toolchain.toml. Deleting or renaming
+    #      these silently breaks `cargo publish --dry-run` at tag cut.
+    # Updating Cargo.toml `include` should be matched by updating this list,
+    # but the converse isn't required (build-pipeline files have no `include`).
+    paths:
+      - '.github/workflows/release.yaml'
+      - '.github/workflows/release-dryrun.yaml'
+      - '.github/actions/setup-nix-devshell/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'flake.nix'
+      - 'flake.lock'
+      - 'justfile'
+      - 'rust-toolchain.toml'
+      - 'README.md'
+      - 'LICENSE'
+      - 'CHANGELOG.md'
+      - 'web/**'
+      - 'src/**'
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
+  group: release-dryrun-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    # Skip on fork PRs: this workflow shares Nix store cache keys with
+    # release.yaml (cache warming intent). A fork PR could otherwise
+    # poison the cache via malicious source files and have that cache
+    # picked up by the production release build later.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
     strategy:
@@ -37,6 +72,8 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - uses: ./.github/actions/setup-nix-devshell
         with:
+          # Share the cache key with release.yaml so a successful dry-run
+          # warms the cache that the actual release will consume.
           cache-key-prefix: nix-release-${{ matrix.target }}
       - name: Build frontend bundle (web/dist via Nix shell)
         # rust-embed in src/cli/render/browse.rs embeds web/dist/ at build
@@ -102,18 +139,21 @@ jobs:
           fi
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ravelact-${{ matrix.asset }}
+          name: ravelact-${{ matrix.asset }}-dryrun
           path: staging/ravelact-${{ matrix.asset }}
           if-no-files-found: error
           retention-days: 1
 
-  publish-crate:
+  publish-crate-dryrun:
+    # `needs: build` mirrors release.yaml's publish-crate sequencing so the
+    # dry-run gates on matrix build success first. The build artifacts are
+    # NOT consumed here — publish-crate-dryrun checks out fresh and runs
+    # `cargo publish --dry-run` standalone. The dependency exists purely to
+    # fail fast if any matrix target broke before paying the dry-run cost.
     needs: build
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    environment: crates-io
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     permissions:
       contents: read
-      id-token: write
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -122,102 +162,43 @@ jobs:
         with:
           cache-key-prefix: nix-publish-crate-${{ runner.os }}
       - name: Build frontend bundle
-        # Required before `cargo publish` so the resulting tarball includes
-        # web/dist/ (whitelisted via Cargo.toml `include`); otherwise the
-        # crates.io tarball ships an empty rust-embed bundle and the
-        # browse subcommand serves a blank SPA to `cargo install` users.
         run: nix develop --command just frontend
-      - name: Preflight crate publish
-        id: publish-preflight
+      - name: cargo publish --dry-run
+        # `--dry-run` performs Packaging + Verifying (full rebuild from the
+        # tarball) but does not upload to crates.io. Catches `include`
+        # whitelist gaps and any source drift between dev tree and tarball.
+        run: nix develop --command cargo publish --locked --dry-run
+      - name: Assert tarball ships required runtime files
+        # `cargo publish --dry-run` exits 0 even when web/dist/ is empty or
+        # rust-toolchain.toml is missing (rust-embed silently embeds an
+        # empty bundle, toolchain absence falls back to host default).
+        # Verify the tarball listing contains every file the released
+        # binary needs at runtime.
         run: |
           set -euo pipefail
-
-          read -r crate_name crate_version < <(
-            nix develop --command bash -c \
-              'set -euo pipefail; cargo metadata --no-deps --format-version 1 | jq -r ".packages[0] | [.name, .version] | @tsv"'
+          tarball="$(find target/package -maxdepth 1 -name 'ravelact-*.crate' -print -quit)"
+          if [ -z "$tarball" ]; then
+            echo "::error::no tarball found under target/package"
+            exit 1
+          fi
+          echo "tarball: $tarball"
+          listing="$(tar -tzf "$tarball")"
+          required=(
+            "web/dist/index.html"
+            "web/dist/assets"
+            "rust-toolchain.toml"
+            "Cargo.lock"
+            "README.md"
+            "LICENSE"
           )
-
-          expected_tag="v${crate_version}"
-          if [ "$GITHUB_REF_NAME" != "$expected_tag" ]; then
-            echo "::error::release tag $GITHUB_REF_NAME does not match Cargo package version $crate_version"
+          missing=()
+          for f in "${required[@]}"; do
+            if ! printf '%s\n' "$listing" | grep -qF "/$f"; then
+              missing+=("$f")
+            fi
+          done
+          if [ "${#missing[@]}" -ne 0 ]; then
+            echo "::error::tarball is missing required files: ${missing[*]}"
             exit 1
           fi
-
-          status=$(curl --fail-with-body --retry 3 --retry-delay 2 --retry-all-errors -sS -o /tmp/crates-version.json -w '%{http_code}' \
-            -H "User-Agent: ravelact-release-ci/${crate_version} (https://github.com/wadackel/ravelact)" \
-            "https://crates.io/api/v1/crates/${crate_name}/${crate_version}" || true)
-
-          case "$status" in
-            200)
-              already_published=true
-              ;;
-            404)
-              already_published=false
-              ;;
-            *)
-              echo "::error::unexpected crates.io API status ${status} for ${crate_name} ${crate_version}"
-              exit 1
-              ;;
-          esac
-
-          {
-            echo "crate_name=${crate_name}"
-            echo "crate_version=${crate_version}"
-            echo "already_published=${already_published}"
-          } >> "$GITHUB_OUTPUT"
-      - name: Authenticate with crates.io
-        if: steps.publish-preflight.outputs.already_published != 'true'
-        id: crates-io-auth
-        uses: rust-lang/crates-io-auth-action@bbd81622f20ce9e2dd9622e3218b975523e45bbe # v1.0.4
-      - name: Publish crate
-        if: steps.publish-preflight.outputs.already_published != 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
-        run: nix develop --command cargo publish --locked
-      - name: Skip already published crate
-        if: steps.publish-preflight.outputs.already_published == 'true'
-        run: |
-          echo "${{ steps.publish-preflight.outputs.crate_name }} ${{ steps.publish-preflight.outputs.crate_version }} is already published on crates.io"
-
-  release:
-    needs:
-      - build
-      - publish-crate
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
-    permissions:
-      contents: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          path: artifacts
-          pattern: ravelact-*
-          merge-multiple: true
-      - name: Generate checksums
-        run: |
-          cd artifacts
-          chmod +x ravelact-*
-          shasum -a 256 ravelact-* > checksums.txt
-      - name: Publish GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-
-          existing_release="$(
-            gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
-              --jq ".[] | select(.tag_name == env.GITHUB_REF_NAME) | .html_url"
-          )"
-
-          if [ -n "${existing_release}" ]; then
-            echo "::error::GitHub release ${GITHUB_REF_NAME} already exists: ${existing_release}"
-            echo "::error::immutable releases cannot accept assets after publication; create a new tag or resolve the existing draft/release manually"
-            exit 1
-          fi
-
-          gh release create "$GITHUB_REF_NAME" artifacts/ravelact-* artifacts/checksums.txt \
-            --verify-tag \
-            --generate-notes \
-            --title "$GITHUB_REF_NAME"
+          echo "all required files present in tarball"

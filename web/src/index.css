@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Design tokens — single source of truth for color / spacing / radius /
+   font / animation scales. Names use Tailwind v4 prefixes so that
+   utilities like `bg-fg`, `text-fg-muted`, `rounded-md`, `font-sans`,
+   `animate-slide-in` are auto-generated. */
+@theme {
+  --color-bg: #ffffff;
+  --color-bg-elev: #fafafa;
+  --color-bg-elev2: #f4f4f5;
+  --color-fg: #18181b;
+  --color-fg-muted: #52525b;
+  --color-fg-dim: #a1a1aa;
+  --color-border: #e4e4e7;
+  --color-border-soft: #f4f4f5;
+  --color-accent: #4f46e5;
+  --color-warn: #b91c1c;
+  --color-warn-bg: #fef2f2;
+
+  --color-kind-workflow-fill: #eff6ff;
+  --color-kind-workflow-border: #3b82f6;
+  --color-kind-workflow-text: #1e40af;
+  --color-kind-local-action-fill: #f5f3ff;
+  --color-kind-local-action-border: #8b5cf6;
+  --color-kind-local-action-text: #5b21b6;
+  --color-kind-external-action-fill: #fffbeb;
+  --color-kind-external-action-border: #d97706;
+  --color-kind-external-action-text: #92400e;
+  --color-kind-external-workflow-fill: #ecfdf5;
+  --color-kind-external-workflow-border: #10b981;
+  --color-kind-external-workflow-text: #065f46;
+  --color-kind-docker-fill: #fdf2f8;
+  --color-kind-docker-border: #db2777;
+  --color-kind-docker-text: #9d174d;
+
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 24px;
+
+  --radius-md: 6px;
+  --radius-sm: 4px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Monaco, Consolas, "Liberation Mono", monospace;
+
+  --animate-slide-in: slide-in 180ms ease-out;
+}
+
+/* Legacy alias map. `react-flow.css` and any straggler `var(--fg)` /
+   `var(--bg)` references continue to work via these aliases until they
+   are migrated to the new `--color-*` names. */
+:root {
+  --bg: var(--color-bg);
+  --bg-elev: var(--color-bg-elev);
+  --bg-elev2: var(--color-bg-elev2);
+  --fg: var(--color-fg);
+  --fg-muted: var(--color-fg-muted);
+  --fg-dim: var(--color-fg-dim);
+  --border: var(--color-border);
+  --border-soft: var(--color-border-soft);
+  --accent: var(--color-accent);
+  --warn: var(--color-warn);
+  --warn-bg: var(--color-warn-bg);
+  --kind-workflow-fill: var(--color-kind-workflow-fill);
+  --kind-workflow-border: var(--color-kind-workflow-border);
+  --kind-workflow-text: var(--color-kind-workflow-text);
+  --kind-local-action-fill: var(--color-kind-local-action-fill);
+  --kind-local-action-border: var(--color-kind-local-action-border);
+  --kind-local-action-text: var(--color-kind-local-action-text);
+  --kind-external-action-fill: var(--color-kind-external-action-fill);
+  --kind-external-action-border: var(--color-kind-external-action-border);
+  --kind-external-action-text: var(--color-kind-external-action-text);
+  --kind-external-workflow-fill: var(--color-kind-external-workflow-fill);
+  --kind-external-workflow-border: var(--color-kind-external-workflow-border);
+  --kind-external-workflow-text: var(--color-kind-external-workflow-text);
+  --kind-docker-fill: var(--color-kind-docker-fill);
+  --kind-docker-border: var(--color-kind-docker-border);
+  --kind-docker-text: var(--color-kind-docker-text);
+  --space-1: var(--spacing-1);
+  --space-2: var(--spacing-2);
+  --space-3: var(--spacing-3);
+  --space-4: var(--spacing-4);
+  --space-5: var(--spacing-5);
+  --radius: var(--radius-md);
+  --font: var(--font-sans);
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}

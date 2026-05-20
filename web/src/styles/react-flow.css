@@ -1,0 +1,24 @@
+/*
+ * ReactFlow library DOM overrides. These target `.react-flow__*`
+ * elements that the @xyflow/react library renders internally, which
+ * cannot receive Tailwind utility classes from our JSX. We keep this
+ * file in plain CSS so the cascade is predictable:
+ *   Tailwind preflight → Tailwind utilities → @xyflow/react/dist/style.css → react-flow.css
+ * The import order is established in `web/src/main.tsx`.
+ */
+
+.react-flow {
+  background: var(--color-bg);
+}
+
+.react-flow__node {
+  font-family: var(--font-sans);
+}
+
+.react-flow__edge.faded .react-flow__edge-path {
+  opacity: 0.2;
+}
+
+.react-flow__edge.faded .react-flow__arrowhead {
+  opacity: 0.2;
+}
