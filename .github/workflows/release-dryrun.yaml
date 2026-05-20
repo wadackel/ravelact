@@ -175,20 +175,24 @@ jobs:
         # dirty-tree contents do not leak into the .crate file.
         run: nix develop --command cargo package --locked --allow-dirty
       - name: Assert tarball ships required runtime files
-        # `cargo publish --dry-run` exits 0 even when web/dist/ is empty or
-        # rust-toolchain.toml is missing (rust-embed silently embeds an
-        # empty bundle, toolchain absence falls back to host default).
         # Verify the tarball listing contains every file the released
-        # binary needs at runtime.
+        # binary needs at runtime. The cargo `include` whitelist drives
+        # what ships; this guards against future regressions where a
+        # required path is silently dropped from include.
         run: |
           set -euo pipefail
+          echo "--- target/package layout ---"
+          ls -la target/package/ || true
           tarball="$(find target/package -maxdepth 1 -name 'ravelact-*.crate' -print -quit)"
           if [ -z "$tarball" ]; then
             echo "::error::no tarball found under target/package"
             exit 1
           fi
-          echo "tarball: $tarball"
+          echo "tarball: $tarball ($(stat -c %s "$tarball" 2>/dev/null || stat -f %z "$tarball") bytes)"
           listing="$(tar -tzf "$tarball")"
+          echo "--- tarball entry count: $(printf '%s\n' "$listing" | wc -l) ---"
+          echo "--- first 30 entries ---"
+          printf '%s\n' "$listing" | head -30
           required=(
             "web/dist/index.html"
             "web/dist/assets"
@@ -205,6 +209,10 @@ jobs:
           done
           if [ "${#missing[@]}" -ne 0 ]; then
             echo "::error::tarball is missing required files: ${missing[*]}"
+            echo "--- entries matching 'web/' ---"
+            printf '%s\n' "$listing" | grep -F 'web/' | head -10 || true
+            echo "--- entries matching 'README' ---"
+            printf '%s\n' "$listing" | grep -F 'README' | head -10 || true
             exit 1
           fi
           echo "all required files present in tarball"
