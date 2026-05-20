@@ -8,7 +8,7 @@
 
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
@@ -77,9 +77,13 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
         "0",
     ]);
     cmd.args(extra_args);
+    // stderr inherits the parent's so any panic / log line from the server
+    // child surfaces in `cargo test` output. Diagnosing Linux CI was hard
+    // without this — the piped-then-discarded variant swallowed the server's
+    // exit reason.
     let mut child = cmd
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::inherit())
         .spawn()
         .expect("spawn ravelact browse");
 
@@ -101,6 +105,24 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
         }
         // Empty line / EOF → loop with timeout guard above.
     };
+
+    // Wait for the server's accept loop to actually be ready. The
+    // announcement is printed *before* `axum::serve()` enters the accept
+    // loop, so a fast test can connect to a bound-but-not-yet-accepting
+    // socket and see ECONNREFUSED briefly. Poll until a connect succeeds
+    // or panic with a clear diagnostic if the child died.
+    let ready_deadline = Instant::now() + Duration::from_secs(5);
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    loop {
+        if Instant::now() > ready_deadline {
+            let _ = child.kill();
+            panic!("server announced port {port} but never started accepting");
+        }
+        if TcpStream::connect_timeout(&addr, Duration::from_millis(100)).is_ok() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
 
     (child, port)
 }
