@@ -173,7 +173,11 @@ jobs:
         if: steps.publish-preflight.outputs.already_published != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
-        run: nix develop --command cargo publish --locked
+        # `--allow-dirty` is required because `just frontend` (run above)
+        # generates web/dist/ and web/node_modules/, both gitignored. The
+        # published tarball is whitelist-filtered via Cargo.toml `include`,
+        # so dirty-tree contents do not leak into crates.io.
+        run: nix develop --command cargo publish --locked --allow-dirty
       - name: Skip already published crate
         if: steps.publish-preflight.outputs.already_published == 'true'
         run: |

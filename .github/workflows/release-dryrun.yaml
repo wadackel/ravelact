@@ -167,7 +167,11 @@ jobs:
         # `--dry-run` performs Packaging + Verifying (full rebuild from the
         # tarball) but does not upload to crates.io. Catches `include`
         # whitelist gaps and any source drift between dev tree and tarball.
-        run: nix develop --command cargo publish --locked --dry-run
+        # `--allow-dirty` is required because `just frontend` generates
+        # web/dist/ and web/node_modules/ on the runner, both of which
+        # are .gitignored. The published tarball is filtered via
+        # Cargo.toml `include`, so we whitelist what ships explicitly.
+        run: nix develop --command cargo publish --locked --dry-run --allow-dirty
       - name: Assert tarball ships required runtime files
         # `cargo publish --dry-run` exits 0 even when web/dist/ is empty or
         # rust-toolchain.toml is missing (rust-embed silently embeds an
