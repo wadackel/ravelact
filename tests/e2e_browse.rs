@@ -106,6 +106,17 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
         // Empty line / EOF → loop with timeout guard above.
     };
 
+    // Drain the rest of stdout in a detached thread. If we let `reader`
+    // go out of scope here the read end of the pipe closes, and the
+    // server's next `println!` (e.g., `press Ctrl+C to stop`) panics with
+    // a Broken Pipe — observed on Linux CI even though the announcement
+    // was already received. Reading to EOF keeps the pipe alive for the
+    // child's lifetime.
+    std::thread::spawn(move || {
+        let mut sink = Vec::new();
+        let _ = reader.read_to_end(&mut sink);
+    });
+
     // Wait for the server's accept loop to actually be ready. The
     // announcement is printed *before* `axum::serve()` enters the accept
     // loop, so a fast test can connect to a bound-but-not-yet-accepting
