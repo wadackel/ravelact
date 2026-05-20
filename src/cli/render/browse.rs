@@ -441,8 +441,10 @@ async fn serve(
 
 async fn serve_index() -> impl IntoResponse {
     // `web/dist/index.html` is produced by `pnpm build` (see `just frontend`).
-    // If it is absent at build time, rust-embed silently emits an empty
-    // bundle and this handler panics at runtime — Risk 2 of the plan.
+    // rust-embed errors at compile time if `web/dist/` does not exist
+    // (`#[derive(RustEmbed)] folder '...' does not exist`). If the folder
+    // exists but is empty / missing `index.html`, this handler panics at
+    // runtime instead.
     let file = WebAssets::get("index.html")
         .expect("web/dist/index.html embedded at build time (run `just frontend` first)");
     (
