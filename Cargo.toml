@@ -5,6 +5,23 @@ edition = "2021"
 description = "Static analysis CLI for GitHub Actions workflow estates"
 license = "MIT"
 repository = "https://github.com/wadackel/ravelact"
+# Whitelist for `cargo package` / `cargo publish`. When `include` is set,
+# cargo's default git-ls-files heuristic is overridden, so every file
+# required to build the published crate must be listed explicitly.
+# `web/dist/**/*` is required because `src/cli/render/browse.rs` embeds
+# the Vite-built SPA via rust-embed; absent files at build time result
+# in a silently empty bundle. `rust-toolchain.toml` is required so
+# downstream `cargo install` runs reproduce the host toolchain.
+include = [
+    "src/**/*",
+    "web/dist/**/*",
+    "Cargo.toml",
+    "Cargo.lock",
+    "rust-toolchain.toml",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+]
 
 [[bin]]
 name = "ravelact"
@@ -17,14 +34,18 @@ path = "src/lib.rs"
 [dependencies]
 anstyle = "1"
 anyhow = "1"
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio", "json", "query"] }
 clap = { version = "4", features = ["derive"] }
 clap_complete = { version = "4.5", features = ["unstable-dynamic"] }
 globset = "0.4"
+rust-embed = "8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 saphyr = "0.0.6"
+tokio = { version = "1", features = ["rt", "net", "macros", "signal"] }
 unicode-width = "0.2"
 walkdir = "2"
+webbrowser = "1"
 
 [dev-dependencies]
 assert_cmd = "2"

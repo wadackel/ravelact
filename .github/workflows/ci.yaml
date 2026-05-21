@@ -18,6 +18,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # `just format` runs `cd web && pnpm format` which requires
+      # node_modules to exist (vp binary lives there). `just frontend`
+      # installs deps + builds web/dist/ so the subsequent pnpm + cargo
+      # invocations work.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: just format
         uses: ./.github/actions/devshell-run
         with:
@@ -31,6 +40,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # See format job comment: just lint needs node_modules + cargo
+      # clippy compiles, which requires web/dist/ for rust-embed.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: just lint
         uses: ./.github/actions/devshell-run
         with:
@@ -42,6 +58,13 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # cargo test compiles the crate, and rust-embed requires web/dist/
+      # to exist at compile time.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: just test
         uses: ./.github/actions/devshell-run
         with:
@@ -59,6 +82,46 @@ jobs:
           cache-key-prefix: nix-ci-${{ runner.os }}
           command: just lint-actions
 
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # Build web/dist/ first (just frontend = pnpm install + vite build).
+      # rust-embed in src/cli/render/browse.rs reads web/dist/ at compile
+      # time; without this step the browse subcommand serves an empty
+      # bundle at runtime.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
+      - name: pnpm typecheck
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web exec tsc --noEmit
+      - name: pnpm test (vitest)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web test
+      - name: Build ravelact release binary (needed by playwright webServer)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: cargo build --release --locked
+      - name: Install Playwright browsers
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web exec playwright install --with-deps chromium
+      - name: pnpm e2e (playwright)
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: pnpm --dir web e2e
+
   setup-action:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -69,6 +132,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal
+      - name: Stub web/dist for rust-embed
+        # rust-embed errors at compile time if the folder is missing. This
+        # job intentionally avoids Nix / pnpm to keep the simulated release
+        # binary independent of the dev shell, so a real `just frontend` is
+        # not run. The binary built here only exercises --version / install
+        # action wiring; an empty SPA bundle is acceptable.
+        run: mkdir -p web/dist
       - name: Build local release fixture
         run: |
           set -euo pipefail
@@ -145,6 +215,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      # rust-embed requires web/dist/ to exist for cargo build.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: Build ravelact
         uses: ./.github/actions/devshell-run
         # check-skill-drift.sh shells out to ./target/debug/ravelact --help
@@ -187,6 +263,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      # cargo llvm-cov compiles the crate, and rust-embed requires
+      # web/dist/ to exist at compile time.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: Run coverage
         uses: ./.github/actions/devshell-run
         with:
@@ -332,6 +415,12 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      # rust-embed requires web/dist/ to exist for cargo build.
+      - name: just frontend
+        uses: ./.github/actions/devshell-run
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+          command: just frontend
       - name: Build ravelact
         uses: ./.github/actions/devshell-run
         with:

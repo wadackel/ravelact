@@ -35,6 +35,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-release-${{ matrix.target }}
+      - name: Build frontend bundle (web/dist via Nix shell)
+        # rust-embed in src/cli/render/browse.rs embeds web/dist/ at build
+        # time; without this step the released binary serves an empty bundle.
+        # Frontend tooling (pnpm + Node) is pinned via flake.lock — the SSOT
+        # for the project's Node/pnpm version pair.
+        run: nix develop --command just frontend
       - name: Validate runner architecture
         env:
           RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
@@ -51,6 +60,18 @@ jobs:
               exit 1
               ;;
           esac
+      - name: Assert host cargo (not Nix shadow)
+        # Guard against PATH ordering surprises: cargo build MUST run with the
+        # host rustup toolchain so the released binary does not link against
+        # /nix/store paths (later checked by readelf -l + ldd).
+        run: |
+          set -euo pipefail
+          cargo_path="$(command -v cargo)"
+          echo "cargo: $cargo_path"
+          if printf '%s' "$cargo_path" | grep -F '/nix/store' >/dev/null; then
+            echo "::error::cargo is shadowed by Nix (resolved to $cargo_path); host rustup expected"
+            exit 1
+          fi
       - name: cargo build release
         run: cargo build --release --locked
       - name: stage binary
@@ -100,6 +121,12 @@ jobs:
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-publish-crate-${{ runner.os }}
+      - name: Build frontend bundle
+        # Required before `cargo publish` so the resulting tarball includes
+        # web/dist/ (whitelisted via Cargo.toml `include`); otherwise the
+        # crates.io tarball ships an empty rust-embed bundle and the
+        # browse subcommand serves a blank SPA to `cargo install` users.
+        run: nix develop --command just frontend
       - name: Preflight crate publish
         id: publish-preflight
         run: |
@@ -146,7 +173,11 @@ jobs:
         if: steps.publish-preflight.outputs.already_published != 'true'
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
-        run: nix develop --command cargo publish --locked
+        # `--allow-dirty` is required because `just frontend` (run above)
+        # generates web/dist/ and web/node_modules/, both gitignored. The
+        # published tarball is whitelist-filtered via Cargo.toml `include`,
+        # so dirty-tree contents do not leak into crates.io.
+        run: nix develop --command cargo publish --locked --allow-dirty
       - name: Skip already published crate
         if: steps.publish-preflight.outputs.already_published == 'true'
         run: |

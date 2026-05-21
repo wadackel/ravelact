@@ -8,6 +8,7 @@
 //! inline as `cmd_*` helpers in `cli/mod.rs`; promote one here once its
 //! handler outgrows that shape.
 
+pub(super) mod browse;
 pub(super) mod callers;
 pub(super) mod dedup;
 pub(super) mod extract;

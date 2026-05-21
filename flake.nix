@@ -23,7 +23,28 @@
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
 
         commonArgs = {
-          src = craneLib.cleanCargoSource ./.;
+          # Custom source filter: keep everything craneLib.cleanCargoSource
+          # keeps (Cargo / Rust sources) AND anything under ./web so
+          # rust-embed can pick up the SPA assets at build time, EXCEPT for
+          # generated / external directories (web/dist, web/node_modules,
+          # web/.vite) which are either gitignored build output or pnpm-
+          # managed dependency caches. Excluding them keeps the Nix source
+          # hash stable and avoids polluting the sandbox.
+          src = pkgs.lib.cleanSourceWith {
+            src = ./.;
+            filter = path: type:
+              let
+                p = toString path;
+                webRoot = toString ./web;
+                isUnderWeb = pkgs.lib.hasPrefix (webRoot + "/") p || p == webRoot;
+                isExcluded =
+                  pkgs.lib.hasPrefix (toString ./web/dist) p
+                  || pkgs.lib.hasPrefix (toString ./web/node_modules) p
+                  || pkgs.lib.hasPrefix (toString ./web/.vite) p;
+              in
+                (craneLib.filterCargoSources path type)
+                || (isUnderWeb && !isExcluded);
+          };
           strictDeps = true;
           # Tests rely on tests/fixtures/** which cleanCargoSource excludes.
           # Test execution is owned by `just ci` inside the dev shell, not by
@@ -42,17 +63,14 @@
         });
       in
       {
-        apps.default = {
-          type = "app";
-          program = "${ravelact}/bin/ravelact";
-        };
-        apps.ravelact = {
-          type = "app";
-          program = "${ravelact}/bin/ravelact";
-        };
-
-        packages.default = ravelact;
-        packages.ravelact = ravelact;
+        # `packages.default` / `apps.default` are intentionally omitted in
+        # this revision: rust-embed requires `web/dist/` to exist at compile
+        # time, but the Nix sandbox cannot run `pnpm install && vite build`
+        # without additional `pnpm.fetchDeps`-style infrastructure. The
+        # canonical build path for this project is now
+        # `nix develop -c just build-release`, which chains `just frontend`
+        # (pnpm + vite) before `cargo build`. A future plan will restore
+        # `packages.default` via a dedicated frontend derivation.
 
         devShells.default = craneLib.devShell {
           inputsFrom = [ ravelact ];
@@ -61,6 +79,8 @@
             jq
             actionlint
             cargo-llvm-cov
+            nodejs_22
+            pnpm_9
           ];
         };
       });
