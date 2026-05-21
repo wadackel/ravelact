@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { TriggerSummary } from "../../lib/types.ts";
-import { Status } from "../primitives/index.ts";
+import { Status } from "./ui/index.ts";
 
 export type OverviewPaneProps = {
   triggers: TriggerSummary[] | null;

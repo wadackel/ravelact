@@ -1,4 +1,4 @@
-import { Status } from "../primitives/index.ts";
+import { Status } from "./ui/index.ts";
 
 // Banner-positioned wrapper around the Status error primitive. The
 // outer element owns positioning only (absolute top-left of the graph

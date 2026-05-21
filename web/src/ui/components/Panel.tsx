@@ -9,7 +9,7 @@ import type {
   RepoInfo,
   TraceResponse,
 } from "../../lib/types.ts";
-import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "../primitives/index.ts";
+import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "./ui/index.ts";
 
 type Tab = "details" | "triggers" | "impact" | "trace";
 const TABS: ReadonlyArray<Tab> = ["details", "triggers", "impact", "trace"];
