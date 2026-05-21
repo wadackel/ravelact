@@ -18,20 +18,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # `just format` runs `cd web && pnpm format` which requires
       # node_modules to exist (vp binary lives there). `just frontend`
       # installs deps + builds web/dist/ so the subsequent pnpm + cargo
       # invocations work.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: just format
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just format
+        run: nix develop --command just format
       - name: Check formatting diff
         run: git diff --exit-code
 
@@ -40,87 +37,66 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # See format job comment: just lint needs node_modules + cargo
       # clippy compiles, which requires web/dist/ for rust-embed.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: just lint
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just lint
+        run: nix develop --command just lint
 
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # cargo test compiles the crate, and rust-embed requires web/dist/
       # to exist at compile time.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: just test
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just test
+        run: nix develop --command just test
 
   actionlint:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: just lint-actions
-        uses: ./.github/actions/devshell-run
+      - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just lint-actions
+      - name: just lint-actions
+        run: nix develop --command just lint-actions
 
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # Build web/dist/ first (just frontend = pnpm install + vite build).
       # rust-embed in src/cli/render/browse.rs reads web/dist/ at compile
       # time; without this step the browse subcommand serves an empty
       # bundle at runtime.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: pnpm typecheck
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: pnpm --dir web exec tsc --noEmit
+        run: nix develop --command pnpm --dir web exec tsc --noEmit
       - name: pnpm test (vitest)
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: pnpm --dir web test
+        run: nix develop --command pnpm --dir web test
       - name: Build ravelact release binary (needed by playwright webServer)
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: cargo build --release --locked
+        run: nix develop --command cargo build --release --locked
       - name: Install Playwright browsers
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: pnpm --dir web exec playwright install --with-deps chromium
+        run: nix develop --command pnpm --dir web exec playwright install --with-deps chromium
       - name: pnpm e2e (playwright)
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: pnpm --dir web e2e
+        run: nix develop --command pnpm --dir web e2e
 
   setup-action:
     runs-on: ubuntu-latest
@@ -215,19 +191,16 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # rust-embed requires web/dist/ to exist for cargo build.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
+      # check-skill-drift.sh shells out to ./target/debug/ravelact --help
+      # to assert subcommand-name parity with SKILL.md.
       - name: Build ravelact
-        uses: ./.github/actions/devshell-run
-        # check-skill-drift.sh shells out to ./target/debug/ravelact --help
-        # to assert subcommand-name parity with SKILL.md.
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: cargo build --locked
+        run: nix develop --command cargo build --locked
       - name: Check skill drift
         run: nix develop --command script/check-skill-drift.sh
       - name: Install gh CLI
@@ -263,18 +236,15 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # cargo llvm-cov compiles the crate, and rust-embed requires
       # web/dist/ to exist at compile time.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: Run coverage
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just coverage
+        run: nix develop --command just coverage
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lcov
@@ -415,17 +385,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
       # rust-embed requires web/dist/ to exist for cargo build.
       - name: just frontend
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: just frontend
+        run: nix develop --command just frontend
       - name: Build ravelact
-        uses: ./.github/actions/devshell-run
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-          command: cargo build --locked
+        run: nix develop --command cargo build --locked
       - name: Build ravelact IR
         run: nix develop --command ./target/debug/ravelact --root . --exclude 'tests/**' build
       - name: Check permissions
