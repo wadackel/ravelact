@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.6](https://github.com/wadackel/ravelact/compare/v0.0.5...v0.0.6) - 2026-05-21
+
+### Added
+
+- *(browse)* introduce SPA browse subcommand and release pipeline ([#14](https://github.com/wadackel/ravelact/pull/14))
+
 ## [0.0.4](https://github.com/wadackel/ravelact/compare/v0.0.3...v0.0.4) - 2026-05-09
 
 ### Fixed
