@@ -1,6 +1,6 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef } from "react";
 import type { TriggerSummary } from "../../lib/types.ts";
-import { Kbd } from "../primitives/index.ts";
+import { Kbd } from "./ui/index.ts";
 
 export type HeaderProps = {
   nodeCount: number;

@@ -1,5 +1,5 @@
-import { kindBadge, kindLabel } from "../../lib/kind-format.ts";
-import type { NodeKind } from "../../lib/types.ts";
+import { kindBadge, kindLabel } from "../../../lib/kind-format.ts";
+import type { NodeKind } from "../../../lib/types.ts";
 
 export type KindProps = {
   kind: NodeKind;

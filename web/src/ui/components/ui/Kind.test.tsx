@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 import { Kind } from "./Kind.tsx";
-import { NODE_KINDS, kindBadge, kindLabel } from "../../lib/kind-format.ts";
+import { NODE_KINDS, kindBadge, kindLabel } from "../../../lib/kind-format.ts";
 
 afterEach(cleanup);
 
