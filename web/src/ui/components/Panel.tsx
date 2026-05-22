@@ -11,11 +11,10 @@ import type {
 } from "../../lib/types.ts";
 import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "./ui/index.ts";
 
-type Tab = "details" | "triggers" | "impact" | "trace";
+export type Tab = "details" | "triggers" | "impact" | "trace";
 const TABS: ReadonlyArray<Tab> = ["details", "triggers", "impact", "trace"];
 
 type State = {
-  tab: Tab;
   // `undefined` means "not fetched yet"; `null` means "fetched but 404".
   details: NodeResponse | null | undefined;
   detailsError: string | null;
@@ -27,7 +26,6 @@ type State = {
 
 type Action =
   | { type: "reset" }
-  | { type: "select-tab"; tab: Tab }
   | { type: "details"; data: NodeResponse | null }
   | { type: "details-error"; message: string }
   | { type: "impact"; data: ImpactResponse | null }
@@ -36,7 +34,6 @@ type Action =
   | { type: "trace-error"; message: string };
 
 const initialState: State = {
-  tab: "details",
   details: undefined,
   detailsError: null,
   impact: undefined,
@@ -49,8 +46,6 @@ function reducer(state: State, action: Action): State {
   switch (action.type) {
     case "reset":
       return initialState;
-    case "select-tab":
-      return { ...state, tab: action.tab };
     case "details":
       return { ...state, details: action.data, detailsError: null };
     case "details-error":
@@ -70,22 +65,26 @@ export type PanelProps = {
   openFor: { id: string; kind: NodeKind } | null;
   onClose: () => void;
   repoInfo: RepoInfo | null;
+  tab: Tab;
+  onTabChange: (tab: Tab) => void;
 };
 
-export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
+export function Panel({ openFor, onClose, repoInfo, tab, onTabChange }: PanelProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // Fetch on demand. The effect reads `state.{details,impact,trace}`
   // from the deps array so the early-return correctly skips re-fetching
-  // an already-populated slice. Resetting on node change is handled
-  // upstream: `App.tsx` passes `key={openFor.id}` on <Panel> so a new
-  // node remounts a fresh instance with initial state instead of
-  // mutating refs during render to invalidate a per-node cache.
+  // an already-populated slice. Ownership split: `App.tsx` owns the
+  // active tab (so it survives node-to-node switches) and passes it in
+  // as `tab` + `onTabChange`. Panel owns the per-node data slices, and
+  // `App.tsx` still passes `key={openFor.id}` on <Panel> so a node
+  // change remounts a fresh instance with initial state — invalidating
+  // the cached per-node data without touching the active tab.
   useEffect(() => {
     if (!openFor) return;
     const innerId = openFor.id.replace(/^(?:wf|la|ea|ew|dk):/, "");
     let cancelled = false;
-    if ((state.tab === "details" || state.tab === "triggers") && state.details === undefined) {
+    if ((tab === "details" || tab === "triggers") && state.details === undefined) {
       fetchNode(openFor.kind, innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "details", data });
@@ -98,7 +97,7 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
             });
           }
         });
-    } else if (state.tab === "impact" && state.impact === undefined) {
+    } else if (tab === "impact" && state.impact === undefined) {
       fetchImpact(innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "impact", data });
@@ -111,7 +110,7 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
             });
           }
         });
-    } else if (state.tab === "trace" && state.trace === undefined) {
+    } else if (tab === "trace" && state.trace === undefined) {
       fetchTrace(innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "trace", data });
@@ -128,7 +127,7 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [openFor, state.tab, state.details, state.impact, state.trace]);
+  }, [openFor, tab, state.details, state.impact, state.trace]);
 
   // Escape closes the panel.
   useEffect(() => {
@@ -141,20 +140,20 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
   }, [openFor, onClose]);
 
   function onTabKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
-    const idx = TABS.indexOf(state.tab);
+    const idx = TABS.indexOf(tab);
     let next: Tab | null = null;
     if (e.key === "ArrowRight") {
-      next = TABS[(idx + 1) % TABS.length] ?? state.tab;
+      next = TABS[(idx + 1) % TABS.length] ?? tab;
     } else if (e.key === "ArrowLeft") {
-      next = TABS[(idx - 1 + TABS.length) % TABS.length] ?? state.tab;
+      next = TABS[(idx - 1 + TABS.length) % TABS.length] ?? tab;
     } else if (e.key === "Home") {
-      next = TABS[0] ?? state.tab;
+      next = TABS[0] ?? tab;
     } else if (e.key === "End") {
-      next = TABS[TABS.length - 1] ?? state.tab;
+      next = TABS[TABS.length - 1] ?? tab;
     }
     if (next) {
       e.preventDefault();
-      dispatch({ type: "select-tab", tab: next });
+      onTabChange(next);
       const btn = document.querySelector<HTMLButtonElement>(`[role="tab"][data-tab="${next}"]`);
       btn?.focus();
     }
@@ -196,10 +195,10 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
             role="tab"
             type="button"
             data-tab={t}
-            aria-selected={state.tab === t}
+            aria-selected={tab === t}
             aria-controls="panel-body"
-            tabIndex={state.tab === t ? 0 : -1}
-            onClick={() => dispatch({ type: "select-tab", tab: t })}
+            tabIndex={tab === t ? 0 : -1}
+            onClick={() => onTabChange(t)}
             className="bg-transparent border-0 text-fg-muted py-3 px-0.5 cursor-pointer text-[12.5px] border-b-2 border-b-transparent -mb-px hover:text-fg aria-selected:text-fg aria-selected:border-b-fg aria-selected:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -210,13 +209,13 @@ export function Panel({ openFor, onClose, repoInfo }: PanelProps) {
         id="panel-body"
         className="flex-1 overflow-y-auto p-4 text-[12.5px]"
         role="tabpanel"
-        aria-labelledby={`tab-${state.tab}`}
+        aria-labelledby={`tab-${tab}`}
         tabIndex={0}
       >
-        {state.tab === "details" && renderDetails(state, githubUrl)}
-        {state.tab === "triggers" && renderTriggers(state)}
-        {state.tab === "impact" && renderImpact(state)}
-        {state.tab === "trace" && renderTrace(state)}
+        {tab === "details" && renderDetails(state, githubUrl)}
+        {tab === "triggers" && renderTriggers(state)}
+        {tab === "impact" && renderImpact(state)}
+        {tab === "trace" && renderTrace(state)}
       </section>
     </aside>
   );

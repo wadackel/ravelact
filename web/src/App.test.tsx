@@ -228,6 +228,70 @@ describe("App — orchestration", () => {
     await waitFor(() => expect(latestGraphProps().analysisIds).toBeNull());
   });
 
+  it("keeps the active panel tab when selecting a different node", async () => {
+    render(<App />);
+    await screen.findByRole("complementary", { name: "Graph overview" });
+
+    // Select node A → Panel mounts → switch to Triggers.
+    act(() => {
+      latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
+    });
+    await screen.findByRole("complementary", { name: "Node detail panel" });
+    const triggersTab = await screen.findByRole("tab", { name: "Triggers" });
+    act(() => {
+      triggersTab.click();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Triggers" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    // Select node B → Panel remounts via key={selected.id}, but the
+    // active tab is owned by App and survives the change.
+    act(() => {
+      latestGraphProps().onNodeClick("wf:.github/workflows/release.yaml", "workflow");
+    });
+    await waitFor(() => {
+      expect(api.fetchNode).toHaveBeenCalledWith("workflow", ".github/workflows/release.yaml");
+    });
+    expect(screen.getByRole("tab", { name: "Triggers" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("resets the active panel tab to Details when the panel is closed", async () => {
+    render(<App />);
+    await screen.findByRole("complementary", { name: "Graph overview" });
+
+    // Select node, switch to Triggers.
+    act(() => {
+      latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
+    });
+    const triggersTab = await screen.findByRole("tab", { name: "Triggers" });
+    act(() => {
+      triggersTab.click();
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("tab", { name: "Triggers" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      );
+    });
+
+    // Background tap closes the panel (OverviewPane comes back).
+    act(() => {
+      latestGraphProps().onBackgroundTap();
+    });
+    await screen.findByRole("complementary", { name: "Graph overview" });
+
+    // Re-open on any node — should start on Details.
+    act(() => {
+      latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
+    });
+    const detailsTab = await screen.findByRole("tab", { name: "Details" });
+    expect(detailsTab).toHaveAttribute("aria-selected", "true");
+  });
+
   it("Enter in the search input calls __ravelactRf.fitNodes with the matched ids", async () => {
     const fitNodes = vi.fn();
     // The full RavelactRf surface is large; we only stub the one method

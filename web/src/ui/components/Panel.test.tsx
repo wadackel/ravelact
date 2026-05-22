@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
@@ -15,8 +16,30 @@ vi.mock("../../lib/api.ts", () => ({
 }));
 
 import * as api from "../../lib/api.ts";
-import type { RepoInfo } from "../../lib/types.ts";
-import { Panel } from "./Panel.tsx";
+import type { NodeKind, RepoInfo } from "../../lib/types.ts";
+import { Panel, type Tab } from "./Panel.tsx";
+
+// Mirrors App.tsx's wiring: owns the active tab state and keys the
+// inner Panel on `openFor.id` so a per-node remount still resets the
+// data slices while the tab survives.
+function ControlledPanel(props: {
+  initialTab?: Tab;
+  openFor: { id: string; kind: NodeKind };
+  onClose: () => void;
+  repoInfo: RepoInfo | null;
+}) {
+  const [tab, setTab] = useState<Tab>(props.initialTab ?? "details");
+  return (
+    <Panel
+      key={props.openFor.id}
+      openFor={props.openFor}
+      onClose={props.onClose}
+      repoInfo={props.repoInfo}
+      tab={tab}
+      onTabChange={setTab}
+    />
+  );
+}
 
 const REPO: RepoInfo = {
   host: "github.com",
@@ -58,7 +81,14 @@ describe("Panel — fetch + cacheRef invariants", () => {
   });
 
   it("fires fetchNode once on initial mount with a non-null openFor", async () => {
-    render(<Panel openFor={{ id: "wf:x", kind: "workflow" }} onClose={() => {}} repoInfo={null} />);
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
     await waitFor(() => {
       expect(api.fetchNode).toHaveBeenCalledTimes(1);
     });
@@ -66,7 +96,14 @@ describe("Panel — fetch + cacheRef invariants", () => {
   });
 
   it("clicking the Impact tab fires fetchImpact once", async () => {
-    render(<Panel openFor={{ id: "wf:x", kind: "workflow" }} onClose={() => {}} repoInfo={null} />);
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
     await waitFor(() => expect(api.fetchNode).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByRole("tab", { name: "Impact" }));
@@ -77,7 +114,14 @@ describe("Panel — fetch + cacheRef invariants", () => {
   });
 
   it("clicking the same tab twice does NOT re-fetch (cacheRef hit)", async () => {
-    render(<Panel openFor={{ id: "wf:x", kind: "workflow" }} onClose={() => {}} repoInfo={null} />);
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
     fireEvent.click(screen.getByRole("tab", { name: "Trace" }));
     await waitFor(() => expect(api.fetchTrace).toHaveBeenCalledTimes(1));
     // Click another tab and back to Trace — should hit the cache.
@@ -88,9 +132,28 @@ describe("Panel — fetch + cacheRef invariants", () => {
     expect(api.fetchTrace).toHaveBeenCalledTimes(1);
   });
 
+  it("controlled tab prop renders the matching section without a click", async () => {
+    render(
+      <ControlledPanel
+        initialTab="triggers"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    // Triggers tab should be active without simulating a click.
+    const triggersTab = screen.getByRole("tab", { name: "Triggers" });
+    expect(triggersTab).toHaveAttribute("aria-selected", "true");
+    // Details fetch is shared by Details + Triggers, so wait for it,
+    // then assert the Triggers content (the "push" chip from the mock).
+    await waitFor(() => expect(api.fetchNode).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("push")).toBeVisible();
+  });
+
   it("renders Open-in-GitHub link in Details for a workflow node when repoInfo is set", async () => {
     render(
-      <Panel
+      <ControlledPanel
+        initialTab="details"
         openFor={{ id: "wf:.github/workflows/ci.yaml", kind: "workflow" }}
         onClose={() => {}}
         repoInfo={REPO}
@@ -109,7 +172,8 @@ describe("Panel — fetch + cacheRef invariants", () => {
 
   it("hides Open-in-GitHub link for a workflow node when repoInfo is null", async () => {
     render(
-      <Panel
+      <ControlledPanel
+        initialTab="details"
         openFor={{ id: "wf:.github/workflows/ci.yaml", kind: "workflow" }}
         onClose={() => {}}
         repoInfo={null}
@@ -137,7 +201,8 @@ describe("Panel — fetch + cacheRef invariants", () => {
       refs_out: [],
     });
     render(
-      <Panel
+      <ControlledPanel
+        initialTab="details"
         openFor={{ id: "ea:actions/checkout@v4", kind: "external-action" }}
         onClose={() => {}}
         repoInfo={null}
@@ -152,7 +217,8 @@ describe("Panel — fetch + cacheRef invariants", () => {
     // link field is absent.
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
     render(
-      <Panel
+      <ControlledPanel
+        initialTab="details"
         openFor={{ id: "dk:alpine:3.20", kind: "docker" }}
         onClose={() => {}}
         repoInfo={REPO}
@@ -163,12 +229,11 @@ describe("Panel — fetch + cacheRef invariants", () => {
   });
 
   it("changing openFor to a new node invalidates the cache and re-fetches", async () => {
-    // Mirror the prop-passing pattern used by `App.tsx`: a `key` on
-    // <Panel> tied to `openFor.id` forces a remount on node change, so
+    // Mirror App.tsx's wiring via ControlledPanel: it keys the inner
+    // <Panel> on `openFor.id` so each id change forces a remount, and
     // each Panel instance starts with fresh `state` and re-fetches.
     const { rerender } = render(
-      <Panel
-        key="wf:x"
+      <ControlledPanel
         openFor={{ id: "wf:x", kind: "workflow" }}
         onClose={() => {}}
         repoInfo={null}
@@ -178,8 +243,7 @@ describe("Panel — fetch + cacheRef invariants", () => {
 
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(nodeResponse("wf:y"));
     rerender(
-      <Panel
-        key="wf:y"
+      <ControlledPanel
         openFor={{ id: "wf:y", kind: "workflow" }}
         onClose={() => {}}
         repoInfo={null}
