@@ -454,7 +454,11 @@ jobs:
             echo
             ./target/debug/ravelact --root . --exclude 'tests/**' orphans --format markdown
             echo
-            ./target/debug/ravelact --root . --exclude 'tests/**' extract --format markdown
+            # min-length=4: the `checkout + setup-nix-devshell + 1 step` floor
+            # is structurally forced by our CI shape, so length=3 candidates are
+            # always noise. Length=4 requires a shared step beyond the bootstrap
+            # — the threshold where extraction starts being worth considering.
+            ./target/debug/ravelact --root . --exclude 'tests/**' extract --min-length 4 --format markdown
             echo
             ./target/debug/ravelact --root . --exclude 'tests/**' dedup --format markdown
             echo
