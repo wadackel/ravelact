@@ -1,8 +1,9 @@
 /target/
-dist/
+/dist/
 /result
 /lcov.info
-web/dist/
+web/dist/*
+!web/dist/.gitkeep
 web/node_modules/
 web/.vite/
 web/test-results/

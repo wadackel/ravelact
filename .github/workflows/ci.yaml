@@ -22,11 +22,13 @@ jobs:
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
       # `just format` runs `cd web && pnpm format` which requires
-      # node_modules to exist (vp binary lives there). `just frontend`
-      # installs deps + builds web/dist/ so the subsequent pnpm + cargo
-      # invocations work.
-      - name: just frontend
-        run: nix develop --command just frontend
+      # node_modules to exist (vp binary lives there). `just frontend-deps`
+      # installs deps without building web/dist/ — format does not need
+      # the bundle, so the vite build is skipped here. Other jobs still
+      # call `just frontend` because cargo build/clippy/test invoke
+      # rust-embed, which reads web/dist/ at compile time.
+      - name: just frontend-deps
+        run: nix develop --command just frontend-deps
       - name: just format
         run: nix develop --command just format
       - name: Check formatting diff
