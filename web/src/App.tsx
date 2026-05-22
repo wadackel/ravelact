@@ -8,7 +8,7 @@ import { ErrorBanner } from "./ui/components/ErrorBanner.tsx";
 import { Graph } from "./ui/components/Graph.tsx";
 import { Header } from "./ui/components/Header.tsx";
 import { OverviewPane } from "./ui/components/OverviewPane.tsx";
-import { Panel } from "./ui/components/Panel.tsx";
+import { Panel, type Tab } from "./ui/components/Panel.tsx";
 
 function isNodeKind(k: string): k is NodeKind {
   return (NODE_KINDS as ReadonlyArray<string>).includes(k);
@@ -18,6 +18,13 @@ export function App() {
   const [payload, setPayload] = useState<GraphPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<{ id: string; kind: NodeKind } | null>(null);
+
+  // Active right-panel tab. Lifted out of Panel so it survives
+  // node-to-node selection changes. Per-node data slices still reset
+  // because <Panel> is keyed on `selected.id` and remounts on change.
+  // Reset to "details" inside handleClearSelected so the next opened
+  // panel starts on Details.
+  const [panelTab, setPanelTab] = useState<Tab>("details");
 
   // Lifted from Header so the OverviewPane can render the same data
   // without a second /api/triggers round-trip.
@@ -140,6 +147,7 @@ export function App() {
   // re-run on every App re-render.
   const handleClearSelected = useCallback(() => {
     setSelected(null);
+    setPanelTab("details");
   }, []);
 
   const handleSearchEnter = useCallback(() => {
@@ -178,6 +186,8 @@ export function App() {
             openFor={selected}
             onClose={handleClearSelected}
             repoInfo={repoInfo}
+            tab={panelTab}
+            onTabChange={setPanelTab}
           />
         ) : (
           <OverviewPane
