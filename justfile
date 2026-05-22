@@ -18,12 +18,18 @@ test:
 build:
     cargo build
 
-# Build the web frontend (pnpm install + vite build) and emit web/dist/.
+# Install web/ dependencies only. Use this when only `node_modules` is
+# needed (e.g. `just format`, which invokes `vp fmt`) but `web/dist/` is
+# not required.
+frontend-deps:
+    cd web && pnpm install --frozen-lockfile
+
+# Build the web frontend (deps + vite build) and emit web/dist/.
 # rust-embed in src/cli/render/browse.rs reads web/dist/, so this must run
 # before any `cargo build` that needs the browse subcommand to serve assets
 # at runtime. Dev workflow uses `pnpm dev` instead (see README).
-frontend:
-    cd web && pnpm install --frozen-lockfile && pnpm build
+frontend: frontend-deps
+    cd web && pnpm build
 
 # Canonical release path: build the frontend first so rust-embed has
 # web/dist/ to bundle, then build the Rust binary. CI invokes this.
