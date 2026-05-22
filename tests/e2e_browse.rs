@@ -499,6 +499,70 @@ mod tests {
         let _ = child.wait();
     }
 
+    /// `/api/repo` returns 200 + the expected JSON shape for a GitHub
+    /// Enterprise `origin` URL (any GitHub-like host should pass through
+    /// `parse_remote_url`; the response carries the host verbatim so the
+    /// frontend builds `https://<ghe-host>/...` links).
+    #[test]
+    fn api_repo_returns_ghe_provenance_for_git_root() {
+        let dir = tempdir().expect("tempdir");
+        write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
+
+        let git = |args: &[&str]| {
+            let status = Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()
+                .expect("run git");
+            assert!(status.success(), "git {:?} failed", args);
+        };
+        git(&["init", "-q", "-b", "main"]);
+        git(&["config", "user.email", "t@example.com"]);
+        git(&["config", "user.name", "t"]);
+        git(&["config", "commit.gpgsign", "false"]);
+        git(&[
+            "remote",
+            "add",
+            "origin",
+            "https://ghe.example.com/acme/widget.git",
+        ]);
+        git(&["add", "."]);
+        git(&["commit", "-q", "-m", "seed"]);
+
+        let (mut child, port) = spawn_browse_server(dir.path());
+        let response = http_get(port, "/api/repo");
+        let head: &[u8] = response.get(..16).unwrap_or(&response);
+        let head_str = String::from_utf8_lossy(head);
+        assert!(
+            head_str.starts_with("HTTP/1.1 200"),
+            "GHE root must yield 200 for /api/repo; got: {head_str:?}",
+        );
+        let body = body_after_headers(&response);
+        let body_str = String::from_utf8_lossy(body);
+        assert!(
+            body_str.contains("\"host\":\"ghe.example.com\""),
+            "host should be ghe.example.com: {body_str}",
+        );
+        assert!(
+            body_str.contains("\"owner\":\"acme\""),
+            "owner should be acme: {body_str}",
+        );
+        assert!(
+            body_str.contains("\"repo\":\"widget\""),
+            "repo should be widget: {body_str}",
+        );
+        assert!(
+            body_str.contains("\"ref\":\"main\""),
+            "ref should be the branch name (main): {body_str}",
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
     /// With `--include-test-fixtures` the same fixture must appear in the
     /// graph response — proves the opt-out actually reaches the backend.
     #[test]
