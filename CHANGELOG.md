@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.7](https://github.com/wadackel/ravelact/compare/v0.0.6...v0.0.7) - 2026-05-22
+
+### Fixed
+
+- *(release-plz)* commit `web/dist/.gitkeep` placeholder so `cargo package --verify` no longer fails when release-plz copies the workspace into a temp worktree that respects `.gitignore` ([#17](https://github.com/wadackel/ravelact/pull/17))
+
+### Other
+
+- *(ci)* drop the `devshell-run` composite action; each Nix-using CI job now calls `setup-nix-devshell` once ([#16](https://github.com/wadackel/ravelact/pull/16))
+- *(just)* split `frontend` recipe into `frontend-deps` (install only) and `frontend` (deps + build); CI format job skips the unnecessary vite build ([#17](https://github.com/wadackel/ravelact/pull/17))
+- *(web)* restructure UI primitives under `web/src/ui/components/ui/` ([#15](https://github.com/wadackel/ravelact/pull/15))
+
 ## [0.0.6](https://github.com/wadackel/ravelact/compare/v0.0.5...v0.0.6) - 2026-05-21
 
 ### Added
