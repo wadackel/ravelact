@@ -28,8 +28,15 @@ frontend-deps:
 # rust-embed in src/cli/render/browse.rs reads web/dist/, so this must run
 # before any `cargo build` that needs the browse subcommand to serve assets
 # at runtime. Dev workflow uses `pnpm dev` instead (see README).
+#
+# `touch web/dist/.gitkeep` re-creates the rust-embed folder-existence
+# placeholder that vite's default `emptyOutDir: true` removes during the
+# build. The placeholder is git-tracked so release-plz's cargo package
+# verify (which copies tracked files only into a temp worktree) sees a
+# non-missing `web/dist/`.
 frontend: frontend-deps
     cd web && pnpm build
+    touch web/dist/.gitkeep
 
 # Canonical release path: build the frontend first so rust-embed has
 # web/dist/ to bundle, then build the Rust binary. CI invokes this.
