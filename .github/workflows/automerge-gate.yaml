@@ -6,7 +6,6 @@ on:
       - opened
       - synchronize
       - reopened
-      - ready_for_review
       - auto_merge_enabled
 
 permissions:
@@ -23,10 +22,10 @@ jobs:
   gate:
     name: automerge-gate/all-passed
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Must exceed the longest sibling job's timeout (coverage: 30) so the
+    # aggregator does not fail on its own job timeout while polling.
+    timeout-minutes: 35
     steps:
       - uses: pkgdeps/automerge-gate@1b731ae7137b3b0c37c09bd40df73b2a34a5abaa # v4.1.0
         with:
           gate-mode: 'public'
-          ignore-checks: |
-            [{ "name": "automerge-gate/all-passed" }]
