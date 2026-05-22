@@ -29,13 +29,13 @@ describe("githubUrlFor — workflow", () => {
     expect(githubUrlFor({ id: "wf:.github/workflows/ci.yaml", kind: "workflow" }, null)).toBeNull();
   });
 
-  it("returns null for non-github host", () => {
+  it("builds URL using repo.host (GitHub Enterprise)", () => {
     expect(
       githubUrlFor(
         { id: "wf:.github/workflows/ci.yaml", kind: "workflow" },
-        { ...REPO, host: "gitlab.com" },
+        { ...REPO, host: "ghe.example.com" },
       ),
-    ).toBeNull();
+    ).toBe("https://ghe.example.com/wadackel/ravelact/blob/main/.github/workflows/ci.yaml");
   });
 });
 
@@ -48,6 +48,15 @@ describe("githubUrlFor — local-action", () => {
 
   it("returns null when repo info is missing", () => {
     expect(githubUrlFor({ id: "la:.github/actions/setup", kind: "local-action" }, null)).toBeNull();
+  });
+
+  it("builds URL using repo.host (GitHub Enterprise)", () => {
+    expect(
+      githubUrlFor(
+        { id: "la:.github/actions/setup", kind: "local-action" },
+        { ...REPO, host: "ghe.example.com" },
+      ),
+    ).toBe("https://ghe.example.com/wadackel/ravelact/tree/main/.github/actions/setup");
   });
 });
 
@@ -81,6 +90,18 @@ describe("githubUrlFor — external-action", () => {
     ).toBe("https://github.com/actions/checkout/tree/v4");
   });
 
+  it("stays on github.com even when local repo is GHE", () => {
+    // Regression: when local host gate was dropped, external refs must
+    // still resolve to github.com per GA spec — GHE hosts internal actions
+    // separately and ravelact does not model that yet.
+    expect(
+      githubUrlFor(
+        { id: "ea:actions/checkout@v4", kind: "external-action" },
+        { ...REPO, host: "ghe.example.com" },
+      ),
+    ).toBe("https://github.com/actions/checkout/tree/v4");
+  });
+
   it("returns null for malformed id", () => {
     expect(githubUrlFor({ id: "ea:bogus", kind: "external-action" }, null)).toBeNull();
     expect(githubUrlFor({ id: "ea:owner/repo@", kind: "external-action" }, null)).toBeNull();
@@ -96,6 +117,18 @@ describe("githubUrlFor — external-workflow", () => {
           kind: "external-workflow",
         },
         null,
+      ),
+    ).toBe("https://github.com/owner/repo/blob/main/.github/workflows/ci.yaml");
+  });
+
+  it("stays on github.com even when local repo is GHE", () => {
+    expect(
+      githubUrlFor(
+        {
+          id: "ew:owner/repo/.github/workflows/ci.yaml@main",
+          kind: "external-workflow",
+        },
+        { ...REPO, host: "ghe.example.com" },
       ),
     ).toBe("https://github.com/owner/repo/blob/main/.github/workflows/ci.yaml");
   });

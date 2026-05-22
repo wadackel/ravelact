@@ -397,8 +397,12 @@ dense — e.g., visualizing which external actions a `push` event reaches.
 - `--include-test-fixtures` — include local-action manifests under
   `tests/fixtures/**` (default: excluded to keep the dogfood view focused
   on production workflows).
-- `/api/repo` returns 404 when the repo has no `github.com` remote, so the
-  frontend gracefully hides the "Open in GitHub" link for local nodes.
+- `/api/repo` returns 200 when `origin` resolves to a GitHub-like host
+  (github.com or GitHub Enterprise) over `ssh://`, `git@host:` (SCP form),
+  `https://`, or `http://`; userinfo and ports are tolerated. It returns
+  404 only when the directory is not a git repo, has no `origin` remote,
+  or `origin` uses an unsupported scheme (e.g. `git://`, `file://`). The
+  frontend hides the "Open in GitHub" link for local nodes when 404.
 
 ```sh
 ravelact browse                          # opens http://127.0.0.1:<auto>/

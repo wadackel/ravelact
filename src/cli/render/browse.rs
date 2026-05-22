@@ -35,6 +35,7 @@ use std::collections::HashSet;
 use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
+use url::Url;
 
 #[derive(Embed)]
 #[folder = "web/dist/"]
@@ -294,8 +295,14 @@ struct RepoInfo {
 }
 
 fn compute_repo_info(root: &Path) -> Option<RepoInfo> {
+    // Do not log the raw `url` string anywhere — `git remote get-url origin`
+    // can return credentials embedded in the URL (e.g. CI clones with
+    // `https://x-access-token:TOKEN@github.com/...`). `parse_remote_url`
+    // drops userinfo from URL forms via `url::Url::host_str` and from SCP
+    // forms via `rsplit_once('@')`, so the returned `RepoInfo` is
+    // credential-free; the raw input must stay scoped to this function.
     let url = run_git(root, &["remote", "get-url", "origin"])?;
-    let (host, owner, repo) = parse_github_url(&url)?;
+    let (host, owner, repo) = parse_remote_url(&url)?;
     let git_ref = run_git(root, &["symbolic-ref", "--short", "HEAD"])
         .or_else(|| run_git(root, &["rev-parse", "HEAD"]))?;
     Some(RepoInfo {
@@ -325,25 +332,66 @@ fn run_git(root: &Path, args: &[&str]) -> Option<String> {
     }
 }
 
-/// Recognize `git@github.com:owner/repo[.git]` and `https://github.com/owner/repo[.git]`.
-/// Returns `(host, owner, repo)`. `None` for non-github hosts / malformed URLs.
-/// v1 limits acceptance to `github.com` exactly; GitHub Enterprise is a future task.
-fn parse_github_url(url: &str) -> Option<(String, String, String)> {
+/// Parse a `git remote get-url` value into `(host, owner, repo)`.
+///
+/// Accepted forms (host is host-agnostic; github.com and GitHub Enterprise
+/// alike pass through):
+///   - SCP form: `[user@]host:owner/repo[.git]` (e.g. `git@github.com:o/r`)
+///   - URL form: `ssh://[user[:pw]@]host[:port]/owner/repo[.git]`,
+///     `https://[user[:pw]@]host[:port]/owner/repo[.git]`, or `http://...`
+///
+/// SCP form is detected **before** `Url::parse` because the colon in
+/// `git@host:path` is not a port separator. `Url::parse` currently rejects
+/// SCP with `RelativeUrlWithoutBase`, but routing through the URL branch
+/// would be fragile if upstream behavior shifted, so SCP wins by ordering.
+///
+/// `git://` and `file://` are rejected: the former is unauthenticated and
+/// nearly absent in practice, the latter can't link to a public GitHub-like
+/// host. Schemes outside {ssh, https, http} are rejected for the same reason.
+///
+/// Credential safety: userinfo (`user@` or `user:pw@`) is stripped — via
+/// `Url::host_str` for URL forms and via `rsplit_once('@')` for SCP form —
+/// so neither the returned host nor the caller's `RepoInfo` ever sees the
+/// userinfo. The raw input string must still be treated as secret by the
+/// caller (see `compute_repo_info`).
+///
+/// Host is normalized to ASCII lowercase. `url`'s special schemes
+/// (http/https) already lowercase the host, but `ssh` is non-special and
+/// preserves case (`ssh://git@GitHub.com/...` → `host_str() == "GitHub.com"`),
+/// so the lowercasing is explicit.
+fn parse_remote_url(url: &str) -> Option<(String, String, String)> {
     let url = url.trim();
-    // SSH form: git@github.com:owner/repo[.git]
-    if let Some(rest) = url.strip_prefix("git@github.com:") {
-        let (owner, repo) = split_owner_repo(rest)?;
-        return Some(("github.com".into(), owner, repo));
+    if url.is_empty() {
+        return None;
     }
-    // HTTPS form: https://github.com/owner/repo[.git]
-    // Also accept http:// for completeness.
-    for prefix in ["https://github.com/", "http://github.com/"] {
-        if let Some(rest) = url.strip_prefix(prefix) {
-            let (owner, repo) = split_owner_repo(rest)?;
-            return Some(("github.com".into(), owner, repo));
+
+    // SCP form: `[user@]host:path`, with `host` and `path` separated by the
+    // first `:`. Distinguishable from URL form by the absence of `://`. A
+    // bare `host:port` without `@` is also possible but extremely rare for
+    // git remotes; we still accept it as long as the part after `:` parses
+    // as `owner/repo`.
+    if !url.contains("://") {
+        if let Some(colon) = url.find(':') {
+            let host_part = &url[..colon];
+            let path = &url[colon + 1..];
+            let host = host_part.rsplit_once('@').map_or(host_part, |(_, h)| h);
+            if host.is_empty() {
+                return None;
+            }
+            let (owner, repo) = split_owner_repo(path)?;
+            return Some((host.to_ascii_lowercase(), owner, repo));
         }
+        return None;
     }
-    None
+
+    let parsed = Url::parse(url).ok()?;
+    if !matches!(parsed.scheme(), "ssh" | "https" | "http") {
+        return None;
+    }
+    let host = parsed.host_str()?.to_ascii_lowercase();
+    let path = parsed.path().trim_start_matches('/');
+    let (owner, repo) = split_owner_repo(path)?;
+    Some((host, owner, repo))
 }
 
 fn split_owner_repo(rest: &str) -> Option<(String, String)> {
@@ -369,9 +417,10 @@ async fn serve(
     // Serialize once and hand each request a cheap Bytes clone (Arc-backed).
     let api_body = Bytes::from(serde_json::to_vec(&graph)?);
     // Pre-serialize repo info too so each request is a Bytes clone, not a
-    // re-serialization. `None` means no GitHub remote / non-GitHub host /
-    // detached HEAD with no SHA — the route returns 404 in that case so the
-    // frontend can hide the "Open in GitHub" link gracefully.
+    // re-serialization. `None` means no `origin` remote / unsupported scheme
+    // (`git://`, `file://`, …) / malformed URL / detached HEAD with no SHA —
+    // the route returns 404 in that case so the frontend can hide the
+    // "Open in GitHub" link gracefully.
     let repo_body: Option<Bytes> = repo_info
         .as_ref()
         .map(|r| Bytes::from(serde_json::to_vec(r).expect("RepoInfo serializes")));
@@ -1130,50 +1179,114 @@ mod tests {
     }
 
     #[test]
-    fn parse_github_url_accepts_ssh_and_https() {
-        // SSH form
+    fn parse_remote_url_accepts_matrix() {
+        let gh = |o: &str, r: &str| Some(("github.com".into(), o.into(), r.into()));
+        let ghe = |o: &str, r: &str| Some(("ghe.example.com".into(), o.into(), r.into()));
+
+        // SCP form (with / without `.git`)
         assert_eq!(
-            parse_github_url("git@github.com:wadackel/ravelact.git"),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("git@github.com:wadackel/ravelact.git"),
+            gh("wadackel", "ravelact"),
         );
         assert_eq!(
-            parse_github_url("git@github.com:wadackel/ravelact"),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("git@github.com:wadackel/ravelact"),
+            gh("wadackel", "ravelact"),
         );
-        // HTTPS form with and without .git suffix
+        // SSH URL form, with and without port
         assert_eq!(
-            parse_github_url("https://github.com/wadackel/ravelact.git"),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("ssh://git@github.com/wadackel/ravelact.git"),
+            gh("wadackel", "ravelact"),
         );
         assert_eq!(
-            parse_github_url("https://github.com/wadackel/ravelact"),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("ssh://git@github.com:22/wadackel/ravelact.git"),
+            gh("wadackel", "ravelact"),
         );
-        // Trailing slash tolerated
+        // HTTPS, with / without `.git` / trailing slash
         assert_eq!(
-            parse_github_url("https://github.com/wadackel/ravelact/"),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("https://github.com/wadackel/ravelact.git"),
+            gh("wadackel", "ravelact"),
         );
-        // Surrounding whitespace tolerated (git remote get-url emits a trailing
-        // newline that run_git already trims, but defend in depth)
         assert_eq!(
-            parse_github_url("  https://github.com/wadackel/ravelact  "),
-            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+            parse_remote_url("https://github.com/wadackel/ravelact"),
+            gh("wadackel", "ravelact"),
+        );
+        assert_eq!(
+            parse_remote_url("https://github.com/wadackel/ravelact/"),
+            gh("wadackel", "ravelact"),
+        );
+        // HTTPS with userinfo (CI clones often embed PATs here)
+        assert_eq!(
+            parse_remote_url("https://octocat@github.com/wadackel/ravelact"),
+            gh("wadackel", "ravelact"),
+        );
+        // HTTPS with explicit port
+        assert_eq!(
+            parse_remote_url("https://github.com:443/wadackel/ravelact"),
+            gh("wadackel", "ravelact"),
+        );
+        // Uppercase host — special scheme (https): `url` already lowercases
+        assert_eq!(
+            parse_remote_url("https://GitHub.com/wadackel/ravelact"),
+            gh("wadackel", "ravelact"),
+        );
+        // Uppercase host — non-special scheme (ssh): we lowercase explicitly
+        assert_eq!(
+            parse_remote_url("ssh://git@GitHub.com/wadackel/ravelact.git"),
+            gh("wadackel", "ravelact"),
+        );
+        // Surrounding whitespace tolerated (defence in depth above run_git's trim)
+        assert_eq!(
+            parse_remote_url("  https://github.com/wadackel/ravelact  "),
+            gh("wadackel", "ravelact"),
+        );
+        // GitHub Enterprise (SCP and HTTPS)
+        assert_eq!(
+            parse_remote_url("git@ghe.example.com:acme/widget"),
+            ghe("acme", "widget"),
+        );
+        assert_eq!(
+            parse_remote_url("https://ghe.example.com/acme/widget.git"),
+            ghe("acme", "widget"),
         );
     }
 
     #[test]
-    fn parse_github_url_rejects_non_github() {
-        // GitHub Enterprise is intentionally not accepted in v1
-        assert_eq!(parse_github_url("https://github.example.com/o/r"), None);
-        assert_eq!(parse_github_url("git@gitlab.com:o/r.git"), None);
-        assert_eq!(parse_github_url("https://gitlab.com/o/r"), None);
-        // Malformed
-        assert_eq!(parse_github_url("not a url"), None);
-        assert_eq!(parse_github_url("https://github.com/"), None);
-        assert_eq!(parse_github_url("https://github.com/justowner"), None);
-        // Sub-paths beyond owner/repo
-        assert_eq!(parse_github_url("https://github.com/o/r/extra"), None);
+    fn parse_remote_url_strips_credentials() {
+        // `git remote get-url origin` may return PAT-embedded URLs in CI;
+        // confirm host/owner/repo are clean (no userinfo leakage).
+        let parsed = parse_remote_url("https://x-access-token:secret@github.com/acme/widget.git")
+            .expect("PAT-embedded URL should parse");
+        assert_eq!(
+            parsed,
+            ("github.com".into(), "acme".into(), "widget".into())
+        );
+        let (host, owner, repo) = parsed;
+        for field in [&host, &owner, &repo] {
+            assert!(
+                !field.contains("x-access-token") && !field.contains("secret"),
+                "credential leaked into RepoInfo field: {field}",
+            );
+        }
+    }
+
+    #[test]
+    fn parse_remote_url_rejects_invalid() {
+        // Unauthenticated / unsupported schemes
+        assert_eq!(parse_remote_url("git://github.com/o/r"), None);
+        assert_eq!(parse_remote_url("file:///tmp/repo"), None);
+        // Empty / garbage
+        assert_eq!(parse_remote_url(""), None);
+        assert_eq!(parse_remote_url("   "), None);
+        assert_eq!(parse_remote_url("not a url"), None);
+        // Missing repo segment
+        assert_eq!(parse_remote_url("https://github.com/"), None);
+        assert_eq!(parse_remote_url("https://github.com/justowner"), None);
+        // Extra path segments beyond `owner/repo`
+        assert_eq!(parse_remote_url("https://github.com/o/r/extra"), None);
+        // SSH URL with single segment
+        assert_eq!(parse_remote_url("ssh://git@github.com/o"), None);
+        // SCP form with single segment
+        assert_eq!(parse_remote_url("git@github.com:wadackel"), None);
     }
 
     #[test]

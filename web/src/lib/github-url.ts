@@ -1,20 +1,21 @@
 import type { NodeKind, RepoInfo } from "./types.ts";
 
 // Build a "Open in GitHub" URL for a given graph node. Returns `null` when
-// no link is possible — docker nodes, missing local repo info, non-github
-// host, or malformed external ids.
+// no link is possible — docker nodes, missing local repo info, or
+// malformed external ids.
 //
 // Mapping (consistent with `src/cli/render/browse.rs` id formats):
-//   wf:<path>                       → blob/<ref>/<path>            (local)
-//   la:<dir>                        → tree/<ref>/<dir>             (local)
+//   wf:<path>                       → blob/<ref>/<path>            (local, repo.host)
+//   la:<dir>                        → tree/<ref>/<dir>             (local, repo.host)
 //   ea:<o>/<r>[/<sub>]@<gitref>     → tree/<gitref>[/<sub>]        (github.com)
 //   ew:<o>/<r>/<path>@<gitref>      → blob/<gitref>/<path>         (github.com)
 //   dk:<image>                      → null
 //
-// Local nodes (`workflow` / `local-action`) require `repo` (from /api/repo).
-// External nodes carry owner/repo/gitref inline in their id and never need
-// `repo`. GA spec only allows external refs on github.com, so the host is
-// hardcoded.
+// Local nodes (`workflow` / `local-action`) require `repo` (from /api/repo)
+// and use `repo.host`, so github.com and GitHub Enterprise both produce a
+// working link. External nodes carry owner/repo/gitref inline in their id;
+// GA spec only allows external refs on github.com, so the host is hardcoded
+// regardless of the local repo's host.
 export function githubUrlFor(
   node: { id: string; kind: NodeKind },
   repo: RepoInfo | null,
@@ -23,16 +24,16 @@ export function githubUrlFor(
     case "docker":
       return null;
     case "workflow": {
-      if (!repo || repo.host !== "github.com") return null;
+      if (!repo) return null;
       const path = stripPrefix(node.id, "wf:");
       if (path === null) return null;
-      return `https://github.com/${repo.owner}/${repo.repo}/blob/${repo.ref}/${path}`;
+      return `https://${repo.host}/${repo.owner}/${repo.repo}/blob/${repo.ref}/${path}`;
     }
     case "local-action": {
-      if (!repo || repo.host !== "github.com") return null;
+      if (!repo) return null;
       const dir = stripPrefix(node.id, "la:");
       if (dir === null) return null;
-      return `https://github.com/${repo.owner}/${repo.repo}/tree/${repo.ref}/${dir}`;
+      return `https://${repo.host}/${repo.owner}/${repo.repo}/tree/${repo.ref}/${dir}`;
     }
     case "external-action": {
       const parsed = parseExternalAction(node.id);
