@@ -1,5 +1,34 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
+import { Code, ConnectError } from "@connectrpc/connect";
+
+// `api.ts` builds its `BrowseService` client at module import. Mock the
+// Connect factory before importing so each test can swap in a fresh
+// stub. The mock object captures every call so assertions can read
+// argument shape + count back.
+const stub: Record<string, ReturnType<typeof vi.fn>> = {
+  getGraph: vi.fn(),
+  getRepo: vi.fn(),
+  listTriggers: vi.fn(),
+  search: vi.fn(),
+  getEventImpact: vi.fn(),
+  getNode: vi.fn(),
+  getImpact: vi.fn(),
+  trace: vi.fn(),
+};
+
+vi.mock("@connectrpc/connect", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@connectrpc/connect")>();
+  return {
+    ...orig,
+    createClient: () => stub,
+  };
+});
+
+vi.mock("@connectrpc/connect-web", () => ({
+  createConnectTransport: () => ({ transport: "mock" }),
+}));
+
+const {
   fetchEventImpact,
   fetchGraph,
   fetchImpact,
@@ -7,137 +36,152 @@ import {
   fetchSearch,
   fetchTrace,
   fetchTriggers,
-} from "./api.ts";
+  fetchRepo,
+} = await import("./api.ts");
 
-function mockFetch(response: Response): ReturnType<typeof vi.fn> {
-  const spy = vi.fn().mockResolvedValue(response);
-  vi.stubGlobal("fetch", spy);
-  return spy;
+function notFound(): ConnectError {
+  return new ConnectError("missing", Code.NotFound);
 }
 
-describe("lib/api", () => {
+function canceled(): ConnectError {
+  return new ConnectError("canceled", Code.Canceled);
+}
+
+describe("lib/api — Connect client wrappers", () => {
   beforeEach(() => {
-    vi.unstubAllGlobals();
+    for (const key of Object.keys(stub)) {
+      stub[key]!.mockReset();
+    }
   });
   afterEach(() => {
-    vi.unstubAllGlobals();
+    for (const key of Object.keys(stub)) {
+      stub[key]!.mockReset();
+    }
   });
 
-  it("fetchNode encodes both kind and id (slashes percent-encoded)", async () => {
-    const spy = mockFetch(
-      new Response(
-        JSON.stringify({
-          id: "wf:.github/workflows/x.yml",
-          kind: "workflow",
-          label: "x",
-          file: "",
-          summary: "",
-          entry_triggers: [],
-          refs_in: [],
-          refs_out: [],
-        }),
-        { status: 200 },
-      ),
-    );
-    await fetchNode("workflow", ".github/workflows/x.yml");
-    expect(spy).toHaveBeenCalledWith("/api/node?kind=workflow&id=.github%2Fworkflows%2Fx.yml");
+  it("fetchNode passes kind + id and narrows the response kind", async () => {
+    stub.getNode!.mockResolvedValueOnce({
+      id: "wf:x",
+      kind: "workflow",
+      label: "x",
+      file: "",
+      summary: "",
+      entryTriggers: [],
+      refsIn: [],
+      refsOut: [],
+      ifConditions: [],
+    });
+    const resp = await fetchNode("workflow", ".github/workflows/x.yml");
+    expect(stub.getNode).toHaveBeenCalledWith({
+      kind: "workflow",
+      id: ".github/workflows/x.yml",
+    });
+    expect(resp?.kind).toBe("workflow");
   });
 
-  it("fetchImpact encodes id in query string", async () => {
-    const spy = mockFetch(
-      new Response(JSON.stringify({ workflows: [], actions: [], unknowns: [] }), { status: 200 }),
+  it("fetchNode throws when server returns a non-NodeResponseKind", async () => {
+    stub.getNode!.mockResolvedValueOnce({
+      id: "x",
+      kind: "external-workflow",
+      label: "",
+      file: "",
+      summary: "",
+      entryTriggers: [],
+      refsIn: [],
+      refsOut: [],
+      ifConditions: [],
+    });
+    await expect(fetchNode("workflow", "x")).rejects.toThrow(
+      "unexpected GetNode kind: external-workflow",
     );
+  });
+
+  it("fetchImpact passes id through verbatim", async () => {
+    stub.getImpact!.mockResolvedValueOnce({ workflows: [], actions: [], unknowns: [] });
     await fetchImpact(".github/workflows/x.yml");
-    expect(spy).toHaveBeenCalledWith("/api/impact?id=.github%2Fworkflows%2Fx.yml");
+    expect(stub.getImpact).toHaveBeenCalledWith({ id: ".github/workflows/x.yml" });
   });
 
-  it("fetchTrace encodes id in query string", async () => {
-    const spy = mockFetch(
-      new Response(
-        JSON.stringify({
-          tree: { kind: "workflow", id: "x", children: [] },
-          event_used: "push",
-        }),
-        { status: 200 },
-      ),
-    );
+  it("fetchTrace passes id through verbatim", async () => {
+    stub.trace!.mockResolvedValueOnce({ tree: undefined, eventUsed: "push" });
     await fetchTrace(".github/workflows/wf.yml");
-    expect(spy).toHaveBeenCalledWith("/api/trace?id=.github%2Fworkflows%2Fwf.yml");
+    expect(stub.trace).toHaveBeenCalledWith({ id: ".github/workflows/wf.yml" });
   });
 
-  it("returns null when the server responds 404", async () => {
-    mockFetch(new Response("", { status: 404 }));
+  it("returns null when the Connect server signals NotFound (5 nullable helpers)", async () => {
+    stub.getNode!.mockRejectedValueOnce(notFound());
     expect(await fetchNode("workflow", "missing")).toBeNull();
-    mockFetch(new Response("", { status: 404 }));
+    stub.getImpact!.mockRejectedValueOnce(notFound());
     expect(await fetchImpact("missing")).toBeNull();
-    mockFetch(new Response("", { status: 404 }));
+    stub.trace!.mockRejectedValueOnce(notFound());
     expect(await fetchTrace("missing")).toBeNull();
-    mockFetch(new Response("", { status: 404 }));
+    stub.listTriggers!.mockRejectedValueOnce(notFound());
     expect(await fetchTriggers()).toBeNull();
+    stub.getRepo!.mockRejectedValueOnce(notFound());
+    expect(await fetchRepo()).toBeNull();
   });
 
-  it("throws on 5xx for query-string endpoints", async () => {
-    mockFetch(new Response("", { status: 500 }));
-    await expect(fetchNode("workflow", "x")).rejects.toThrow("500");
+  it("re-throws non-NotFound errors from the nullable helpers", async () => {
+    stub.getNode!.mockRejectedValueOnce(new ConnectError("boom", Code.Internal));
+    await expect(fetchNode("workflow", "x")).rejects.toThrow("boom");
   });
 
-  it("fetchGraph throws on any non-OK status (not nullable)", async () => {
-    mockFetch(new Response("", { status: 500 }));
-    await expect(fetchGraph()).rejects.toThrow("/api/graph 500");
+  it("fetchGraph throws on any failure (never returns null)", async () => {
+    stub.getGraph!.mockRejectedValueOnce(new ConnectError("server-down", Code.Internal));
+    await expect(fetchGraph()).rejects.toThrow("server-down");
   });
 
-  it("fetchSearch encodes whitespace + forwards AbortSignal", async () => {
-    const spy = mockFetch(
-      new Response(JSON.stringify({ matches: [], truncated: false, total: 0 }), { status: 200 }),
-    );
+  it("fetchSearch forwards AbortSignal and Canceled becomes AbortError", async () => {
+    stub.search!.mockResolvedValueOnce({ matches: [], truncated: false, total: 0 });
     const controller = new AbortController();
     await fetchSearch("a b", controller.signal);
-    expect(spy).toHaveBeenCalledWith(
-      "/api/search?q=a%20b",
-      expect.objectContaining({ signal: controller.signal }),
-    );
+    expect(stub.search).toHaveBeenCalledWith({ q: "a b" }, { signal: controller.signal });
+
+    stub.search!.mockRejectedValueOnce(canceled());
+    await expect(fetchSearch("a b", controller.signal)).rejects.toMatchObject({
+      name: "AbortError",
+    });
   });
 
-  it("fetchSearch throws on non-OK status", async () => {
-    mockFetch(new Response("", { status: 500 }));
-    await expect(fetchSearch("x")).rejects.toThrow("/api/search 500");
+  it("fetchSearch throws on non-Canceled, non-NotFound failures", async () => {
+    stub.search!.mockRejectedValueOnce(new ConnectError("boom", Code.Internal));
+    await expect(fetchSearch("x")).rejects.toThrow("boom");
   });
 
-  it("fetchEventImpact encodes event + forwards AbortSignal", async () => {
-    const spy = mockFetch(
-      new Response(JSON.stringify({ event: "push", entry_workflows: [], node_ids: [] }), {
-        status: 200,
-      }),
-    );
+  it("fetchEventImpact forwards AbortSignal", async () => {
+    stub.getEventImpact!.mockResolvedValueOnce({
+      event: "push",
+      entryWorkflows: [],
+      nodeIds: [],
+    });
     const controller = new AbortController();
     await fetchEventImpact("push", controller.signal);
-    expect(spy).toHaveBeenCalledWith(
-      "/api/event-impact?event=push",
-      expect.objectContaining({ signal: controller.signal }),
+    expect(stub.getEventImpact).toHaveBeenCalledWith(
+      { event: "push" },
+      { signal: controller.signal },
     );
   });
 
-  it("fetchEventImpact throws on non-OK status", async () => {
-    mockFetch(new Response("", { status: 500 }));
-    await expect(fetchEventImpact("push")).rejects.toThrow("/api/event-impact 500");
+  it("fetchEventImpact throws on transport failure", async () => {
+    stub.getEventImpact!.mockRejectedValueOnce(new ConnectError("nope", Code.Internal));
+    await expect(fetchEventImpact("push")).rejects.toThrow("nope");
   });
 
-  it("fetchTriggers returns parsed body on 200", async () => {
-    const body = {
+  it("fetchTriggers returns the parsed list on success", async () => {
+    stub.listTriggers!.mockResolvedValueOnce({
       rows: [
         {
           event: "push",
-          entry_workflows: 3,
+          entryWorkflows: 3,
           declarations: 3,
           typed: 0,
           filtered: 0,
           examples: [],
         },
       ],
-    };
-    mockFetch(new Response(JSON.stringify(body), { status: 200 }));
+    });
     const r = await fetchTriggers();
     expect(r?.rows[0]?.event).toBe("push");
-    expect(r?.rows[0]?.entry_workflows).toBe(3);
+    expect(r?.rows[0]?.entryWorkflows).toBe(3);
   });
 });

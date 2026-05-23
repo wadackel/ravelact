@@ -1,23 +1,31 @@
-//! End-to-end tests for the `browse` subcommand HTTP API.
+//! End-to-end tests for the `browse` subcommand ConnectRPC API.
 //!
 //! Strategy: spawn `ravelact browse --port 0` as a child process, read its
-//! stdout to discover the bind port, then hit the five HTTP endpoints via raw
-//! TCP and assert HTTP/1.1 200 OK. Inline `write_synthetic_estate` is the
-//! sole consumer of the generator (Rule of Three: no `tests/support/` module
-//! until a second consumer appears).
+//! stdout to discover the bind port, then drive the 8 RPCs through a
+//! generated Connect client. The single consumer of `write_synthetic_estate`
+//! / `write_test_fixture_action` / `write_local_action` is this file
+//! (Rule of Three: no `tests/support/` module until a second consumer
+//! appears).
 
+use axum::http::Uri;
+use connectrpc::client::{ClientConfig, HttpClient};
+use ravelact::cli::render::browse::connect::ravelact::browse::v1::BrowseServiceClient;
+use ravelact::cli::render::browse::proto::ravelact::browse::v1::{
+    self as pb, GetEventImpactRequest, GetGraphRequest, GetImpactRequest, GetNodeRequest,
+    GetRepoRequest, ListTriggersRequest, SearchRequest, TraceRequest,
+};
 use std::fs;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
+use tokio::runtime::Runtime;
 
 /// Write `workflows` `.yaml` files under `<dir>/.github/workflows/` to
 /// simulate a complex estate. Up to 30 workflows are emitted as reusable
 /// (`on: workflow_call`); the remainder are entry-point callers that
-/// `uses:` one of the reusable workflows. This produces a realistic
-/// distribution of `calls-workflow` and `uses-external-action` edges.
+/// `uses:` one of the reusable workflows.
 pub fn write_synthetic_estate(dir: &Path, workflows: usize) -> std::io::Result<()> {
     let wf_dir = dir.join(".github/workflows");
     fs::create_dir_all(&wf_dir)?;
@@ -41,11 +49,10 @@ pub fn write_synthetic_estate(dir: &Path, workflows: usize) -> std::io::Result<(
 }
 
 /// Write a stand-alone local-action manifest under
-/// `<dir>/tests/fixtures/foo/.github/actions/foo/action.yaml`. This is the
-/// canonical shape the browse default-exclude targets — ravelact's own
-/// dogfood estate places test-fixture actions under `tests/fixtures/**`,
-/// and the new `browse` default excludes that glob. The action is a minimal
-/// composite that runs a single `echo`.
+/// `<dir>/tests/fixtures/foo/.github/actions/foo/action.yaml`. The canonical
+/// shape the browse default-exclude targets — ravelact's dogfood estate
+/// places test-fixture actions under `tests/fixtures/**`, and the new
+/// `browse` default excludes that glob.
 pub fn write_test_fixture_action(dir: &Path) -> std::io::Result<()> {
     let action_dir = dir.join("tests/fixtures/foo/.github/actions/foo");
     fs::create_dir_all(&action_dir)?;
@@ -56,11 +63,9 @@ pub fn write_test_fixture_action(dir: &Path) -> std::io::Result<()> {
 }
 
 /// Write a stand-alone local-action manifest at the non-excluded path
-/// `<dir>/.github/actions/foo/action.yaml`. Distinct from
-/// `write_test_fixture_action`, which is placed under `tests/fixtures/**`
-/// (default-excluded). This shape is the canonical local-action layout
-/// browse should surface so that `/api/node?kind=local-action&id=...` can
-/// be exercised end-to-end.
+/// `<dir>/.github/actions/foo/action.yaml`. Canonical local-action layout
+/// `browse` should surface so that `GetNode(kind=local-action)` can be
+/// exercised end-to-end.
 pub fn write_local_action(dir: &Path) -> std::io::Result<()> {
     let action_dir = dir.join(".github/actions/foo");
     fs::create_dir_all(&action_dir)?;
@@ -70,16 +75,10 @@ pub fn write_local_action(dir: &Path) -> std::io::Result<()> {
     )
 }
 
-/// Spawn `ravelact browse --port 0 --no-open --root <dir>` and parse the
-/// bind port from its stdout. The returned `Child` keeps the server alive;
-/// the caller must `kill()` it when done.
 fn spawn_browse_server(root: &Path) -> (Child, u16) {
     spawn_browse_server_with_args(root, &[])
 }
 
-/// Same as `spawn_browse_server` but appends `extra_args` after the
-/// fixed `browse --no-open --port 0`. Used to pass flags like
-/// `--include-test-fixtures` from the new orphan-policy tests.
 fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u16) {
     let bin = env!("CARGO_BIN_EXE_ravelact");
     let mut cmd = Command::new(bin);
@@ -92,18 +91,12 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
         "0",
     ]);
     cmd.args(extra_args);
-    // stderr inherits the parent's so any panic / log line from the server
-    // child surfaces in `cargo test` output. Diagnosing Linux CI was hard
-    // without this — the piped-then-discarded variant swallowed the server's
-    // exit reason.
     let mut child = cmd
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
         .spawn()
         .expect("spawn ravelact browse");
 
-    // The bind announcement is the first stdout line:
-    //   `ravelact browse listening on http://127.0.0.1:<port>/`
     let stdout = child.stdout.take().expect("stdout piped");
     let mut reader = BufReader::new(stdout);
     let mut line = String::new();
@@ -118,25 +111,15 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
         if let Some(p) = parse_bind_port(&line) {
             break p;
         }
-        // Empty line / EOF → loop with timeout guard above.
     };
 
-    // Drain the rest of stdout in a detached thread. If we let `reader`
-    // go out of scope here the read end of the pipe closes, and the
-    // server's next `println!` (e.g., `press Ctrl+C to stop`) panics with
-    // a Broken Pipe — observed on Linux CI even though the announcement
-    // was already received. Reading to EOF keeps the pipe alive for the
-    // child's lifetime.
+    // Drain stdout in the background; see the JSON-era comment about
+    // Broken Pipe on Linux CI for the rationale.
     std::thread::spawn(move || {
         let mut sink = Vec::new();
         let _ = reader.read_to_end(&mut sink);
     });
 
-    // Wait for the server's accept loop to actually be ready. The
-    // announcement is printed *before* `axum::serve()` enters the accept
-    // loop, so a fast test can connect to a bound-but-not-yet-accepting
-    // socket and see ECONNREFUSED briefly. Poll until a connect succeeds
-    // or panic with a clear diagnostic if the child died.
     let ready_deadline = Instant::now() + Duration::from_secs(5);
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     loop {
@@ -154,7 +137,6 @@ fn spawn_browse_server_with_args(root: &Path, extra_args: &[&str]) -> (Child, u1
 }
 
 fn parse_bind_port(line: &str) -> Option<u16> {
-    // Looks for `http://127.0.0.1:<port>/` anywhere on the line.
     let host_token = "http://127.0.0.1:";
     let idx = line.find(host_token)?;
     let rest = &line[idx + host_token.len()..];
@@ -162,76 +144,24 @@ fn parse_bind_port(line: &str) -> Option<u16> {
     rest[..port_end].parse().ok()
 }
 
-/// Issue a minimal `GET <path>` over a fresh TCP connection, return the full
-/// response (status line + headers + body) as bytes. Retries on transient
-/// ECONNRESET because the server's accept loop on Linux briefly races the
-/// listener bind / port-announcement window (see Risk: spawn race in the
-/// e2e plan).
-fn http_get(port: u16, path: &str) -> Vec<u8> {
-    let request = format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",);
-    let mut last_err: Option<std::io::Error> = None;
-    for attempt in 0..10 {
-        if attempt > 0 {
-            std::thread::sleep(Duration::from_millis(50 * attempt as u64));
-        }
-        let mut stream = match TcpStream::connect(("127.0.0.1", port)) {
-            Ok(s) => s,
-            Err(e) => {
-                last_err = Some(e);
-                continue;
-            }
-        };
-        stream
-            .set_read_timeout(Some(Duration::from_secs(5)))
-            .expect("set read timeout");
-        if let Err(e) = stream.write_all(request.as_bytes()) {
-            last_err = Some(e);
-            continue;
-        }
-        let mut buf = Vec::new();
-        match stream.read_to_end(&mut buf) {
-            Ok(_) => return buf,
-            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => {
-                last_err = Some(e);
-                continue;
-            }
-            Err(e) => panic!("read response: {e:?}"),
-        }
-    }
-    panic!(
-        "http_get exhausted retries against port {port} for {path}: {:?}",
-        last_err
-    );
-}
-
-fn assert_200(port: u16, path: &str) {
-    let response = http_get(port, path);
-    let head: &[u8] = response.get(..16).unwrap_or(&response);
-    let head_str = String::from_utf8_lossy(head);
-    assert!(
-        head_str.starts_with("HTTP/1.1 200"),
-        "{path} did not return 200 OK; got: {head_str:?}",
-    );
-}
-
-/// Minimal RFC 3986 path-segment encoder for `/`. Not exposed as a general
-/// utility — only `.` and `/` appear in workflow ids that need encoding.
-fn urlencode_path(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                out.push(b as char)
-            }
-            _ => out.push_str(&format!("%{b:02X}")),
-        }
-    }
-    out
+/// Build a `(runtime, client)` pair pointing at the spawned server.
+/// Tests stay sync (matching the existing harness) and `block_on` each
+/// RPC on demand.
+fn connect_client(port: u16) -> (Runtime, BrowseServiceClient<HttpClient>) {
+    let runtime = Runtime::new().expect("tokio runtime");
+    let transport = HttpClient::plaintext();
+    let uri: Uri = format!("http://127.0.0.1:{port}")
+        .parse()
+        .expect("parse base URI");
+    let config = ClientConfig::new(uri).with_codec_format(connectrpc::CodecFormat::Json);
+    let client = BrowseServiceClient::new(transport, config);
+    (runtime, client)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use connectrpc::ErrorCode;
     use globset::GlobSet;
     use ravelact::ir::build::build_ir;
     use tempfile::tempdir;
@@ -254,149 +184,145 @@ mod tests {
     }
 
     #[test]
-    fn five_endpoints_return_200() {
+    fn eight_rpcs_return_ok() {
         let dir = tempdir().expect("tempdir");
-        // 50 workflows so we have both reusables (i < 30) and callers
-        // (i >= 30). Perf gating uses 300 separately (Task 17).
         write_synthetic_estate(dir.path(), 50).expect("write_synthetic_estate");
 
         let (mut child, port) = spawn_browse_server(dir.path());
+        let (rt, client) = connect_client(port);
 
-        // wf-000 is reusable (workflow_call) so /api/trace would 404 on it
-        // (no entry trigger). wf-030 is a caller (on: push), valid for trace.
-        let trace_id = ".github/workflows/wf-030.yaml";
-        let impact_id = trace_id;
+        // wf-000 is reusable (workflow_call) so Trace would NotFound on it.
+        // wf-030 is a caller (on: push), valid for trace.
+        let trace_id = ".github/workflows/wf-030.yaml".to_string();
+        let impact_id = trace_id.clone();
+        let node_id = trace_id.clone();
 
-        assert_200(port, "/api/graph");
-        assert_200(port, "/api/triggers");
-        assert_200(
-            port,
-            "/api/node?kind=workflow&id=.github%2Fworkflows%2Fwf-030.yaml",
-        );
-        assert_200(
-            port,
-            &format!("/api/impact?id={}", urlencode_path(impact_id),),
-        );
-        assert_200(
-            port,
-            &format!("/api/trace?id={}", urlencode_path(trace_id),),
-        );
+        rt.block_on(async {
+            client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200");
+            client
+                .list_triggers(ListTriggersRequest::default())
+                .await
+                .expect("ListTriggers 200");
 
-        // /api/node's `file` field must be browse-root-relative (forward
-        // slash) — Issue #21. Strong oracle: exact match against the known
-        // workflow id, so a regression to absolute paths or alternate
-        // separators trips this assertion immediately.
-        let response = http_get(
-            port,
-            "/api/node?kind=workflow&id=.github%2Fworkflows%2Fwf-030.yaml",
-        );
-        let body = body_after_headers(&response);
-        let v: serde_json::Value = serde_json::from_slice(body).expect("api_node json");
-        assert_eq!(
-            v["file"],
-            ".github/workflows/wf-030.yaml",
-            "api_node file must be browse-root-relative; body: {}",
-            String::from_utf8_lossy(body),
-        );
+            let node_resp = client
+                .get_node(GetNodeRequest {
+                    kind: "workflow".into(),
+                    id: node_id.clone(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetNode 200")
+                .into_owned();
+            // GetNode.file is browse-root-relative forward-slash — Issue #21
+            // pinned this and the e2e suite is its strongest guard.
+            assert_eq!(
+                node_resp.file, ".github/workflows/wf-030.yaml",
+                "GetNode.file must be browse-root-relative",
+            );
+
+            client
+                .get_impact(GetImpactRequest {
+                    id: impact_id.clone(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetImpact 200");
+            client
+                .trace(TraceRequest {
+                    id: trace_id.clone(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("Trace 200");
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// Pairs with `five_endpoints_return_200`'s workflow assertion to cover
-    /// the second relative-path branch (`local-action`) in `api_node`. The
-    /// fixture writes a single composite action at the canonical non-excluded
-    /// path so the IR exposes a `local-action` node addressable via
-    /// `/api/node?kind=local-action&id=.github/actions/foo`.
+    /// Pair with `eight_rpcs_return_ok` to cover the local-action branch
+    /// of `GetNode.file` relative-path logic.
     #[test]
-    fn api_node_returns_relative_path_for_local_action() {
+    fn get_node_returns_relative_path_for_local_action() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
         write_local_action(dir.path()).expect("write_local_action");
 
         let (mut child, port) = spawn_browse_server(dir.path());
+        let (rt, client) = connect_client(port);
 
-        let response = http_get(
-            port,
-            "/api/node?kind=local-action&id=.github%2Factions%2Ffoo",
-        );
-        let body = body_after_headers(&response);
-        let v: serde_json::Value = serde_json::from_slice(body).expect("api_node json");
-        assert_eq!(
-            v["file"],
-            ".github/actions/foo/action.yaml",
-            "local-action file must be browse-root-relative; body: {}",
-            String::from_utf8_lossy(body),
-        );
+        rt.block_on(async {
+            let resp = client
+                .get_node(GetNodeRequest {
+                    kind: "local-action".into(),
+                    id: ".github/actions/foo".into(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetNode 200")
+                .into_owned();
+            assert_eq!(
+                resp.file, ".github/actions/foo/action.yaml",
+                "local-action file must be browse-root-relative",
+            );
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// Read the full HTTP response body (after the first blank line). The
-    /// /api/graph handler returns Content-Length-tagged bytes that the
-    /// existing `http_get` already reads to EOF; we just need to skip
-    /// the headers.
-    fn body_after_headers(response: &[u8]) -> &[u8] {
-        let mut i = 0;
-        while i + 3 < response.len() {
-            if &response[i..i + 4] == b"\r\n\r\n" {
-                return &response[i + 4..];
-            }
-            i += 1;
-        }
-        response
-    }
-
-    /// `/api/node` must surface `if_conditions` for a workflow whose source
-    /// carries both job-level and step-level `if:` guards. Parses the JSON
-    /// body and asserts the expected entries explicitly so a future
-    /// addition of guarded steps cannot trip a brittle substring match
-    /// (e.g. `"step_index":1` accidentally matching `"step_index":10`).
-    /// The `step-if-guard` fixture is reused as the workflow input.
+    /// Workflow with both job-level and step-level `if:` must surface them
+    /// in source order via `GetNode.if_conditions`. Strong oracle: explicit
+    /// match on each oneof variant rather than substring matching.
     #[test]
-    fn api_node_surfaces_if_conditions_over_http() {
+    fn get_node_surfaces_if_conditions() {
+        use pb::if_condition::Scope;
         let fixture =
             Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/synthetic/step-if-guard");
         let (mut child, port) = spawn_browse_server(&fixture);
+        let (rt, client) = connect_client(port);
 
-        let id = urlencode_path(".github/workflows/ci.yml");
-        let response = http_get(port, &format!("/api/node?kind=workflow&id={id}"));
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body).into_owned();
-
-        let parsed: serde_json::Value = serde_json::from_slice(body)
-            .unwrap_or_else(|e| panic!("response is not valid JSON: {e}; body: {body_str}"));
-        let conditions = parsed
-            .get("if_conditions")
-            .and_then(|v| v.as_array())
-            .unwrap_or_else(|| panic!("response must carry if_conditions array; body: {body_str}"));
-
-        let has_job_entry = conditions.iter().any(|c| {
-            c.get("scope").and_then(|v| v.as_str()) == Some("job")
-                && c.get("job_id").and_then(|v| v.as_str()) == Some("combined")
+        rt.block_on(async {
+            let resp = client
+                .get_node(GetNodeRequest {
+                    kind: "workflow".into(),
+                    id: ".github/workflows/ci.yml".into(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetNode 200")
+                .into_owned();
+            assert!(
+                !resp.if_conditions.is_empty(),
+                "step-if-guard fixture must produce at least one if-condition row"
+            );
+            let has_job_combined = resp.if_conditions.iter().any(|c| match &c.scope {
+                Some(Scope::Job(j)) => j.job_id == "combined",
+                _ => false,
+            });
+            let has_step_index_1 = resp.if_conditions.iter().any(|c| match &c.scope {
+                Some(Scope::Step(s)) => s.step_index == 1,
+                _ => false,
+            });
+            assert!(
+                has_job_combined,
+                "must include job-scope row for `combined`"
+            );
+            assert!(
+                has_step_index_1,
+                "must include step-scope row with 1-based step_index=1"
+            );
         });
-        assert!(
-            has_job_entry,
-            "response must include a job-scope entry for `combined`; body: {body_str}",
-        );
-
-        let has_step_entry = conditions.iter().any(|c| {
-            c.get("scope").and_then(|v| v.as_str()) == Some("step")
-                && c.get("step_index").and_then(|v| v.as_u64()) == Some(1)
-        });
-        assert!(
-            has_step_entry,
-            "response must include a step-scope entry with 1-based step_index=1; body: {body_str}",
-        );
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
     /// `tests/fixtures/foo/.github/actions/foo/action.yaml` is the canonical
-    /// shape `browse` excludes by default. With no opt-out, `/api/graph`
-    /// must not surface this local-action node.
+    /// shape `browse` excludes by default.
     #[test]
     fn browse_default_excludes_test_fixtures() {
         let dir = tempdir().expect("tempdir");
@@ -404,154 +330,169 @@ mod tests {
         write_test_fixture_action(dir.path()).expect("write_test_fixture_action");
 
         let (mut child, port) = spawn_browse_server(dir.path());
-        let response = http_get(port, "/api/graph");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
+        let (rt, client) = connect_client(port);
 
-        assert!(
-            !body_str.contains("tests/fixtures/foo"),
-            "default browse must hide tests/fixtures/** local-actions; body: {body_str}",
-        );
+        rt.block_on(async {
+            let resp = client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200");
+            let owned = resp.into_owned();
+            let has_fixture_node = owned.nodes.iter().any(|n| {
+                if let Some(d) = n.data.as_option() {
+                    d.id.contains("tests/fixtures/foo")
+                } else {
+                    false
+                }
+            });
+            assert!(
+                !has_fixture_node,
+                "default browse must hide tests/fixtures/** local-actions",
+            );
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// `/api/search` should rank a known workflow file's substring high
-    /// (workflow name "Caller 31" contains the substring "caller") and
-    /// return zero matches for a guaranteed-absent token.
+    /// Search "caller" must hit at least one workflow whose label contains
+    /// the token. Empty / absent tokens short-circuit to empty results.
     #[test]
-    fn api_search_returns_expected_matches() {
+    fn search_returns_expected_matches() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 50).expect("write_synthetic_estate");
 
         let (mut child, port) = spawn_browse_server(dir.path());
+        let (rt, client) = connect_client(port);
 
-        // hit: every caller workflow has name "Caller N" in the IR
-        let response = http_get(port, "/api/search?q=caller");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"matches\""),
-            "/api/search response must contain matches: {body_str}",
-        );
-        assert!(
-            body_str.contains("Caller "),
-            "/api/search?q=caller should return Caller workflow labels: {body_str}",
-        );
+        rt.block_on(async {
+            let resp = client
+                .search(SearchRequest {
+                    q: "caller".into(),
+                    kind: None,
+                    limit: None,
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("Search 200");
+            let owned = resp.into_owned();
+            assert!(
+                owned.matches.iter().any(|m| m.label.starts_with("Caller ")),
+                "search `caller` must hit Caller workflows",
+            );
 
-        // miss: a token that cannot occur anywhere in the corpus
-        let response = http_get(port, "/api/search?q=zzqx-no-such-token-anywhere");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"matches\":[]"),
-            "absent token must return empty matches array: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"total\":0"),
-            "absent token must return total=0: {body_str}",
-        );
+            let miss = client
+                .search(SearchRequest {
+                    q: "zzqx-no-such-token-anywhere".into(),
+                    kind: None,
+                    limit: None,
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("Search 200 even when empty")
+                .into_owned();
+            assert!(miss.matches.is_empty());
+            assert_eq!(miss.total, 0);
 
-        // empty query short-circuits to empty result, no error
-        let response = http_get(port, "/api/search?q=");
-        let head: &[u8] = response.get(..16).unwrap_or(&response);
-        assert!(
-            String::from_utf8_lossy(head).starts_with("HTTP/1.1 200"),
-            "empty q must still be 200 OK",
-        );
+            // Empty query short-circuits to empty result with 200 OK.
+            let empty = client
+                .search(SearchRequest {
+                    q: "".into(),
+                    kind: None,
+                    limit: None,
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("Search 200 on empty q")
+                .into_owned();
+            assert!(empty.matches.is_empty());
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// `/api/event-impact?event=push` should return both the entry
-    /// workflows and their downstream node ids (transitive). For the
-    /// synthetic estate every caller workflow is `on: push` and uses
-    /// `actions/checkout@v4`, so the response must include caller
-    /// workflow ids AND `ea:actions/checkout@v4`.
+    /// `GetEventImpact(event=push)` must return both entry workflows and
+    /// their downstream nodes.
     #[test]
-    fn api_event_impact_returns_entry_workflows_and_downstream() {
+    fn event_impact_returns_entry_workflows_and_downstream() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 50).expect("write_synthetic_estate");
 
         let (mut child, port) = spawn_browse_server(dir.path());
+        let (rt, client) = connect_client(port);
 
-        let response = http_get(port, "/api/event-impact?event=push");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"event\":\"push\""),
-            "event echoed in response: {body_str}",
-        );
-        assert!(
-            body_str.contains("wf:.github/workflows/wf-030.yaml"),
-            "downstream must list caller workflow id: {body_str}",
-        );
-        assert!(
-            body_str.contains("ea:actions/checkout@v4"),
-            "downstream must list actions/checkout external action: {body_str}",
-        );
+        rt.block_on(async {
+            let resp = client
+                .get_event_impact(GetEventImpactRequest {
+                    event: "push".into(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetEventImpact 200")
+                .into_owned();
+            assert_eq!(resp.event, "push");
+            assert!(
+                resp.entry_workflows
+                    .iter()
+                    .any(|w| w == "wf:.github/workflows/wf-030.yaml"),
+                "downstream must list caller workflow id",
+            );
+            assert!(
+                resp.node_ids.iter().any(|n| n == "ea:actions/checkout@v4"),
+                "downstream must list actions/checkout external action",
+            );
 
-        // missing event → empty arrays
-        let response = http_get(port, "/api/event-impact?event=zznever");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"entry_workflows\":[]"),
-            "absent event must return empty entry_workflows: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"node_ids\":[]"),
-            "absent event must return empty node_ids: {body_str}",
-        );
-
-        // empty event short-circuits
-        let response = http_get(port, "/api/event-impact?event=");
-        let head: &[u8] = response.get(..16).unwrap_or(&response);
-        assert!(
-            String::from_utf8_lossy(head).starts_with("HTTP/1.1 200"),
-            "empty event must still be 200 OK",
-        );
+            let absent = client
+                .get_event_impact(GetEventImpactRequest {
+                    event: "zznever".into(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("absent event 200")
+                .into_owned();
+            assert!(absent.entry_workflows.is_empty());
+            assert!(absent.node_ids.is_empty());
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// `/api/repo` returns 404 when the `--root` is not a git repository.
-    /// A tempdir starts out without `.git`, so `git remote get-url origin`
-    /// fails and `compute_repo_info` returns `None`. The frontend treats
-    /// this as "hide the Open-in-GitHub link for local nodes".
+    /// `GetRepo` returns Err(NotFound) when the `--root` is not a git
+    /// repository.
     #[test]
-    fn api_repo_returns_404_for_non_git_root() {
+    fn repo_returns_not_found_for_non_git_root() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
 
         let (mut child, port) = spawn_browse_server(dir.path());
-        let response = http_get(port, "/api/repo");
-        let head: &[u8] = response.get(..16).unwrap_or(&response);
-        let head_str = String::from_utf8_lossy(head);
-        assert!(
-            head_str.starts_with("HTTP/1.1 404"),
-            "non-git root must yield 404 for /api/repo; got: {head_str:?}",
-        );
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let err = client
+                .get_repo(GetRepoRequest::default())
+                .await
+                .expect_err("non-git root must surface NotFound");
+            assert_eq!(
+                err.code,
+                ErrorCode::NotFound,
+                "expected NotFound, got {:?}",
+                err.code
+            );
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// `/api/repo` returns 200 + the expected JSON shape when the `--root`
-    /// is a git repository with a github.com `origin`. Built from scratch
-    /// inside a tempdir using plain `git` commands so the test is
-    /// hermetic and does not depend on the surrounding host repo.
+    /// `GetRepo` returns the expected RepoInfo when the `--root` is a git
+    /// repository with a github.com `origin`.
     #[test]
-    fn api_repo_returns_github_provenance_for_git_root() {
+    fn repo_returns_github_provenance_for_git_root() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
 
-        // Initialize a minimal git repo with a github.com origin and one
-        // commit on `main`. We do not actually push — only `git remote
-        // get-url origin` and `git symbolic-ref --short HEAD` matter.
         let git = |args: &[&str]| {
             let status = Command::new("git")
                 .arg("-C")
@@ -577,42 +518,28 @@ mod tests {
         git(&["commit", "-q", "-m", "seed"]);
 
         let (mut child, port) = spawn_browse_server(dir.path());
-        let response = http_get(port, "/api/repo");
-        let head: &[u8] = response.get(..16).unwrap_or(&response);
-        let head_str = String::from_utf8_lossy(head);
-        assert!(
-            head_str.starts_with("HTTP/1.1 200"),
-            "git root must yield 200 for /api/repo; got: {head_str:?}",
-        );
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"host\":\"github.com\""),
-            "host should be github.com: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"owner\":\"wadackel\""),
-            "owner should be wadackel: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"repo\":\"ravelact\""),
-            "repo should be ravelact: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"ref\":\"main\""),
-            "ref should be the branch name (main): {body_str}",
-        );
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let resp = client
+                .get_repo(GetRepoRequest::default())
+                .await
+                .expect("GetRepo 200")
+                .into_owned();
+            let view = &resp;
+            assert_eq!(view.host, "github.com");
+            assert_eq!(view.owner, "wadackel");
+            assert_eq!(view.repo, "ravelact");
+            assert_eq!(view.r#ref, "main");
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// `/api/repo` returns 200 + the expected JSON shape for a GitHub
-    /// Enterprise `origin` URL (any GitHub-like host should pass through
-    /// `parse_remote_url`; the response carries the host verbatim so the
-    /// frontend builds `https://<ghe-host>/...` links).
+    /// `GetRepo` resolves a GitHub Enterprise origin too.
     #[test]
-    fn api_repo_returns_ghe_provenance_for_git_root() {
+    fn repo_returns_ghe_provenance_for_git_root() {
         let dir = tempdir().expect("tempdir");
         write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
 
@@ -641,38 +568,27 @@ mod tests {
         git(&["commit", "-q", "-m", "seed"]);
 
         let (mut child, port) = spawn_browse_server(dir.path());
-        let response = http_get(port, "/api/repo");
-        let head: &[u8] = response.get(..16).unwrap_or(&response);
-        let head_str = String::from_utf8_lossy(head);
-        assert!(
-            head_str.starts_with("HTTP/1.1 200"),
-            "GHE root must yield 200 for /api/repo; got: {head_str:?}",
-        );
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
-        assert!(
-            body_str.contains("\"host\":\"ghe.example.com\""),
-            "host should be ghe.example.com: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"owner\":\"acme\""),
-            "owner should be acme: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"repo\":\"widget\""),
-            "repo should be widget: {body_str}",
-        );
-        assert!(
-            body_str.contains("\"ref\":\"main\""),
-            "ref should be the branch name (main): {body_str}",
-        );
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let resp = client
+                .get_repo(GetRepoRequest::default())
+                .await
+                .expect("GetRepo 200")
+                .into_owned();
+            let view = &resp;
+            assert_eq!(view.host, "ghe.example.com");
+            assert_eq!(view.owner, "acme");
+            assert_eq!(view.repo, "widget");
+            assert_eq!(view.r#ref, "main");
+        });
 
         let _ = child.kill();
         let _ = child.wait();
     }
 
-    /// With `--include-test-fixtures` the same fixture must appear in the
-    /// graph response — proves the opt-out actually reaches the backend.
+    /// With `--include-test-fixtures` the fixture local-action must appear
+    /// in the graph response.
     #[test]
     fn browse_include_test_fixtures_flag() {
         let dir = tempdir().expect("tempdir");
@@ -681,14 +597,26 @@ mod tests {
 
         let (mut child, port) =
             spawn_browse_server_with_args(dir.path(), &["--include-test-fixtures"]);
-        let response = http_get(port, "/api/graph");
-        let body = body_after_headers(&response);
-        let body_str = String::from_utf8_lossy(body);
+        let (rt, client) = connect_client(port);
 
-        assert!(
-            body_str.contains("tests/fixtures/foo/.github/actions/foo"),
-            "--include-test-fixtures must surface fixture local-actions; body: {body_str}",
-        );
+        rt.block_on(async {
+            let resp = client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200");
+            let owned = resp.into_owned();
+            let has_fixture_node = owned.nodes.iter().any(|n| {
+                if let Some(d) = n.data.as_option() {
+                    d.id.contains("tests/fixtures/foo/.github/actions/foo")
+                } else {
+                    false
+                }
+            });
+            assert!(
+                has_fixture_node,
+                "--include-test-fixtures must surface fixture local-actions",
+            );
+        });
 
         let _ = child.kill();
         let _ = child.wait();

@@ -61,43 +61,61 @@ export function computeLayoutSync(payload: GraphPayload): LayoutResult {
   });
   g.setDefaultEdgeLabel(() => ({}));
 
+  // protobuf-es types `CyNode.data` / `CyEdge.data` as
+  // `MessageField<...>` which is `T | undefined` at the type level.
+  // `validatePayload` above guarantees both are set on every element,
+  // so the non-null assertions below are safe.
   for (const n of payload.nodes) {
-    g.setNode(n.data.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+    g.setNode(n.data!.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
   }
   for (const e of payload.edges) {
-    g.setEdge(e.data.source, e.data.target);
+    g.setEdge(e.data!.source, e.data!.target);
   }
   dagre.layout(g);
 
   const nodes: Node<GraphNodeData>[] = payload.nodes.map((n) => {
-    const pos = g.node(n.data.id);
-    const { name, subtitle } = formatNodeLabel(n.data.kind, n.data.label);
+    const d = n.data!;
+    const pos = g.node(d.id);
+    const kind = d.kind as import("./types.ts").NodeKind;
+    const { name, subtitle } = formatNodeLabel(kind, d.label);
     return {
-      id: n.data.id,
+      id: d.id,
       type: "card",
       position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
-      data: { name, subtitle, kind: n.data.kind, faded: false },
+      data: { name, subtitle, kind, faded: false },
       draggable: false,
       connectable: false,
       selectable: true,
     };
   });
 
-  const edges: Edge[] = payload.edges.map((e) => ({
-    id: e.data.id,
-    source: e.data.source,
-    target: e.data.target,
-    type: "default",
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6" },
-    style: { stroke: "#3b82f6", strokeWidth: 1.5 },
-  }));
+  const edges: Edge[] = payload.edges.map((e) => {
+    const d = e.data!;
+    return {
+      id: d.id,
+      source: d.source,
+      target: d.target,
+      type: "default",
+      markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6" },
+      style: { stroke: "#3b82f6", strokeWidth: 1.5 },
+    };
+  });
 
   return { nodes, edges };
 }
 
 function validatePayload(payload: GraphPayload): void {
-  const ids = new Set(payload.nodes.map((n) => n.data.id));
+  const ids = new Set<string>();
+  for (const n of payload.nodes) {
+    if (n.data === undefined) {
+      throw new Error("graph-layout: CyNode.data missing");
+    }
+    ids.add(n.data.id);
+  }
   for (const e of payload.edges) {
+    if (e.data === undefined) {
+      throw new Error("graph-layout: CyEdge.data missing");
+    }
     if (!ids.has(e.data.source)) {
       throw new Error(`graph-layout: edge ${e.data.id} references missing source ${e.data.source}`);
     }

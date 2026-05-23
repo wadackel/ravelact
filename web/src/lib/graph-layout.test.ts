@@ -6,7 +6,7 @@ import type { GraphPayload } from "./types.ts";
 // `computeLayout` exercises the synchronous fallback branch here. The
 // real Worker round-trip is observed indirectly via the e2e suite
 // running against a built bundle.
-const TINY_PAYLOAD: GraphPayload = {
+const TINY_PAYLOAD = {
   nodes: [
     { data: { id: "wf:a", label: "A", kind: "workflow" } },
     { data: { id: "wf:b", label: "B", kind: "workflow" } },
@@ -16,12 +16,12 @@ const TINY_PAYLOAD: GraphPayload = {
     { data: { id: "e1", source: "wf:a", target: "wf:b", kind: "calls-workflow" } },
     { data: { id: "e2", source: "wf:b", target: "wf:c", kind: "calls-workflow" } },
   ],
-};
+} as unknown as GraphPayload;
 
-const DANGLING_PAYLOAD: GraphPayload = {
+const DANGLING_PAYLOAD = {
   nodes: [{ data: { id: "wf:a", label: "A", kind: "workflow" } }],
   edges: [{ data: { id: "ex", source: "wf:a", target: "wf:missing", kind: "calls-workflow" } }],
-};
+} as unknown as GraphPayload;
 
 describe("computeLayoutSync", () => {
   it("returns a node + edge graph with positions assigned by dagre", () => {

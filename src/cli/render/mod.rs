@@ -8,7 +8,11 @@
 //! inline as `cmd_*` helpers in `cli/mod.rs`; promote one here once its
 //! handler outgrows that shape.
 
-pub(super) mod browse;
+// `browse` is `pub` (not `pub(super)`) so the `tests/e2e_browse.rs`
+// integration suite can drive the generated ConnectRPC client against
+// the proto + connect submodules. The other render commands stay
+// crate-private — only `browse` has an external test consumer.
+pub mod browse;
 pub(super) mod callers;
 pub(super) mod dedup;
 pub(super) mod extract;

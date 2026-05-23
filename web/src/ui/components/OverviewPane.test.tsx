@@ -25,10 +25,10 @@ function renderOverview(overrides: Partial<OverviewPaneProps> = {}) {
   return render(<OverviewPane {...props} />);
 }
 
-const SAMPLE: TriggerSummary[] = [
+const SAMPLE = [
   {
     event: "push",
-    entry_workflows: 3,
+    entryWorkflows: 3,
     declarations: 3,
     typed: 0,
     filtered: 0,
@@ -36,13 +36,13 @@ const SAMPLE: TriggerSummary[] = [
   },
   {
     event: "pull_request",
-    entry_workflows: 1,
+    entryWorkflows: 1,
     declarations: 1,
     typed: 0,
     filtered: 0,
     examples: [],
   },
-];
+] as unknown as TriggerSummary[];
 
 describe("OverviewPane", () => {
   afterEach(() => cleanup());

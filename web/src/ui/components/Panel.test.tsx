@@ -61,12 +61,12 @@ function ControlledPanel(props: {
   );
 }
 
-const REPO: RepoInfo = {
+const REPO = {
   host: "github.com",
   owner: "wadackel",
   repo: "ravelact",
   ref: "main",
-};
+} as unknown as RepoInfo;
 
 function nodeResponse(id: string) {
   return {
@@ -75,10 +75,10 @@ function nodeResponse(id: string) {
     label: id,
     file: ".github/workflows/x.yaml",
     summary: "1 job(s), 1 trigger(s)",
-    entry_triggers: ["push"],
-    refs_in: [],
-    refs_out: [],
-    if_conditions: [],
+    entryTriggers: ["push"],
+    refsIn: [],
+    refsOut: [],
+    ifConditions: [],
   };
 }
 
@@ -91,8 +91,10 @@ describe("Panel — fetch + cacheRef invariants", () => {
       unknowns: [],
     });
     (api.fetchTrace as ReturnType<typeof vi.fn>).mockResolvedValue({
-      tree: { kind: "workflow", id: "x", children: [] },
-      event_used: "push",
+      tree: {
+        node: { case: "workflow", value: { id: "x", children: [] } },
+      },
+      eventUsed: "push",
     });
   });
 
@@ -217,10 +219,10 @@ describe("Panel — fetch + cacheRef invariants", () => {
       label: "actions/checkout@v4",
       file: "",
       summary: "actions/checkout@v4",
-      entry_triggers: [],
-      refs_in: [],
-      refs_out: [],
-      if_conditions: [],
+      entryTriggers: [],
+      refsIn: [],
+      refsOut: [],
+      ifConditions: [],
     });
     render(
       <ControlledPanel
@@ -486,7 +488,7 @@ describe("Panel — Copy button", () => {
 // ---------------------------------------------------------------------------
 
 function nodeWithIfConditions(
-  if_conditions: IfCondition[],
+  ifConditions: IfCondition[],
   overrides: Partial<{ id: string; kind: "workflow" | "local-action" | "external-action" }> = {},
 ) {
   return {
@@ -495,11 +497,46 @@ function nodeWithIfConditions(
     label: overrides.id ?? "wf:x",
     file: ".github/workflows/x.yaml",
     summary: "1 job(s), 1 trigger(s)",
-    entry_triggers: ["push"],
-    refs_in: [],
-    refs_out: [],
-    if_conditions,
+    entryTriggers: ["push"],
+    refsIn: [],
+    refsOut: [],
+    ifConditions,
   };
+}
+
+/**
+ * Compact factories for the protobuf-es `oneof` shape on IfCondition.
+ * Keeps fixtures readable — the alternative is a 4-level-nested literal
+ * on every test row.
+ */
+function jobIf(jobId: string, expression: string): IfCondition {
+  return {
+    scope: {
+      case: "job",
+      value: { jobId, expression } as never,
+    },
+  } as unknown as IfCondition;
+}
+
+function stepIf(input: {
+  jobId: string | null;
+  stepIndex: number;
+  stepId: string | null;
+  stepName: string | null;
+  expression: string;
+}): IfCondition {
+  return {
+    scope: {
+      case: "step",
+      value: {
+        jobId: input.jobId ?? undefined,
+        stepIndex: input.stepIndex,
+        stepId: input.stepId ?? undefined,
+        stepName: input.stepName ?? undefined,
+        expression: input.expression,
+      } as never,
+    },
+  } as unknown as IfCondition;
 }
 
 describe("Panel — Conditions surface", () => {
@@ -542,13 +579,7 @@ describe("Panel — Conditions surface", () => {
 
   it("renders a job-level if condition with job id and expression", async () => {
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      nodeWithIfConditions([
-        {
-          scope: "job",
-          job_id: "deploy",
-          expression: "github.ref == 'refs/heads/main'",
-        },
-      ]),
+      nodeWithIfConditions([jobIf("deploy", "github.ref == 'refs/heads/main'")]),
     );
     render(
       <ControlledPanel
@@ -566,19 +597,14 @@ describe("Panel — Conditions surface", () => {
   it("renders workflow job + step entries preserving source order with step context", async () => {
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       nodeWithIfConditions([
-        {
-          scope: "job",
-          job_id: "build",
-          expression: "EXPR_JOB",
-        },
-        {
-          scope: "step",
-          job_id: "build",
-          step_index: 1,
-          step_id: null,
-          step_name: "Compile",
+        jobIf("build", "EXPR_JOB"),
+        stepIf({
+          jobId: "build",
+          stepIndex: 1,
+          stepId: null,
+          stepName: "Compile",
           expression: "EXPR_STEP",
-        },
+        }),
       ]),
     );
     render(
@@ -604,14 +630,13 @@ describe("Panel — Conditions surface", () => {
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       nodeWithIfConditions(
         [
-          {
-            scope: "step",
-            job_id: null,
-            step_index: 1,
-            step_id: "finalize",
-            step_name: null,
+          stepIf({
+            jobId: null,
+            stepIndex: 1,
+            stepId: "finalize",
+            stepName: null,
             expression: "runner.os == 'Linux'",
-          },
+          }),
         ],
         { id: "la:.github/actions/foo", kind: "local-action" },
       ),
@@ -637,14 +662,13 @@ describe("Panel — Conditions surface", () => {
     const multiline = "github.event_name == 'push'\n&& startsWith(github.ref, 'refs/tags/')";
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
       nodeWithIfConditions([
-        {
-          scope: "step",
-          job_id: "release",
-          step_index: 1,
-          step_id: null,
-          step_name: null,
+        stepIf({
+          jobId: "release",
+          stepIndex: 1,
+          stepId: null,
+          stepName: null,
           expression: multiline,
-        },
+        }),
       ]),
     );
     render(
