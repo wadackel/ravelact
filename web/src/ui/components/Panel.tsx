@@ -1,4 +1,11 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useReducer } from "react";
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+} from "react";
 import { fetchImpact, fetchNode, fetchTrace } from "../../lib/api.ts";
 import { githubUrlFor } from "../../lib/github-url.ts";
 import { renderTraceTree } from "../../lib/trace-render.ts";
@@ -253,7 +260,10 @@ function renderDetails(state: State, githubUrl: string | null) {
       <Field label="Label">{n.label}</Field>
       {n.file && (
         <Field label="File" mono>
-          {n.file}
+          <div className="flex items-center gap-2">
+            <span className="flex-1 break-all">{n.file}</span>
+            <CopyButton value={n.file} />
+          </div>
         </Field>
       )}
       {n.summary && <Field label="Summary">{n.summary}</Field>}
@@ -271,6 +281,107 @@ function renderDetails(state: State, githubUrl: string | null) {
         </Field>
       )}
     </>
+  );
+}
+
+// Visual lifetime of the "copied" / "failed" affordance. The button reverts to
+// idle after this many ms so the success/failure signal is observable but does
+// not persist across panel interactions.
+const COPY_FEEDBACK_MS = 1500;
+
+type CopyState = "idle" | "copied" | "failed";
+
+function CopyButton({ value }: { value: string }) {
+  const [state, setState] = useState<CopyState>("idle");
+  // Single timer ref so re-clicks before the previous feedback expires
+  // overwrite the pending reset rather than racing it.
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const scheduleReset = useCallback(() => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setState("idle"), COPY_FEEDBACK_MS);
+  }, []);
+
+  const handleClick = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setState("copied");
+    } catch (err) {
+      // browse serves over 127.0.0.1 (a secure context for the Clipboard
+      // API), so a rejection here means the user denied permission or the
+      // environment lacks the API. Warn (not error) so callers can still
+      // see the failed state without polluting the console error stream.
+      console.warn("clipboard.writeText failed", err);
+      setState("failed");
+    } finally {
+      scheduleReset();
+    }
+  }, [value, scheduleReset]);
+
+  const liveMessage = state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "";
+
+  return (
+    <>
+      <button
+        type="button"
+        aria-label="Copy file path"
+        onClick={handleClick}
+        className="w-7 h-7 shrink-0 inline-flex items-center justify-center bg-transparent border border-transparent rounded-md text-fg-muted cursor-pointer p-0 hover:text-fg hover:bg-bg-elev2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
+      >
+        {state === "copied" ? <CheckIcon /> : <ClipboardIcon />}
+      </button>
+      <span className="sr-only" aria-live="polite">
+        {liveMessage}
+      </span>
+    </>
+  );
+}
+
+function ClipboardIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <rect x="4.5" y="3.5" width="7" height="9" rx="1" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M6 3.5V3a1 1 0 011-1h2a1 1 0 011 1v.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M3.5 8.5L6.5 11.5L12.5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

@@ -55,6 +55,21 @@ pub fn write_test_fixture_action(dir: &Path) -> std::io::Result<()> {
     )
 }
 
+/// Write a stand-alone local-action manifest at the non-excluded path
+/// `<dir>/.github/actions/foo/action.yaml`. Distinct from
+/// `write_test_fixture_action`, which is placed under `tests/fixtures/**`
+/// (default-excluded). This shape is the canonical local-action layout
+/// browse should surface so that `/api/node?kind=local-action&id=...` can
+/// be exercised end-to-end.
+pub fn write_local_action(dir: &Path) -> std::io::Result<()> {
+    let action_dir = dir.join(".github/actions/foo");
+    fs::create_dir_all(&action_dir)?;
+    fs::write(
+        action_dir.join("action.yaml"),
+        "name: Foo Local\ndescription: Local action fixture\nruns:\n  using: composite\n  steps:\n    - run: echo foo\n      shell: bash\n",
+    )
+}
+
 /// Spawn `ravelact browse --port 0 --no-open --root <dir>` and parse the
 /// bind port from its stdout. The returned `Child` keeps the server alive;
 /// the caller must `kill()` it when done.
@@ -265,6 +280,53 @@ mod tests {
         assert_200(
             port,
             &format!("/api/trace?id={}", urlencode_path(trace_id),),
+        );
+
+        // /api/node's `file` field must be browse-root-relative (forward
+        // slash) — Issue #21. Strong oracle: exact match against the known
+        // workflow id, so a regression to absolute paths or alternate
+        // separators trips this assertion immediately.
+        let response = http_get(
+            port,
+            "/api/node?kind=workflow&id=.github%2Fworkflows%2Fwf-030.yaml",
+        );
+        let body = body_after_headers(&response);
+        let v: serde_json::Value = serde_json::from_slice(body).expect("api_node json");
+        assert_eq!(
+            v["file"],
+            ".github/workflows/wf-030.yaml",
+            "api_node file must be browse-root-relative; body: {}",
+            String::from_utf8_lossy(body),
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    /// Pairs with `five_endpoints_return_200`'s workflow assertion to cover
+    /// the second relative-path branch (`local-action`) in `api_node`. The
+    /// fixture writes a single composite action at the canonical non-excluded
+    /// path so the IR exposes a `local-action` node addressable via
+    /// `/api/node?kind=local-action&id=.github/actions/foo`.
+    #[test]
+    fn api_node_returns_relative_path_for_local_action() {
+        let dir = tempdir().expect("tempdir");
+        write_synthetic_estate(dir.path(), 5).expect("write_synthetic_estate");
+        write_local_action(dir.path()).expect("write_local_action");
+
+        let (mut child, port) = spawn_browse_server(dir.path());
+
+        let response = http_get(
+            port,
+            "/api/node?kind=local-action&id=.github%2Factions%2Ffoo",
+        );
+        let body = body_after_headers(&response);
+        let v: serde_json::Value = serde_json::from_slice(body).expect("api_node json");
+        assert_eq!(
+            v["file"],
+            ".github/actions/foo/action.yaml",
+            "local-action file must be browse-root-relative; body: {}",
+            String::from_utf8_lossy(body),
         );
 
         let _ = child.kill();
