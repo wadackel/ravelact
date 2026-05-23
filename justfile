@@ -8,6 +8,7 @@ format:
 lint:
     cargo clippy --all-targets -- -D warnings
     cd web && pnpm lint && pnpm format:check
+    buf lint
 
 lint-actions:
     actionlint
@@ -19,6 +20,46 @@ test:
 build:
     cargo build
 
+# Codegen plugin existence check. Used by `proto-gen` and
+# `proto-check-drift` so a missing plugin produces a clear install
+# hint instead of a cryptic buf failure. The Rust plugins are
+# `cargo install`-only (not in nixpkgs); `protoc-gen-es` ships via
+# the SPA's npm devDependency.
+[private]
+proto-plugins-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    missing=()
+    for bin in protoc-gen-buffa protoc-gen-buffa-packaging protoc-gen-connect-rust; do
+      command -v "$bin" >/dev/null 2>&1 || missing+=("$bin")
+    done
+    if [ ${#missing[@]} -gt 0 ]; then
+      echo "missing codegen plugin(s): ${missing[*]}" >&2
+      echo "install with: cargo install --locked protoc-gen-buffa protoc-gen-buffa-packaging connectrpc-codegen" >&2
+      exit 1
+    fi
+    # protoc-gen-es lives in web/node_modules/.bin/ after `pnpm install`.
+    if [ ! -x web/node_modules/.bin/protoc-gen-es ]; then
+      echo "missing web/node_modules/.bin/protoc-gen-es" >&2
+      echo "install with: cd web && pnpm install" >&2
+      exit 1
+    fi
+
+# Regenerate vendored Rust + TS code from proto/. Run after editing any
+# .proto file. Plugin discovery merges $PATH with the SPA's
+# node_modules/.bin so `protoc-gen-es` is found without a global install.
+proto-gen: proto-plugins-check
+    PATH="$PWD/web/node_modules/.bin:$PATH" buf generate
+
+# Lint .proto files against buf's STANDARD ruleset.
+proto-lint:
+    buf lint
+
+# Fail when vendored generated code is out of sync with proto/. Mirrors
+# the CI drift job so contributors can reproduce the verdict locally.
+proto-check-drift: proto-gen
+    git diff --exit-code -- src/cli/render/browse/proto src/cli/render/browse/connect web/src/proto
+
 # Install web/ dependencies only. Use this when only `node_modules` is
 # needed (e.g. `just format`, which invokes `vp fmt`) but `web/dist/` is
 # not required.
@@ -26,7 +67,7 @@ frontend-deps:
     cd web && pnpm install --frozen-lockfile
 
 # Build the web frontend (deps + vite build) and emit web/dist/.
-# rust-embed in src/cli/render/browse.rs reads web/dist/, so this must run
+# rust-embed in src/cli/render/browse/mod.rs reads web/dist/, so this must run
 # before any `cargo build` that needs the browse subcommand to serve assets
 # at runtime. Dev workflow uses `pnpm dev` instead (see README).
 #

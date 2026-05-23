@@ -1,0 +1,39 @@
+# Codegen for the `browse` ConnectRPC API.
+#
+# All output directories are vendored — `just proto-gen` writes the generated
+# files and they are committed. `just proto-check-drift` (and the matching
+# CI job) re-runs codegen and fails on diff. See `docs/development.md` for
+# the one-time `cargo install --locked protoc-gen-buffa
+# protoc-gen-buffa-packaging connectrpc-codegen` step that puts the three
+# Rust plugins on PATH; `protoc-gen-es` comes from the SPA's
+# `web/node_modules/.bin/` via the `just proto-gen` PATH augmentation.
+version: v2
+plugins:
+  # Rust message types (zero-copy views + serde_json mapping).
+  - local: protoc-gen-buffa
+    out: src/cli/render/browse/proto
+    opt:
+      - views=true
+      - json=true
+  - local: protoc-gen-buffa-packaging
+    out: src/cli/render/browse/proto
+    strategy: all
+  # Rust service trait + client/server stubs that reuse the buffa messages
+  # above (see `buffa_module=...` option).
+  - local: protoc-gen-connect-rust
+    out: src/cli/render/browse/connect
+    opt:
+      - buffa_module=crate::cli::render::browse::proto
+  - local: protoc-gen-buffa-packaging
+    out: src/cli/render/browse/connect
+    strategy: all
+    opt:
+      - filter=services
+  # TypeScript message types + Connect service descriptors (used by
+  # `createClient(BrowseService, transport)` in the SPA).
+  - local: protoc-gen-es
+    out: web/src/proto
+    opt:
+      - target=ts
+inputs:
+  - directory: proto
