@@ -1130,7 +1130,6 @@ mod tests {
         Arc::new(ir)
     }
 
-
     const ALLOWED_NODE_KINDS: &[&str] = &[
         "workflow",
         "local-action",

@@ -419,7 +419,6 @@ function formatConditionPrefix(c: IfCondition): string {
   return stepHint != null ? `${stepLabel} (${stepHint})` : stepLabel;
 }
 
-
 function renderTriggers(
   state: State,
   selectedEvent: string | null,
