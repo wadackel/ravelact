@@ -760,6 +760,8 @@ Selecting any node opens the side Panel. The Impact tab answers "if this changes
 
 The search box (top-right, `⌘K` / `Ctrl+K`) matches against node ids, labels, and trigger events. Matched nodes stay vivid; the rest fade, so the result reads as a single highlighted subgraph rather than a separate list.
 
+A small "Powered by ravelact v\<X.Y.Z>" pill is anchored to the bottom-left of the graph canvas and links back to this repository for users who land in the UI without the README; the version is the one baked into the binary at build time.
+
 #### Limitations
 
 `browse` is a PoC. The graph is built once at server start — there is no live reload, so re-run the command after editing workflow files. The UI is light-theme only. It ships with the binary via `rust-embed`, so a stock `cargo install ravelact` is enough — no `pnpm install` on the consumer side.

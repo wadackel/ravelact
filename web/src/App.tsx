@@ -9,6 +9,7 @@ import { Graph } from "./ui/components/Graph.tsx";
 import { Header } from "./ui/components/Header.tsx";
 import { OverviewPane } from "./ui/components/OverviewPane.tsx";
 import { Panel, type Tab } from "./ui/components/Panel.tsx";
+import { PoweredBy } from "./ui/components/PoweredBy.tsx";
 
 function isNodeKind(k: string): k is NodeKind {
   return (NODE_KINDS as ReadonlyArray<string>).includes(k);
@@ -167,7 +168,7 @@ export function App() {
         onSearchEnter={handleSearchEnter}
       />
       <main className="flex h-[calc(100%-48px)] relative">
-        <section className="flex-1 relative bg-bg min-w-0">
+        <section className="flex-1 relative bg-bg min-w-0" data-testid="graph-section">
           {payload && (
             <Graph
               payload={payload}
@@ -180,6 +181,7 @@ export function App() {
             />
           )}
           <ErrorBanner message={error} />
+          <PoweredBy />
         </section>
         {selected ? (
           <Panel

@@ -407,3 +407,16 @@ test("viewport culling: store stays complete while DOM only renders visible node
   const domCount = await page.locator(".react-flow__node").count();
   expect(domCount).toBeLessThan(beforeCount);
 });
+
+test("Powered by ravelact credit pill links to the project repo", async ({ page }) => {
+  await waitForGraph(page);
+
+  const link = page.getByRole("link", { name: /Powered by ravelact/i });
+  await expect(link).toBeVisible();
+
+  expect(await link.getAttribute("href")).toBe("https://github.com/wadackel/ravelact");
+  expect(await link.getAttribute("target")).toBe("_blank");
+  const rel = (await link.getAttribute("rel")) ?? "";
+  expect(rel).toMatch(/noopener/);
+  expect(rel).toMatch(/noreferrer/);
+});
