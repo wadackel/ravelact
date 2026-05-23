@@ -110,6 +110,41 @@ jobs:
       - name: pnpm e2e (playwright)
         run: nix develop --command pnpm --dir web e2e
 
+  proto-check-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-ci-${{ runner.os }}
+      # `just proto-gen` invokes 3 cargo-installed plugins
+      # (protoc-gen-buffa, protoc-gen-buffa-packaging,
+      # protoc-gen-connect-rust) plus `protoc-gen-es` from
+      # `web/node_modules/.bin`. Install the Rust plugins before
+      # calling proto-gen.
+      # Pin each plugin to an exact version so CI runs are deterministic
+      # — `cargo install --locked` honours each crate's own Cargo.lock but
+      # does NOT pin the crate version itself. Bump these in lock-step
+      # whenever the `connectrpc` / `buffa` runtime deps in the root
+      # Cargo.toml are bumped. `cargo install --version` accepts only
+      # one package per invocation, so we run three back-to-back.
+      - name: Install protoc-gen-buffa
+        run: nix develop --command cargo install --locked --version 0.6.0 protoc-gen-buffa
+      - name: Install protoc-gen-buffa-packaging
+        run: nix develop --command cargo install --locked --version 0.6.0 protoc-gen-buffa-packaging
+      - name: Install connectrpc-codegen
+        run: nix develop --command cargo install --locked --version 0.6.0 connectrpc-codegen
+      # `protoc-gen-es` is a devDependency of web/, so install web deps
+      # first; the recipe's `proto-plugins-check` will fail before any
+      # codegen runs if either path is missing.
+      - name: just frontend-deps
+        run: nix develop --command just frontend-deps
+      - name: just proto-check-drift
+        run: nix develop --command just proto-check-drift
+
   setup-action:
     runs-on: ubuntu-latest
     timeout-minutes: 15
