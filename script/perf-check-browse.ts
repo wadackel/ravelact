@@ -2,22 +2,22 @@
 /**
  * script/perf-check-browse.ts — `ravelact browse` performance harness.
  *
- * Measures the React 19 + ReactFlow (@xyflow/react) SPA at two scales:
- *   - dogfood   : the host repo (~16 nodes, ~42 edges)
- *   - synthetic : 300 generated workflows (≒ 871 elements)
+ * Measures the React 19 + ReactFlow (@xyflow/react) SPA across the
+ * scales selected via `--scales` (default `300,5000`), plus dogfood:
+ *   - dogfood     : the host repo (~15 nodes, ~37 edges) — always measured.
+ *   - synthetic-N : N generated workflows (30 reusable + N-30 callers).
  *
  * Output:
- *   .wadackel/qa/<YYYY-MM-DD_HH-MM>_browse-perf-300/
+ *   .wadackel/qa/<YYYY-MM-DD_HH-MM>_<label>/
  *     ├── report.md            (metric tables + methodology + screenshots list)
  *     ├── recording.webm       (one continuous recording for the whole session)
  *     └── screenshots/         (per-scale before/after captures)
+ *   `--label` controls the dir-name suffix so baseline vs PR runs do not collide.
  *
  * Prerequisites:
  *   - Release binary at ./target/release/ravelact (run `nix develop -c just build-release`)
  *   - agent-browser state file at ~/.agent-browser-state/main.json (run `ab-state-refresh`)
  *   - Deno on PATH (not yet wired into flake.nix dev shell)
- *
- * Plan: ~/.claude/plans/20260517T2107-browse-perf-check-300-workflows.md
  */
 
 import { dirname, fromFileUrl, join, resolve } from "jsr:@std/path@1";
@@ -76,7 +76,10 @@ async function spawnBrowse(
   }).spawn();
 
   // Loop+deadline mirror of tests/e2e_browse.rs: read lines, 15s timeout,
-  // EOF-as-fatal (child exited before binding).
+  // EOF-as-fatal (child exited before binding). When EOF or timeout
+  // hits, drain stderr to include the child's diagnostic output in the
+  // surfaced error — otherwise the harness reports a useless "exited"
+  // message with no clue why.
   const decoder = new TextDecoder();
   const reader = proc.stdout.getReader();
   const deadline = Date.now() + 15_000;
@@ -84,14 +87,18 @@ async function spawnBrowse(
   try {
     while (true) {
       if (Date.now() >= deadline) {
+        const stderrTail = await readChildStderr(proc);
         await terminateChild(proc);
-        throw new Error("timed out waiting for ravelact bind announcement");
+        throw new Error(
+          `timed out waiting for ravelact bind announcement${stderrTail ? `; stderr: ${stderrTail}` : ""}`,
+        );
       }
       const { value, done } = await reader.read();
       if (done) {
+        const stderrTail = await readChildStderr(proc);
         await terminateChild(proc);
         throw new Error(
-          "ravelact browse exited before announcing bind (EOF on stdout)",
+          `ravelact browse exited before announcing bind (EOF on stdout)${stderrTail ? `; stderr: ${stderrTail}` : ""}`,
         );
       }
       buf += decoder.decode(value, { stream: true });
@@ -101,13 +108,69 @@ async function spawnBrowse(
       buf = buf.slice(newlineIdx + 1);
       const port = parseBindPort(line);
       if (port !== null) {
+        // After the bind announcement the child keeps writing log lines
+        // to stdout/stderr ("press Ctrl+C to stop", etc.). Without
+        // draining, the pipe buffers eventually fill and block the
+        // child. Spawn fire-and-forget drains that exit when the pipes
+        // close (i.e. when the child is terminated).
+        reader.releaseLock();
+        drainPipe(proc.stdout);
+        drainPipe(proc.stderr);
         return { proc, port };
       }
     }
+  } catch (e) {
+    // Re-throw after ensuring the reader is released; the outer caller
+    // owns no other reference to the process at this point.
+    try {
+      reader.releaseLock();
+    } catch {
+      // already released by the bind-announcement path
+    }
+    throw e;
+  }
+}
+
+function drainPipe(stream: ReadableStream<Uint8Array>): void {
+  // Read-and-discard loop. Promise is intentionally not awaited — it
+  // resolves only when the child exits and the pipe closes.
+  void (async () => {
+    try {
+      const r = stream.getReader();
+      while (true) {
+        const { done } = await r.read();
+        if (done) break;
+      }
+    } catch {
+      // pipe closed / child gone — fine.
+    }
+  })();
+}
+
+async function readChildStderr(proc: Deno.ChildProcess): Promise<string> {
+  // Best-effort drain of whatever stderr has buffered so far. Single
+  // read with a 200 ms cap — the harness only needs a hint, not a
+  // full log. We deliberately do not loop: on the timeout branch the
+  // pending `r.read()` would orphan, and the next loop iteration would
+  // throw `reader is locked / already reading`. Cancelling the reader
+  // in finally resolves the orphan with `done:true` and unlocks.
+  const r = proc.stderr.getReader();
+  const decoder = new TextDecoder();
+  try {
+    const race = await Promise.race<{ value?: Uint8Array; done: boolean }>([
+      r.read(),
+      new Promise((resolve) => setTimeout(() => resolve({ done: true }), 200)),
+    ]);
+    if (race.done || !race.value) return "";
+    return decoder.decode(race.value).trim().slice(-512);
+  } catch {
+    return "";
   } finally {
-    // Release the reader without cancelling — the caller still owns the
-    // process and may want stdout drained later. cancel() would close it.
-    reader.releaseLock();
+    try {
+      await r.cancel();
+    } catch {
+      // ignore — stream already closed / cancelled
+    }
   }
 }
 
@@ -124,10 +187,22 @@ async function terminateChild(proc: Deno.ChildProcess): Promise<void> {
   } catch {
     // already gone
   }
+  // Give the child 5 s to exit cleanly, then escalate to SIGKILL.
+  // Without this, a child that ignores SIGTERM (hung / debugger
+  // attached / etc.) would block this script forever on `proc.status`.
+  const killTimer = setTimeout(() => {
+    try {
+      proc.kill("SIGKILL");
+    } catch {
+      // already gone
+    }
+  }, 5_000);
   try {
     await proc.status;
   } catch {
     // ignore
+  } finally {
+    clearTimeout(killTimer);
   }
 }
 
@@ -136,7 +211,16 @@ async function terminateChild(proc: Deno.ChildProcess): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const AB_SESSION = `claude-${Deno.pid}`;
-const AB_STATE = `${Deno.env.get("HOME")}/.agent-browser-state/main.json`;
+function requireHome(): string {
+  const home = Deno.env.get("HOME");
+  if (!home) {
+    throw new Error(
+      "HOME is not set; agent-browser state file path cannot be resolved. Set HOME or run from a shell that exports it.",
+    );
+  }
+  return home;
+}
+const AB_STATE = `${requireHome()}/.agent-browser-state/main.json`;
 
 async function ab(args: string[], opts?: { stateOnFirst?: boolean }): Promise<string> {
   const full = ["--session", AB_SESSION];
@@ -247,12 +331,15 @@ const PERF_PROBES_INJECT = `
   })()
 `;
 
-async function waitForGraphReady(): Promise<NavigationResult> {
+async function waitForGraphReady(deadlineMs = 30_000): Promise<NavigationResult> {
   // Poll for __ravelactRf + node count > 0; record timeOrigin and
-  // the first moment all readiness conditions hold. Dagre layout
-  // completes synchronously inside the Graph mount effect, so as
-  // soon as nodes() is non-empty the layout is already final.
-  const deadline = Date.now() + 30_000;
+  // the first moment all readiness conditions hold. After the dagre
+  // worker offload `__ravelactRf` is installed only post-resolve, so
+  // the existence of `getNodes().length > 0` is the canonical signal.
+  // Callers measuring 5k-scale estates need a larger deadlineMs because
+  // Worker postMessage roundtrip + dagre on 5000 nodes can exceed the
+  // 30 s dogfood baseline.
+  const deadline = Date.now() + deadlineMs;
   while (Date.now() < deadline) {
     const res = await evalJson<{ ready: boolean; nodes?: number; edges?: number; timeOrigin?: number; now?: number }>(
       `(function(){
@@ -451,6 +538,7 @@ interface MeasureOpts {
   workflows: number; // -1 for dogfood (no synthetic)
   isFirst: boolean;
   runDir: string;
+  readyTimeoutMs?: number;
 }
 
 async function measureScale(opts: MeasureOpts): Promise<ScaleMetrics> {
@@ -462,7 +550,7 @@ async function measureScale(opts: MeasureOpts): Promise<ScaleMetrics> {
     // the reported initial-load time excludes the fixed wait. Polling uses an
     // 80 ms interval (see waitForGraphReady) and returns as soon as cy +
     // elements are present, giving a tighter initial-load number.
-    const nav = await waitForGraphReady();
+    const nav = await waitForGraphReady(opts.readyTimeoutMs);
     await evalJson(PERF_PROBES_INJECT);
     const apiBytes = await curlBytes(port, "/api/graph");
     const heapInitial = await snapshotHeap();
@@ -501,12 +589,35 @@ async function verifyMirrorAgainstRust(binaryPath: string, root: string): Promis
     stdout: "piped",
     stderr: "piped",
   }).output();
-  if (!dump.success) throw new Error("ravelact dump failed");
-  const json = JSON.parse(new TextDecoder().decode(dump.stdout));
-  const total = Array.isArray(json.workflows) ? json.workflows.length : 0;
+  if (!dump.success) {
+    const stderr = new TextDecoder().decode(dump.stderr).trim();
+    throw new Error(`ravelact dump failed${stderr ? `: ${stderr}` : ""}`);
+  }
+  const json: unknown = JSON.parse(new TextDecoder().decode(dump.stdout));
+  // Guard the shape we expect. The Rust dump output is a stable contract,
+  // but typing `JSON.parse` as `unknown` and narrowing forces us to
+  // surface a clear error if the contract drifts instead of silently
+  // returning total=0.
+  if (typeof json !== "object" || json === null || !Array.isArray((json as { workflows?: unknown }).workflows)) {
+    throw new Error(`ravelact dump output: expected object with .workflows array, got ${typeof json}`);
+  }
+  const workflows = (json as { workflows: unknown[] }).workflows;
+  const total = workflows.length;
   let reusable = 0;
-  for (const w of json.workflows ?? []) {
-    if (Array.isArray(w.triggers) && w.triggers.some((t: { event?: { kind?: string } }) => t?.event?.kind === "workflow_call")) {
+  for (const w of workflows) {
+    if (typeof w !== "object" || w === null) continue;
+    const triggers = (w as { triggers?: unknown }).triggers;
+    if (!Array.isArray(triggers)) continue;
+    if (
+      triggers.some(
+        (t) =>
+          typeof t === "object" &&
+          t !== null &&
+          typeof (t as { event?: { kind?: unknown } }).event === "object" &&
+          (t as { event: { kind?: unknown } }).event !== null &&
+          (t as { event: { kind?: unknown } }).event.kind === "workflow_call",
+      )
+    ) {
       reusable++;
     }
   }
@@ -526,52 +637,76 @@ function fmtBytes(n: number): string {
 
 function writeReport(args: {
   runDir: string;
-  dogfood: ScaleMetrics;
-  at300: ScaleMetrics;
-  mirrorCheck: { total: number; reusable: number };
+  scales: ScaleMetrics[];
+  mirrorChecks: Map<string, { total: number; reusable: number }>;
   pkgVersions: { xyflow?: string; dagre?: string };
   recordingPath: string;
   screenshotPaths: string[];
+  scenarioLabel: string;
 }): void {
-  const { runDir, dogfood, at300, mirrorCheck, pkgVersions, recordingPath, screenshotPaths } = args;
+  const { runDir, scales, mirrorChecks, pkgVersions, recordingPath, screenshotPaths, scenarioLabel } = args;
   const fmtFps = (f: number) => f.toFixed(1);
   const fmtMs = (n: number) => `${n.toFixed(1)} ms`;
   const fmtSettle = (s: number | "capped") => s === "capped" ? "> 5000 ms (capped)" : `${(s as number).toFixed(1)} ms`;
 
+  const headerRow = `| Metric | ${scales.map((s) => s.label).join(" | ")} |`;
+  const sepRow = `|---|${scales.map(() => "---").join("|")}|`;
+  const valueRow = (label: string, render: (s: ScaleMetrics) => string) =>
+    `| ${label} | ${scales.map(render).join(" | ")} |`;
+
+  const mirrorLines: string[] = [];
+  for (const s of scales) {
+    if (s.workflows < 0) continue; // dogfood has no synthetic mirror
+    const m = mirrorChecks.get(s.label);
+    if (!m) continue;
+    const expectedReusable = Math.min(s.workflows, 30);
+    mirrorLines.push(
+      `  - **${s.label}**: total=${m.total} (expected ${s.workflows}), reusable=${m.reusable} (expected ${expectedReusable}).`,
+    );
+  }
+
   const body = [
-    `# Browse perf report — dogfood vs. 300 workflows`,
+    `# Browse perf report — ${scenarioLabel}`,
     ``,
     `Generated: ${new Date().toISOString()}`,
     ``,
     `## Methodology`,
     ``,
-    `- Harness: \`script/perf-check-browse.ts\` (Deno) — see plan \`~/.claude/plans/20260517T2107-browse-perf-check-300-workflows.md\`.`,
-    `- Two scales measured back-to-back in the same Chrome instance via agent-browser:`,
-    `  1. **dogfood**: \`./target/release/ravelact --root . browse\` (host repo, ~16 nodes).`,
-    `  2. **synthetic-300**: TempDir with 300 generated workflows (30 reusable + 270 caller).`,
+    `- Harness: \`script/perf-check-browse.ts\` (Deno).`,
+    `- Scales measured back-to-back in the same Chrome instance via agent-browser:`,
+    ...scales.map((s) =>
+      s.workflows < 0
+        ? `  - **${s.label}**: host repo (~${s.node_count} nodes / ${s.edge_count} edges).`
+        : `  - **${s.label}**: TempDir with ${s.workflows} generated workflows (${Math.min(s.workflows, 30)} reusable + ${s.workflows - Math.min(s.workflows, 30)} caller).`,
+    ),
+    `- Scenario label: \`${scenarioLabel}\` — embed this into the parent QA report so a baseline vs PR-branch comparison aligns scales 1:1.`,
     `- Synthetic estate generation is **TS file I/O before browser navigation** — its time is NOT included in any "initial load" number reported here.`,
     `- Versions: see \`web/package.json\`. Detected at run-time: @xyflow/react=${pkgVersions.xyflow ?? "unknown"}, dagre=${pkgVersions.dagre ?? "unknown"}.`,
-    `- TS↔Rust mirror cross-check (synthetic-300): \`ravelact dump | jq '.workflows | length'\` = ${mirrorCheck.total} (expected 300), reusable count (\`workflow_call\` triggers) = ${mirrorCheck.reusable} (expected 30).`,
+    `- TS↔Rust mirror cross-check:`,
+    ...(mirrorLines.length ? mirrorLines : [`  - (no synthetic scales — dogfood only)`]),
     `- "Coarse heap snapshot" — \`performance.memory.usedJSHeapSize\` is bucketed to ~100 KB; small leaks below that resolution are invisible.`,
     `- "Drag FPS" is sampled during scripted \`rf.panBy\` for ≥ 3 s. ReactFlow pans by mutating the viewport's CSS transform, so per-frame cost is style recompute + composite (no canvas redraw).`,
     `- "Settle time" is the duration after a single pan until the viewport-element mutation stream stays quiet ≥ 100 ms; ceiling 5 s. A \`MutationObserver\` on \`.react-flow__viewport\` style/transform attributes is the source.`,
-    `- "Highlight latency" is \`performance.measure('highlight', 'perf:tap-enter', 'perf:faded-applied')\` across 20 distinct workflow nodes; p50/p95 reported.`,
+    `- "Highlight latency" is \`performance.measure('highlight', 'perf:tap-enter', 'perf:faded-applied')\` across up to 20 distinct workflow nodes; p50/p95 reported.`,
     ``,
     `## Results`,
     ``,
-    `| Metric | dogfood | synthetic-300 | Δ |`,
-    `|---|---|---|---|`,
-    `| nodes (rf.getNodes().length) | ${dogfood.node_count} | ${at300.node_count} | ${at300.node_count - dogfood.node_count} |`,
-    `| edges (rf.getEdges().length) | ${dogfood.edge_count} | ${at300.edge_count} | ${at300.edge_count - dogfood.edge_count} |`,
-    `| /api/graph size | ${fmtBytes(dogfood.api_graph_bytes)} | ${fmtBytes(at300.api_graph_bytes)} | ${(at300.api_graph_bytes - dogfood.api_graph_bytes >= 0 ? "+" : "")}${fmtBytes(at300.api_graph_bytes - dogfood.api_graph_bytes)} |`,
-    `| initial load (timeOrigin → first ready) | ${fmtMs(dogfood.initial_load_ms)} | ${fmtMs(at300.initial_load_ms)} | ${(at300.initial_load_ms - dogfood.initial_load_ms).toFixed(1)} ms |`,
-    `| drag FPS (3 s sample) | ${fmtFps(dogfood.drag_fps)} | ${fmtFps(at300.drag_fps)} | ${(at300.drag_fps - dogfood.drag_fps).toFixed(1)} fps |`,
-    `| settle after pan | ${fmtSettle(dogfood.settle_ms)} | ${fmtSettle(at300.settle_ms)} | — |`,
-    `| highlight latency p50 (n samples) | ${fmtMs(dogfood.highlight_latency_ms.p50)} (n=${dogfood.highlight_latency_ms.samples}) | ${fmtMs(at300.highlight_latency_ms.p50)} (n=${at300.highlight_latency_ms.samples}) | — |`,
-    `| highlight latency p95 | ${fmtMs(dogfood.highlight_latency_ms.p95)} | ${fmtMs(at300.highlight_latency_ms.p95)} | — |`,
-    `| heap initial (coarse) | ${fmtBytes(dogfood.heap_initial_bytes)} | ${fmtBytes(at300.heap_initial_bytes)} | — |`,
-    `| heap after 20 taps (coarse) | ${fmtBytes(dogfood.heap_after_interactions_bytes)} | ${fmtBytes(at300.heap_after_interactions_bytes)} | — |`,
-    `| viewport mutation events observed | ${dogfood.viewport_mutation_event_count} | ${at300.viewport_mutation_event_count} | — |`,
+    headerRow,
+    sepRow,
+    valueRow("nodes (rf.getNodes().length)", (s) => String(s.node_count)),
+    valueRow("edges (rf.getEdges().length)", (s) => String(s.edge_count)),
+    valueRow("/api/graph size", (s) => fmtBytes(s.api_graph_bytes)),
+    valueRow("initial load (timeOrigin → first ready)", (s) => fmtMs(s.initial_load_ms)),
+    valueRow("drag FPS (3 s sample)", (s) => fmtFps(s.drag_fps)),
+    valueRow("settle after pan", (s) => fmtSettle(s.settle_ms)),
+    valueRow(
+      "highlight latency p50 (n samples)",
+      (s) => `${fmtMs(s.highlight_latency_ms.p50)} (n=${s.highlight_latency_ms.samples})`,
+    ),
+    valueRow("highlight latency p95", (s) => fmtMs(s.highlight_latency_ms.p95)),
+    valueRow("heap initial (coarse)", (s) => fmtBytes(s.heap_initial_bytes)),
+    valueRow("heap after 20 taps (coarse)", (s) => fmtBytes(s.heap_after_interactions_bytes)),
+    valueRow("viewport mutation events observed", (s) => String(s.viewport_mutation_event_count)),
     ``,
     `## Thresholds (guidance only, not blocking)`,
     ``,
@@ -582,7 +717,7 @@ function writeReport(args: {
     ``,
     `## Bottleneck Analysis`,
     ``,
-    `_To be populated by Task 2 of the plan once the measurements above are reviewed._`,
+    `_To be populated by the parent QA report once the measurements above are paired with the baseline scenario._`,
     ``,
     `## Evidence`,
     ``,
@@ -628,16 +763,47 @@ function readPackageVersions(repoRoot: string): { xyflow?: string; dagre?: strin
 function printUsage(): void {
   console.log(`Usage: deno run --allow-all script/perf-check-browse.ts [options]
 
-Measures \`ravelact browse\` performance at two scales (dogfood + synthetic 300 workflows).
-Output is written to \`.wadackel/qa/<timestamp>_browse-perf-300/\`.
+Measures \`ravelact browse\` performance across multiple scales (dogfood + synthetic).
+Output is written to \`.wadackel/qa/<timestamp>_<run-dir-suffix>/\`.
 
 Prerequisites:
   - Release binary at ./target/release/ravelact (run \`nix develop -c just build-release\` first).
   - agent-browser state file at \`~/.agent-browser-state/main.json\` (run \`ab-state-refresh\`).
 
 Options:
-  --help          Show this help.
+  --scales <csv>      Comma-separated synthetic scales to measure in addition to
+                      dogfood. Defaults to \`300,5000\`. Use \`--scales=\` (empty)
+                      to skip synthetic scales entirely (dogfood-only smoke).
+  --label <label>     Scenario label embedded into the report header and run-dir
+                      suffix. Defaults to \`browse-perf-worker-vp\`. Use this so a
+                      baseline vs PR-branch invocation produces distinct dirs.
+  --help              Show this help.
 `);
+}
+
+function parseScales(arg: string | undefined): number[] {
+  if (arg === undefined) return [300, 5000];
+  if (arg.trim() === "") return [];
+  return arg.split(",").map((s) => {
+    const n = parseInt(s.trim(), 10);
+    if (!Number.isFinite(n) || n <= 0) {
+      throw new Error(`invalid --scales value: ${s}`);
+    }
+    return n;
+  });
+}
+
+function parseArgs(argv: string[]): { scales: number[]; label: string } {
+  let scalesArg: string | undefined;
+  let label = "browse-perf-worker-vp";
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i] ?? "";
+    if (a === "--scales") scalesArg = argv[++i];
+    else if (a.startsWith("--scales=")) scalesArg = a.slice("--scales=".length);
+    else if (a === "--label") label = argv[++i] ?? label;
+    else if (a.startsWith("--label=")) label = a.slice("--label=".length);
+  }
+  return { scales: parseScales(scalesArg), label };
 }
 
 async function main(): Promise<void> {
@@ -646,85 +812,155 @@ async function main(): Promise<void> {
     printUsage();
     return;
   }
+  const { scales: syntheticScales, label } = parseArgs(args);
 
   const scriptDir = dirname(fromFileUrl(import.meta.url));
   const repoRoot = resolve(scriptDir, "..");
   const binaryPath = join(repoRoot, "target", "release", "ravelact");
 
-  // Binary existence check.
+  // Binary existence check. Differentiate "missing file" (most common
+  // failure mode — operator forgot to `just build-release`) from other
+  // I/O errors (permission, ENOTDIR, etc.) so the diagnostic message
+  // actually helps when something unexpected breaks.
   try {
     const stat = await Deno.stat(binaryPath);
-    if (!stat.isFile) throw new Error("not a file");
-  } catch {
-    console.error(`ravelact binary not found at ${binaryPath}.`);
-    console.error("Run: nix develop -c just build-release first");
-    Deno.exit(1);
+    if (!stat.isFile) {
+      console.error(`Expected file at ${binaryPath}, got non-file entry.`);
+      Deno.exit(1);
+    }
+  } catch (e) {
+    if (e instanceof Deno.errors.NotFound) {
+      console.error(`ravelact binary not found at ${binaryPath}.`);
+      console.error("Run: nix develop -c just build-release first");
+      Deno.exit(1);
+    }
+    throw e;
   }
 
-  const runDir = join(repoRoot, ".wadackel", "qa", `${ts()}_browse-perf-300`);
+  const runDir = join(repoRoot, ".wadackel", "qa", `${ts()}_${label}`);
   Deno.mkdirSync(join(runDir, "screenshots"), { recursive: true });
   console.log(`Run directory: ${runDir}`);
+  console.log(`Synthetic scales: ${syntheticScales.length ? syntheticScales.join(", ") : "(none — dogfood only)"}`);
 
   // Start agent-browser session + recording.
   const recordingPath = join(runDir, "recording.webm");
   await ab(["record", "start", recordingPath], { stateOnFirst: true });
 
-  let dogfood: ScaleMetrics | undefined;
-  let at300: ScaleMetrics | undefined;
-  let mirrorCheck: { total: number; reusable: number } = { total: 0, reusable: 0 };
+  const measurements: ScaleMetrics[] = [];
+  const mirrorChecks = new Map<string, { total: number; reusable: number }>();
+  // Track temp dirs so we can clean them up after the run completes.
+  const tempDirs: string[] = [];
+
+  // Best-effort cleanup on Ctrl-C / SIGTERM. Without these, an
+  // interrupted harness leaks the tempdir + ongoing agent-browser
+  // recording (and the recording process can hold the daemon open).
+  // Listeners are removed after the main try/finally completes so a
+  // normal-completion exit does not run cleanup twice.
+  let interrupted = false;
+  const onSignal = () => {
+    if (interrupted) return;
+    interrupted = true;
+    console.error("\nperf-check-browse: interrupted, cleaning up …");
+    void ab(["record", "stop"]).catch(() => {});
+    for (const d of tempDirs) {
+      try {
+        Deno.removeSync(d, { recursive: true });
+      } catch {
+        // best-effort
+      }
+    }
+    Deno.exit(130);
+  };
+  Deno.addSignalListener("SIGINT", onSignal);
+  Deno.addSignalListener("SIGTERM", onSignal);
 
   try {
-    dogfood = await measureScale({
-      label: "dogfood",
-      root: repoRoot,
-      binaryPath,
-      workflows: -1,
-      isFirst: false, // recording start already initialised the session
-      runDir,
-    });
+    measurements.push(
+      await measureScale({
+        label: "dogfood",
+        root: repoRoot,
+        binaryPath,
+        workflows: -1,
+        isFirst: false, // recording start already initialised the session
+        runDir,
+        readyTimeoutMs: 30_000,
+      }),
+    );
 
-    const synthDir = await Deno.makeTempDir({ prefix: "ravelact-perf-300-" });
-    writeSyntheticEstate(synthDir, 300);
-    mirrorCheck = await verifyMirrorAgainstRust(binaryPath, synthDir);
-    if (mirrorCheck.total !== 300) {
-      throw new Error(`mirror check: expected 300 workflows, got ${mirrorCheck.total}`);
-    }
-    if (mirrorCheck.reusable !== 30) {
-      throw new Error(`mirror check: expected 30 reusable, got ${mirrorCheck.reusable}`);
-    }
+    for (const wf of syntheticScales) {
+      const scaleLabel = `synthetic-${wf}`;
+      const synthDir = await Deno.makeTempDir({ prefix: `ravelact-perf-${wf}-` });
+      tempDirs.push(synthDir);
+      writeSyntheticEstate(synthDir, wf);
+      const mc = await verifyMirrorAgainstRust(binaryPath, synthDir);
+      if (mc.total !== wf) {
+        throw new Error(`mirror check (${scaleLabel}): expected ${wf} workflows, got ${mc.total}`);
+      }
+      const expectedReusable = Math.min(wf, 30);
+      if (mc.reusable !== expectedReusable) {
+        throw new Error(
+          `mirror check (${scaleLabel}): expected ${expectedReusable} reusable, got ${mc.reusable}`,
+        );
+      }
+      mirrorChecks.set(scaleLabel, mc);
 
-    at300 = await measureScale({
-      label: "synthetic-300",
-      root: synthDir,
-      binaryPath,
-      workflows: 300,
-      isFirst: false,
-      runDir,
-    });
+      // 5k-scale dagre on the synthetic star-shaped topology (30 reusable
+      // + N-30 callers each calling one reusable) is unusually expensive —
+      // baseline measurement showed ~91s wall-clock at 5k. Give a 3-minute
+      // floor for any scale >= 1000 so the harness reliably captures the
+      // number rather than timing out before paint.
+      const readyTimeoutMs = wf >= 1000 ? 180_000 : 30_000;
+      measurements.push(
+        await measureScale({
+          label: scaleLabel,
+          root: synthDir,
+          binaryPath,
+          workflows: wf,
+          isFirst: false,
+          runDir,
+          readyTimeoutMs,
+        }),
+      );
+    }
   } finally {
     try {
       await ab(["record", "stop"]);
     } catch {
       // already stopped or session died
     }
+    for (const d of tempDirs) {
+      try {
+        await Deno.remove(d, { recursive: true });
+      } catch {
+        // best-effort
+      }
+    }
+    // Normal completion path — drop the signal handlers so they cannot
+    // fire during whatever comes after main() returns.
+    try {
+      Deno.removeSignalListener("SIGINT", onSignal);
+      Deno.removeSignalListener("SIGTERM", onSignal);
+    } catch {
+      // ignore
+    }
   }
 
-  if (!dogfood || !at300) {
-    console.error("measurement aborted before both scales completed");
+  const expectedScales = 1 + syntheticScales.length;
+  if (measurements.length !== expectedScales) {
+    console.error(
+      `measurement aborted: completed ${measurements.length}/${expectedScales} scales`,
+    );
     Deno.exit(2);
   }
 
   writeReport({
     runDir,
-    dogfood,
-    at300,
-    mirrorCheck,
+    scales: measurements,
+    mirrorChecks,
     pkgVersions: readPackageVersions(repoRoot),
     recordingPath,
-    screenshotPaths: [
-      join(runDir, "screenshots", "qa-perf-dogfood.png"),
-      join(runDir, "screenshots", "qa-perf-synthetic-300.png"),
-    ],
+    screenshotPaths: measurements.map((s) => join(runDir, "screenshots", `qa-perf-${s.label}.png`)),
+    scenarioLabel: label,
   });
 
   console.log(`\nReport: ${join(runDir, "report.md")}`);
