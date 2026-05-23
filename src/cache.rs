@@ -689,4 +689,90 @@ mod tests {
             "subkey must not contain the checkout basename; got {named}",
         );
     }
+
+    // ----- git_sha + git_changed_sources tests ----------------------------
+    //
+    // Exercise the actual git plumbing with a real repo. Two commits give
+    // us a known sha pair to feed `git_changed_sources`, and we can drive
+    // the `(Some, Some) where != ` branch of `cache_status` end-to-end.
+
+    fn run_git_in(dir: &Path, args: &[&str]) {
+        let status = Command::new("git")
+            .arg("-C")
+            .arg(dir)
+            .args(args)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("git");
+        assert!(status.success(), "git {args:?} failed");
+    }
+
+    fn seed_two_commit_repo() -> (tempfile::TempDir, String, String, PathBuf) {
+        let dir = tempdir().unwrap();
+        let root = dir.path().to_path_buf();
+        run_git_in(&root, &["init", "-q", "-b", "main"]);
+        run_git_in(&root, &["config", "user.email", "t@example.com"]);
+        run_git_in(&root, &["config", "user.name", "t"]);
+        run_git_in(&root, &["config", "commit.gpgsign", "false"]);
+        let wf = root.join(".github/workflows/ci.yml");
+        touch(&wf);
+        run_git_in(&root, &["add", "."]);
+        run_git_in(&root, &["commit", "-q", "-m", "first"]);
+        let old_sha = git_sha(&root).expect("first sha");
+        // Edit the workflow and commit again to produce a known diff.
+        std::fs::write(&wf, "name: ci\non: pull_request\njobs: {}\n").unwrap();
+        run_git_in(&root, &["commit", "-q", "-am", "second"]);
+        let new_sha = git_sha(&root).expect("second sha");
+        assert_ne!(old_sha, new_sha);
+        (dir, old_sha, new_sha, wf)
+    }
+
+    #[test]
+    fn git_sha_returns_none_outside_git_repo() {
+        let dir = tempdir().unwrap();
+        assert_eq!(git_sha(dir.path()), None);
+    }
+
+    #[test]
+    fn git_sha_returns_full_hex_inside_git_repo() {
+        let (_dir, old_sha, _new_sha, _wf) = seed_two_commit_repo();
+        assert_eq!(old_sha.len(), 40);
+        assert!(old_sha.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn git_changed_sources_lists_modified_workflow_between_two_shas() {
+        let (dir, old_sha, new_sha, wf) = seed_two_commit_repo();
+        let mut current_paths = BTreeSet::new();
+        current_paths.insert(wf.clone());
+        let changed = git_changed_sources(dir.path(), &old_sha, &new_sha, &current_paths).unwrap();
+        assert_eq!(changed, current_paths);
+    }
+
+    #[test]
+    fn git_changed_sources_skips_paths_outside_current_inventory() {
+        let (dir, old_sha, new_sha, _wf) = seed_two_commit_repo();
+        // current_paths is empty: even though the diff lists the workflow,
+        // it is not in `current_paths`, so nothing should be reported.
+        let changed =
+            git_changed_sources(dir.path(), &old_sha, &new_sha, &BTreeSet::new()).unwrap();
+        assert!(changed.is_empty());
+    }
+
+    #[test]
+    fn cache_status_uses_git_diff_when_both_shas_present_and_differ() {
+        let (dir, old_sha, new_sha, wf) = seed_two_commit_repo();
+        let inventory = make_inventory(dir.path(), &[&wf]);
+        let doc = make_doc(
+            dir.path(),
+            vec![fingerprint_for_path(&wf).unwrap()],
+            Some(&old_sha),
+        );
+        let status = cache_status(&inventory, &doc, Some(&new_sha)).unwrap();
+        assert!(
+            status.stale_sources.contains(&wf),
+            "sha diff between old and new must mark the changed workflow as stale",
+        );
+    }
 }

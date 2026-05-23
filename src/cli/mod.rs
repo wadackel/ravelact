@@ -1468,4 +1468,111 @@ mod tests {
             "completion error should list supported shells: {completion:#}"
         );
     }
+
+    #[test]
+    fn wiring_kind_label_covers_all_variants() {
+        use crate::ir::{DanglingLocalUsesKind, WiringKind};
+        assert_eq!(
+            wiring_kind_label(&WiringKind::UnannotatedDispatch {
+                raw_target: "x".into(),
+            }),
+            "unannotated-dispatch"
+        );
+        assert_eq!(
+            wiring_kind_label(&WiringKind::DanglingAnnotation {
+                raw_target: "x".into(),
+                reason: "r".into(),
+            }),
+            "dangling-annotation"
+        );
+        assert_eq!(
+            wiring_kind_label(&WiringKind::DanglingWorkflowRun {
+                raw_name: "x".into(),
+            }),
+            "dangling-workflow-run"
+        );
+        assert_eq!(
+            wiring_kind_label(&WiringKind::DanglingLocalUses {
+                local_kind: DanglingLocalUsesKind::Action,
+                raw_target: "x".into(),
+            }),
+            "dangling-local-uses"
+        );
+    }
+
+    #[test]
+    fn wiring_kind_breakdown_sums_each_variant_and_skips_zero_counts() {
+        use crate::ir::{DanglingLocalUsesKind, WiringFinding, WiringKind};
+        use std::path::PathBuf;
+        let findings = vec![
+            WiringFinding {
+                file: PathBuf::from("a.yml"),
+                line: 1,
+                kind: WiringKind::UnannotatedDispatch {
+                    raw_target: "x".into(),
+                },
+            },
+            WiringFinding {
+                file: PathBuf::from("a.yml"),
+                line: 2,
+                kind: WiringKind::DanglingAnnotation {
+                    raw_target: "x".into(),
+                    reason: "r".into(),
+                },
+            },
+            WiringFinding {
+                file: PathBuf::from("a.yml"),
+                line: 3,
+                kind: WiringKind::DanglingWorkflowRun {
+                    raw_name: "x".into(),
+                },
+            },
+            WiringFinding {
+                file: PathBuf::from("a.yml"),
+                line: 4,
+                kind: WiringKind::DanglingLocalUses {
+                    local_kind: DanglingLocalUsesKind::Workflow,
+                    raw_target: "x".into(),
+                },
+            },
+        ];
+        let summary = wiring_kind_breakdown(&findings);
+        assert_eq!(summary.len(), 4);
+        assert!(summary.iter().any(|s| s == "1 unannotated-dispatch"));
+        assert!(summary.iter().any(|s| s == "1 dangling-annotation"));
+        assert!(summary.iter().any(|s| s == "1 dangling-workflow-run"));
+        assert!(summary.iter().any(|s| s == "1 dangling-local-uses"));
+        // Empty findings -> empty summary (no zero-count rows leak through).
+        assert!(wiring_kind_breakdown(&[]).is_empty());
+    }
+
+    #[test]
+    fn wiring_message_formats_each_variant_distinctly() {
+        use crate::ir::{DanglingLocalUsesKind, WiringFinding, WiringKind};
+        use std::path::PathBuf;
+        let pos = |kind| WiringFinding {
+            file: PathBuf::from("a.yml"),
+            line: 1,
+            kind,
+        };
+        let m = wiring_message(&pos(WiringKind::DanglingAnnotation {
+            raw_target: "../bad".into(),
+            reason: "x".into(),
+        }));
+        assert!(m.contains("../bad") && m.contains("dangling"));
+        let m = wiring_message(&pos(WiringKind::DanglingWorkflowRun {
+            raw_name: "ghost".into(),
+        }));
+        assert!(m.contains("ghost") && m.contains("workflow_run"));
+        let m_action = wiring_message(&pos(WiringKind::DanglingLocalUses {
+            local_kind: DanglingLocalUsesKind::Action,
+            raw_target: ".github/actions/missing".into(),
+        }));
+        assert!(m_action.contains("local action"));
+        let m_wf = wiring_message(&pos(WiringKind::DanglingLocalUses {
+            local_kind: DanglingLocalUsesKind::Workflow,
+            raw_target: ".github/workflows/missing.yml".into(),
+        }));
+        assert!(m_wf.contains("local workflow"));
+    }
 }

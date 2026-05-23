@@ -678,4 +678,248 @@ mod wiring_tests {
             "path-fallback resolution must not produce a finding: {findings:?}"
         );
     }
+
+    /// Helper: minimal workflow shell with a single named job. The caller
+    /// fills the job's calls_workflow / step uses to drive specific branches.
+    fn workflow_with_job(file: &str, job: Job) -> Workflow {
+        Workflow {
+            id: WorkflowId(file.into()),
+            source: SourcePos {
+                file: PathBuf::from(file),
+                line: Some(1),
+            },
+            name: None,
+            run_name: None,
+            triggers: vec![],
+            jobs: vec![job],
+            permissions: None,
+            defaults: None,
+            env: Default::default(),
+            concurrency: None,
+            annotations: vec![],
+        }
+    }
+
+    fn empty_job(id: &str, file: &str) -> Job {
+        Job {
+            id: JobId(id.into()),
+            workflow: WorkflowId(file.into()),
+            needs: vec![],
+            permissions: None,
+            steps: vec![],
+            calls_workflow: None,
+            runs_on: None,
+            outputs: Default::default(),
+            source: SourcePos {
+                file: PathBuf::from(file),
+                line: Some(5),
+            },
+            environment: None,
+            if_expr: None,
+            strategy: None,
+            defaults: None,
+            env: Default::default(),
+            concurrency: None,
+            container: None,
+            services: Default::default(),
+            annotations: Vec::new(),
+        }
+    }
+
+    fn empty_step(line: usize, file: &str) -> Step {
+        Step {
+            index: 0,
+            id: None,
+            name: None,
+            uses: None,
+            run: None,
+            if_expr: None,
+            with: Default::default(),
+            env: Default::default(),
+            shell: None,
+            working_directory: None,
+            timeout_minutes: None,
+            continue_on_error: None,
+            source: SourcePos {
+                file: PathBuf::from(file),
+                line: Some(line),
+            },
+            annotations: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn wiring_emits_dangling_for_job_level_local_workflow_call_to_unknown_target() {
+        let file = ".github/workflows/caller.yml";
+        let mut job = empty_job("call", file);
+        // workflow_call wires job.calls_workflow with WorkflowRef::Local(target);
+        // because the target does not exist in `ir.workflows`, this must
+        // surface as DanglingLocalUses { local_kind: Workflow, .. }.
+        job.calls_workflow = Some(CallsWorkflow {
+            workflow_ref: WorkflowRef::Local(WorkflowId(".github/workflows/missing.yml".into())),
+            with: Default::default(),
+            secrets: SecretsPass::None,
+        });
+        let ir = Ir {
+            schema_version: 3,
+            root: PathBuf::from("/tmp/test"),
+            workflows: vec![workflow_with_job(file, job)],
+            actions: vec![],
+            external_actions: vec![],
+        };
+        let findings = wiring(&ir);
+        assert!(findings.iter().any(|f| matches!(
+            &f.kind,
+            WiringKind::DanglingLocalUses {
+                local_kind: DanglingLocalUsesKind::Workflow,
+                raw_target,
+            } if raw_target == ".github/workflows/missing.yml"
+        )));
+    }
+
+    #[test]
+    fn wiring_emits_dangling_for_step_level_local_workflow_uses_to_unknown_target() {
+        let file = ".github/workflows/caller.yml";
+        let mut step = empty_step(7, file);
+        step.uses = Some(UsesRef::LocalWorkflow(WorkflowId(
+            ".github/workflows/missing-step.yml".into(),
+        )));
+        let mut job = empty_job("call", file);
+        job.steps = vec![step];
+        let ir = Ir {
+            schema_version: 3,
+            root: PathBuf::from("/tmp/test"),
+            workflows: vec![workflow_with_job(file, job)],
+            actions: vec![],
+            external_actions: vec![],
+        };
+        let findings = wiring(&ir);
+        assert!(findings.iter().any(|f| matches!(
+            &f.kind,
+            WiringKind::DanglingLocalUses {
+                local_kind: DanglingLocalUsesKind::Workflow,
+                raw_target,
+            } if raw_target == ".github/workflows/missing-step.yml"
+        )));
+    }
+
+    #[test]
+    fn wiring_emits_dangling_for_composite_action_step_uses_to_unknown_targets() {
+        let action_file = ".github/actions/composite/action.yml";
+        let mut step_action = empty_step(7, action_file);
+        step_action.uses = Some(UsesRef::LocalAction(ActionId(
+            ".github/actions/missing".into(),
+        )));
+        let mut step_wf = empty_step(9, action_file);
+        step_wf.uses = Some(UsesRef::LocalWorkflow(WorkflowId(
+            ".github/workflows/missing.yml".into(),
+        )));
+        let ir = Ir {
+            schema_version: 3,
+            root: PathBuf::from("/tmp/test"),
+            workflows: vec![],
+            actions: vec![LocalAction {
+                id: ActionId(".github/actions/composite".into()),
+                source: SourcePos {
+                    file: PathBuf::from(action_file),
+                    line: Some(1),
+                },
+                name: None,
+                kind: ActionKind::Composite,
+                inputs: vec![],
+                outputs: vec![],
+                steps: vec![step_action, step_wf],
+                annotations: vec![],
+            }],
+            external_actions: vec![],
+        };
+        let findings = wiring(&ir);
+        // Expect both an Action-kind and a Workflow-kind DanglingLocalUses.
+        let action_finding = findings.iter().any(|f| {
+            matches!(
+                &f.kind,
+                WiringKind::DanglingLocalUses {
+                    local_kind: DanglingLocalUsesKind::Action,
+                    ..
+                }
+            )
+        });
+        let workflow_finding = findings.iter().any(|f| {
+            matches!(
+                &f.kind,
+                WiringKind::DanglingLocalUses {
+                    local_kind: DanglingLocalUsesKind::Workflow,
+                    ..
+                }
+            )
+        });
+        assert!(action_finding, "missing local action ref must surface");
+        assert!(workflow_finding, "missing local workflow ref must surface");
+    }
+
+    #[test]
+    fn wiring_skips_run_body_lines_starting_with_ravelact_marker() {
+        // Lines matching the `ravelact:` annotation marker (the same marker
+        // checked by `line_starts_with_ravelact`) inside a step's run body
+        // must be skipped — they belong to the annotation parser, not the
+        // wiring scan.
+        let body = "# ravelact: dispatches=foo.yml\ngh workflow run foo.yml";
+        let anns = vec![Annotation {
+            verb: AnnotationVerb::Dispatches,
+            resolution: AnnotationResolution::Resolved {
+                target: WorkflowId("foo.yml".into()),
+            },
+            source_line: 4,
+        }];
+        let ir = make_ir_with_step(Some(body), anns);
+        let findings = wiring(&ir);
+        assert!(
+            findings.is_empty(),
+            "ravelact-marker line must be skipped; got {findings:?}",
+        );
+    }
+
+    #[test]
+    fn extract_gh_workflow_run_rejects_non_matching_prefixes() {
+        // Second token must be exactly `workflow`.
+        assert_eq!(extract_gh_workflow_run("gh action run target.yml"), None);
+        // Third token must be exactly `run`.
+        assert_eq!(extract_gh_workflow_run("gh workflow list target.yml"), None);
+        // Variable expansion / quoted forms are explicit false negatives.
+        assert_eq!(extract_gh_workflow_run("gh workflow run $TARGET"), None);
+        assert_eq!(
+            extract_gh_workflow_run("gh workflow run \"target.yml\""),
+            None,
+        );
+        assert_eq!(
+            extract_gh_workflow_run("gh workflow run 'target.yml'"),
+            None
+        );
+        // Trailing punctuation collapses to empty.
+        assert_eq!(extract_gh_workflow_run("gh workflow run ;"), None);
+    }
+
+    #[test]
+    fn step_has_dispatch_annotation_returns_false_for_non_resolved_or_wrong_verb() {
+        // Dangling Dispatches annotation must not match (only Resolved does).
+        let anns_dangling = vec![Annotation {
+            verb: AnnotationVerb::Dispatches,
+            resolution: AnnotationResolution::Dangling {
+                raw_target: "x".into(),
+                reason: "r".into(),
+            },
+            source_line: 4,
+        }];
+        assert!(!step_has_dispatch_annotation(&anns_dangling, "x"));
+        // Resolved annotation with a different verb (e.g. Triggers)
+        // must not match — only `AnnotationVerb::Dispatches` counts.
+        let anns_wrong_verb = vec![Annotation {
+            verb: AnnotationVerb::Triggers,
+            resolution: AnnotationResolution::Resolved {
+                target: WorkflowId("x".into()),
+            },
+            source_line: 4,
+        }];
+        assert!(!step_has_dispatch_annotation(&anns_wrong_verb, "x"));
+    }
 }
