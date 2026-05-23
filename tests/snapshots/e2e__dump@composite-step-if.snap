@@ -1,0 +1,33 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".github/actions/foo",
+      "kind": "composite"
+    }
+  ],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/ci.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "run",
+          "step_uses_kinds": [
+            "localaction"
+          ]
+        }
+      ],
+      "name": "Composite step-if caller",
+      "triggers": [
+        "push"
+      ]
+    }
+  ]
+}

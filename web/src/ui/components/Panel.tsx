@@ -10,6 +10,7 @@ import { fetchImpact, fetchNode, fetchTrace } from "../../lib/api.ts";
 import { githubUrlFor } from "../../lib/github-url.ts";
 import { renderTraceTree } from "../../lib/trace-render.ts";
 import type {
+  IfCondition,
   ImpactResponse,
   NodeKind,
   NodeResponse,
@@ -280,6 +281,21 @@ function renderDetails(state: State, githubUrl: string | null) {
           </a>
         </Field>
       )}
+      {n.if_conditions.length > 0 && (
+        <Field label="Conditions">
+          <ul className="m-0 p-0 list-none [&>li]:py-1 [&>li:not(:last-child)]:border-b [&>li:not(:last-child)]:border-border-soft">
+            {n.if_conditions.map((c, i) => (
+              <li key={i} data-testid="condition-row" className="text-fg text-xs">
+                <div className="whitespace-pre-wrap break-all">
+                  <span className="text-fg-muted">{formatConditionPrefix(c)}</span>
+                  <span aria-hidden="true"> — </span>
+                  <span>{c.expression}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Field>
+      )}
     </>
   );
 }
@@ -383,6 +399,24 @@ function CheckIcon() {
       />
     </svg>
   );
+}
+
+// Discriminated-union narrowing keeps unreachable states (e.g. job entry
+// with a step_index) out of this helper. `!= null` checks are used so an
+// empty-string id from the API would not silently fall through to the
+// "no hint" branch.
+function formatConditionPrefix(c: IfCondition): string {
+  if (c.scope === "job") {
+    return `job ${c.job_id}`;
+  }
+  const stepLabel = `step #${c.step_index}`;
+  const stepHint = c.step_name ?? c.step_id;
+  if (c.job_id != null) {
+    return stepHint != null
+      ? `${stepLabel} (${c.job_id} / ${stepHint})`
+      : `${stepLabel} (${c.job_id})`;
+  }
+  return stepHint != null ? `${stepLabel} (${stepHint})` : stepLabel;
 }
 
 function renderTriggers(

@@ -857,6 +857,17 @@ struct NodeParams {
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct IfCondition {
+    scope: &'static str,
+    job_id: Option<String>,
+    step_index: Option<usize>,
+    step_id: Option<String>,
+    step_name: Option<String>,
+    expression: String,
+}
+
+#[derive(Debug, Serialize)]
 struct NodeResponse {
     id: String,
     kind: String,
@@ -866,6 +877,7 @@ struct NodeResponse {
     entry_triggers: Vec<String>,
     refs_in: Vec<String>,
     refs_out: Vec<String>,
+    if_conditions: Vec<IfCondition>,
 }
 
 /// Render an IR source path as a forward-slash string relative to the
@@ -898,6 +910,35 @@ async fn api_node(
                 .map(|t| t.event.name().to_string())
                 .collect();
             let file = relative_source_path(&wf.source.file, &root);
+            // Source order: job-level entry first (if any), then its
+            // step-level entries. `Option::into_iter` yields 0 or 1
+            // items, chained with the per-step iterator.
+            let if_conditions: Vec<IfCondition> = wf
+                .jobs
+                .iter()
+                .flat_map(|job| {
+                    let job_id = job.id.0.clone();
+                    let job_entry = job.if_expr.as_ref().map(|expr| IfCondition {
+                        scope: "job",
+                        job_id: Some(job_id.clone()),
+                        step_index: None,
+                        step_id: None,
+                        step_name: None,
+                        expression: expr.clone(),
+                    });
+                    let step_entries = job.steps.iter().filter_map(move |step| {
+                        step.if_expr.as_ref().map(|expr| IfCondition {
+                            scope: "step",
+                            job_id: Some(job_id.clone()),
+                            step_index: Some(step.index + 1),
+                            step_id: step.id.as_ref().map(|s| s.0.clone()),
+                            step_name: step.name.clone(),
+                            expression: expr.clone(),
+                        })
+                    });
+                    job_entry.into_iter().chain(step_entries)
+                })
+                .collect();
             Ok(Json(NodeResponse {
                 id: workflow_node_id(&wf.id),
                 kind: "workflow".into(),
@@ -907,6 +948,7 @@ async fn api_node(
                 entry_triggers,
                 refs_in: Vec::new(),
                 refs_out: Vec::new(),
+                if_conditions,
             }))
         }
         "local-action" => {
@@ -921,6 +963,20 @@ async fn api_node(
                 crate::ir::ActionKind::Docker => "docker",
             };
             let file = relative_source_path(&la.source.file, &root);
+            let if_conditions: Vec<IfCondition> = la
+                .steps
+                .iter()
+                .filter_map(|step| {
+                    step.if_expr.as_ref().map(|expr| IfCondition {
+                        scope: "step",
+                        job_id: None,
+                        step_index: Some(step.index + 1),
+                        step_id: step.id.as_ref().map(|s| s.0.clone()),
+                        step_name: step.name.clone(),
+                        expression: expr.clone(),
+                    })
+                })
+                .collect();
             Ok(Json(NodeResponse {
                 id: action_node_id(&la.id),
                 kind: "local-action".into(),
@@ -930,6 +986,7 @@ async fn api_node(
                 entry_triggers: Vec::new(),
                 refs_in: Vec::new(),
                 refs_out: Vec::new(),
+                if_conditions,
             }))
         }
         "external-action" => {
@@ -949,6 +1006,7 @@ async fn api_node(
                 entry_triggers: Vec::new(),
                 refs_in: Vec::new(),
                 refs_out: Vec::new(),
+                if_conditions: Vec::new(),
             }))
         }
         _ => Err(StatusCode::NOT_FOUND),
@@ -1066,6 +1124,12 @@ mod tests {
         }
     }
 
+    fn load_fixture_ir(rel_path: &str) -> Arc<Ir> {
+        let ir = build_ir(Path::new(rel_path), &GlobSet::empty())
+            .unwrap_or_else(|e| panic!("fixture {rel_path} should load: {e}"));
+        Arc::new(ir)
+    }
+
     const ALLOWED_NODE_KINDS: &[&str] = &[
         "workflow",
         "local-action",
@@ -1126,6 +1190,123 @@ mod tests {
         };
         let result = api_node(State(state_for(ir)), Query(params)).await;
         assert!(matches!(result, Err(StatusCode::NOT_FOUND)));
+    }
+
+    /// `step-if-guard` carries: `combined` job (job-level if + step-level if),
+    /// `step-only` job (step-level if only), `unconditional` job (no if).
+    /// The response must enumerate the conditions in source order and skip
+    /// the unconditional job entirely.
+    #[tokio::test]
+    async fn api_node_workflow_if_conditions_source_order() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/step-if-guard");
+        let params = NodeParams {
+            kind: "workflow".into(),
+            id: ".github/workflows/ci.yml".into(),
+        };
+        let resp = api_node(State(state_for(ir)), Query(params))
+            .await
+            .expect("workflow lookup should succeed");
+        let got: Vec<_> = resp
+            .0
+            .if_conditions
+            .iter()
+            .map(|c| {
+                (
+                    c.scope,
+                    c.job_id.clone(),
+                    c.step_index,
+                    c.step_id.clone(),
+                    c.step_name.clone(),
+                    c.expression.clone(),
+                )
+            })
+            .collect();
+        let expected = vec![
+            (
+                "job",
+                Some("combined".to_string()),
+                None,
+                None,
+                None,
+                "github.event_name == 'push'".to_string(),
+            ),
+            (
+                "step",
+                Some("combined".to_string()),
+                Some(1),
+                None,
+                None,
+                "runner.os == 'Linux'".to_string(),
+            ),
+            (
+                "step",
+                Some("step-only".to_string()),
+                Some(1),
+                None,
+                None,
+                "matrix.os == 'ubuntu-latest'".to_string(),
+            ),
+        ];
+        assert_eq!(got, expected);
+    }
+
+    /// `composite-step-if` has 2 steps; only step #2 carries `if:`. This
+    /// pins both (a) the 0->1 step_index conversion and (b) the
+    /// skip-step-without-if filter — a hard-coded `Some(1)` would pass a
+    /// single-step fixture but fail here.
+    #[tokio::test]
+    async fn api_node_local_action_if_conditions() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/composite-step-if");
+        let action_id = ir
+            .actions
+            .first()
+            .expect("composite-step-if fixture has one local action")
+            .id
+            .0
+            .clone();
+        let params = NodeParams {
+            kind: "local-action".into(),
+            id: action_id,
+        };
+        let resp = api_node(State(state_for(ir)), Query(params))
+            .await
+            .expect("local-action lookup should succeed");
+        assert_eq!(resp.0.if_conditions.len(), 1, "exactly one guarded step");
+        let entry = &resp.0.if_conditions[0];
+        assert_eq!(entry.scope, "step");
+        assert_eq!(entry.job_id, None);
+        assert_eq!(entry.step_index, Some(2));
+        assert_eq!(entry.step_id, None);
+        assert_eq!(entry.step_name.as_deref(), Some("Conditional finalize"));
+        assert_eq!(entry.expression, "runner.os == 'Linux'");
+    }
+
+    /// External actions never surface `if:` (the `if:` lives on the step
+    /// that uses the action, not on the action itself). Pin the empty
+    /// vector so the JSON always carries the field — the frontend's
+    /// non-optional `IfCondition[]` type relies on it.
+    #[tokio::test]
+    async fn api_node_external_action_if_conditions_empty() {
+        let ir = load_simple_ir();
+        let ea = ir
+            .external_actions
+            .first()
+            .expect("simple fixture references at least one external action");
+        let id = external_action_node_id(ea)
+            .strip_prefix("ea:")
+            .expect("ea: prefix")
+            .to_string();
+        let params = NodeParams {
+            kind: "external-action".into(),
+            id,
+        };
+        let resp = api_node(State(state_for(ir)), Query(params))
+            .await
+            .expect("external-action lookup should succeed");
+        assert!(
+            resp.0.if_conditions.is_empty(),
+            "external-action must surface empty if_conditions"
+        );
     }
 
     #[tokio::test]

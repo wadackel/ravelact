@@ -1,0 +1,12 @@
+name: Foo composite
+description: Composite with a guarded second step (regression-pins 0->1 step_index conversion).
+runs:
+  using: composite
+  steps:
+    - name: Always-on prep
+      shell: bash
+      run: echo prep
+    - name: Conditional finalize
+      if: runner.os == 'Linux'
+      shell: bash
+      run: echo finalize

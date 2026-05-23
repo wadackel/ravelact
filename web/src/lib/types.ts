@@ -60,6 +60,26 @@ export type TriggersResponse = {
  */
 export type NodeResponseKind = "workflow" | "local-action" | "external-action";
 
+/**
+ * One `if:` guard surfaced by `/api/node`. Modeled as a discriminated
+ * union on `scope` so consumers cannot read `step_index` on a job entry
+ * (or vice versa). The Rust producer enforces the same invariants —
+ * `scope = "job"` always carries `job_id` and never `step_*`; `scope =
+ * "step"` always carries `step_index` (1-based at the API boundary; the
+ * Rust IR keeps the 0-based index internally) and `job_id` is `null`
+ * for composite local-action steps that live outside any job.
+ */
+export type IfCondition =
+  | { scope: "job"; job_id: string; expression: string }
+  | {
+      scope: "step";
+      job_id: string | null;
+      step_index: number;
+      step_id: string | null;
+      step_name: string | null;
+      expression: string;
+    };
+
 export type NodeResponse = {
   id: string;
   kind: NodeResponseKind;
@@ -69,6 +89,7 @@ export type NodeResponse = {
   entry_triggers: string[];
   refs_in: string[];
   refs_out: string[];
+  if_conditions: IfCondition[];
 };
 
 // ----- /api/impact -----
