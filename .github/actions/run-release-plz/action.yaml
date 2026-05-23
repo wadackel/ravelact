@@ -18,7 +18,14 @@ runs:
       with:
         client-id: ${{ inputs.app-id }}
         private-key: ${{ inputs.app-private-key }}
-    - uses: actions-rust-lang/setup-rust-toolchain@fb51252c7ba57d633bc668f941da052e410add48 # v1.16.0
+    - name: Install Rust toolchain
+      shell: bash
+      run: |
+        set -euo pipefail
+        rustup toolchain install stable --profile minimal --no-self-update
+        rustup show active-toolchain
+        cargo --version
+        rustc --version
     - uses: release-plz/action@1528104d2ca23787631a1c1f022abb64b34c1e11 # v0.5.128
       with:
         command: ${{ inputs.command }}
