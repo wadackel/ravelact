@@ -17,6 +17,7 @@
   "dependencies": {
     "@xyflow/react": "^12.10.2",
     "dagre": "^0.8.5",
+    "re-resizable": "^6.11.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

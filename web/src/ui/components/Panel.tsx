@@ -17,6 +17,7 @@ import type {
   RepoInfo,
   TraceResponse,
 } from "../../lib/types.ts";
+import { ResizableRightPane } from "./ResizableRightPane.tsx";
 import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "./ui/index.ts";
 
 export type Tab = "details" | "triggers" | "impact" | "trace";
@@ -77,6 +78,8 @@ export type PanelProps = {
   onTabChange: (tab: Tab) => void;
   selectedEvent: string | null;
   onSelectEvent: (event: string | null) => void;
+  width: number;
+  onWidthChange: (next: number) => void;
 };
 
 export function Panel({
@@ -87,6 +90,8 @@ export function Panel({
   onTabChange,
   selectedEvent,
   onSelectEvent,
+  width,
+  onWidthChange,
 }: PanelProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
@@ -182,60 +187,62 @@ export function Panel({
   const githubUrl = githubUrlFor(openFor, repoInfo);
 
   return (
-    <aside
-      className="w-[360px] border-l border-border bg-bg flex flex-col animate-slide-in motion-reduce:animate-none"
-      aria-label="Node detail panel"
-    >
-      <header className="flex items-center px-4 py-3 border-b border-border gap-2">
-        <Kind kind={openFor.kind} variant="badge" aria-hidden="true" />
-        <h2 className="m-0 flex-1 text-[12.5px] font-medium break-all font-sans text-fg">
-          {openFor.id}
-        </h2>
-        <button
-          className="bg-transparent border-0 text-fg-muted text-lg leading-none cursor-pointer w-6 h-6 inline-flex items-center justify-center rounded-sm hover:text-fg hover:bg-bg-elev2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
-          type="button"
-          aria-label="Close detail panel"
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </header>
-      <div
-        className="flex border-b border-border bg-bg px-3 gap-4"
-        role="tablist"
-        aria-label="Detail views"
-        onKeyDown={onTabKeyDown}
+    <ResizableRightPane width={width} onWidthChange={onWidthChange}>
+      <aside
+        className="h-full border-l border-border bg-bg flex flex-col animate-slide-in motion-reduce:animate-none"
+        aria-label="Node detail panel"
       >
-        {TABS.map((t) => (
+        <header className="flex items-center px-4 py-3 border-b border-border gap-2">
+          <Kind kind={openFor.kind} variant="badge" aria-hidden="true" />
+          <h2 className="m-0 flex-1 text-[12.5px] font-medium break-all font-sans text-fg">
+            {openFor.id}
+          </h2>
           <button
-            key={t}
-            id={`tab-${t}`}
-            role="tab"
+            className="bg-transparent border-0 text-fg-muted text-lg leading-none cursor-pointer w-6 h-6 inline-flex items-center justify-center rounded-sm hover:text-fg hover:bg-bg-elev2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
             type="button"
-            data-tab={t}
-            aria-selected={tab === t}
-            aria-controls="panel-body"
-            tabIndex={tab === t ? 0 : -1}
-            onClick={() => onTabChange(t)}
-            className="bg-transparent border-0 text-fg-muted py-3 px-0.5 cursor-pointer text-[12.5px] border-b-2 border-b-transparent -mb-px hover:text-fg aria-selected:text-fg aria-selected:border-b-fg aria-selected:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
+            aria-label="Close detail panel"
+            onClick={onClose}
           >
-            {t.charAt(0).toUpperCase() + t.slice(1)}
+            ×
           </button>
-        ))}
-      </div>
-      <section
-        id="panel-body"
-        className="flex-1 overflow-y-auto p-4 text-[12.5px]"
-        role="tabpanel"
-        aria-labelledby={`tab-${tab}`}
-        tabIndex={0}
-      >
-        {tab === "details" && renderDetails(state, githubUrl)}
-        {tab === "triggers" && renderTriggers(state, selectedEvent, onSelectEvent)}
-        {tab === "impact" && renderImpact(state)}
-        {tab === "trace" && renderTrace(state, selectedEvent, onSelectEvent)}
-      </section>
-    </aside>
+        </header>
+        <div
+          className="flex border-b border-border bg-bg px-3 gap-4"
+          role="tablist"
+          aria-label="Detail views"
+          onKeyDown={onTabKeyDown}
+        >
+          {TABS.map((t) => (
+            <button
+              key={t}
+              id={`tab-${t}`}
+              role="tab"
+              type="button"
+              data-tab={t}
+              aria-selected={tab === t}
+              aria-controls="panel-body"
+              tabIndex={tab === t ? 0 : -1}
+              onClick={() => onTabChange(t)}
+              className="bg-transparent border-0 text-fg-muted py-3 px-0.5 cursor-pointer text-[12.5px] border-b-2 border-b-transparent -mb-px hover:text-fg aria-selected:text-fg aria-selected:border-b-fg aria-selected:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
+            >
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+        <section
+          id="panel-body"
+          className="flex-1 overflow-y-auto p-4 text-[12.5px]"
+          role="tabpanel"
+          aria-labelledby={`tab-${tab}`}
+          tabIndex={0}
+        >
+          {tab === "details" && renderDetails(state, githubUrl)}
+          {tab === "triggers" && renderTriggers(state, selectedEvent, onSelectEvent)}
+          {tab === "impact" && renderImpact(state)}
+          {tab === "trace" && renderTrace(state, selectedEvent, onSelectEvent)}
+        </section>
+      </aside>
+    </ResizableRightPane>
   );
 }
 
