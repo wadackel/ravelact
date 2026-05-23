@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { RavelactRf } from "./lib/dev-globals.ts";
 
@@ -228,6 +228,38 @@ describe("App — orchestration", () => {
     // Re-click → toggle off.
     await user.click(row);
     await waitFor(() => expect(latestGraphProps().analysisIds).toBeNull());
+  });
+
+  it("clicking a Triggers tab chip drives event-impact through Panel", async () => {
+    render(<App />);
+    await screen.findByRole("complementary", { name: "Graph overview" });
+
+    // Select a workflow node so Panel mounts in place of OverviewPane.
+    act(() => {
+      latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
+    });
+    const panel = await screen.findByRole("complementary", { name: "Node detail panel" });
+
+    // Switch to the Triggers tab. Scope the lookup to the panel so we
+    // do not collide with any future OverviewPane button that might
+    // share an accessible name.
+    const triggersTab = within(panel).getByRole("tab", { name: "Triggers" });
+    act(() => {
+      triggersTab.click();
+    });
+
+    // The Triggers chip is rendered after fetchNode resolves with the
+    // ci.yaml mock that has `entry_triggers: ["push"]`.
+    const chip = await within(panel).findByRole("button", { name: "push" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+
+    act(() => {
+      chip.click();
+    });
+    await waitFor(() => {
+      expect(api.fetchEventImpact).toHaveBeenCalledWith("push", expect.any(AbortSignal));
+      expect(latestGraphProps().analysisIds).not.toBeNull();
+    });
   });
 
   it("keeps the active panel tab when selecting a different node", async () => {
