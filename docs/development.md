@@ -147,6 +147,31 @@ shape parity. The harness cross-checks parity each run by calling
 `ravelact dump | jq` on the generated estate and asserting the expected
 workflow / reusable counts.
 
+#### README screenshots
+
+`web/scripts/snapshot-readme.ts` regenerates the four PNGs committed
+under `docs/images/browse-*.png` (referenced from the hero and `Browse`
+section of `README.md`). Run it after any UI change that should be
+reflected in the README:
+
+```sh
+nix develop -c just snapshot-readme            # verify only — fails on drift
+nix develop -c just snapshot-readme --update   # rewrite committed PNGs
+```
+
+The script is Node + tsx + `@playwright/test`, drives Chromium against
+`./target/release/ravelact` (so run `nix develop -c just build-release`
+first), captures four shots at viewport `1440×900` / DPR 2 / locale
+`en-US` / `prefers-reduced-motion: reduce`, and runs `oxipng -o 4
+--strip safe` on each emitted PNG. The Playwright Chromium binary lives
+in the global cache — install it once with `cd web && nix develop -c
+pnpm exec playwright install chromium`.
+
+Without `--update` the script exits non-zero when the regenerated PNGs
+differ from the committed bytes, leaving `<name>.png.new` files behind
+for inspection. Do not run concurrently with `pnpm e2e` — both can bind
+localhost ports.
+
 ### GitHub Action installer
 
 The repository root `action.yaml` is the public setup action used as `uses: wadackel/ravelact@...`. It installs a GitHub Release binary onto `PATH`, verifies its checksum, and fails if the installed binary cannot execute on the runner. It does not run analysis commands itself and does not fall back to `cargo install`. Keep the public input surface minimal. The initial supported input is `version`, which overrides the action ref when callers need to install a specific released binary.
