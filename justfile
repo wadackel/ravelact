@@ -53,6 +53,18 @@ coverage:
     cargo llvm-cov --workspace --lcov --output-path lcov.info
     cargo llvm-cov report
 
+# Enforce the per-file >= 90% line coverage floor against lcov.info.
+# Mirrors the CI gate's intent so contributors can reproduce the verdict
+# locally before pushing. Strips the SF: prefix and the repo root so the
+# error output uses repo-relative paths.
+coverage-gate: coverage
+    @awk -v root="$PWD/" 'BEGIN { th=90 } \
+      /^SF:/ { p=substr($0,4); if (index(p,root)==1) p=substr(p,length(root)+1); sf=p } \
+      /^LF:/ { lf=substr($0,4)+0 } \
+      /^LH:/ { lh=substr($0,4)+0 } \
+      /^end_of_record/ { pct = lf>0 ? lh*100/lf : 100; if (pct + 0 < th) { printf "%s: %.2f%% below %d%%\n", sf, pct, th; failed=1 }; sf=""; lf=0; lh=0 } \
+      END { if (failed) exit 1 }' lcov.info
+
 clean:
     cargo clean
 

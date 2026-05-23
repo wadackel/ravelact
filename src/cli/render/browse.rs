@@ -407,25 +407,15 @@ fn split_owner_repo(rest: &str) -> Option<(String, String)> {
     Some((owner.to_string(), repo.to_string()))
 }
 
-async fn serve(
-    ir: Arc<Ir>,
-    graph: Value,
-    repo_info: Option<RepoInfo>,
-    port: Option<u16>,
-    no_open: bool,
-) -> Result<()> {
-    // Serialize once and hand each request a cheap Bytes clone (Arc-backed).
-    let api_body = Bytes::from(serde_json::to_vec(&graph)?);
-    // Pre-serialize repo info too so each request is a Bytes clone, not a
-    // re-serialization. `None` means no `origin` remote / unsupported scheme
-    // (`git://`, `file://`, …) / malformed URL / detached HEAD with no SHA —
-    // the route returns 404 in that case so the frontend can hide the
-    // "Open in GitHub" link gracefully.
-    let repo_body: Option<Bytes> = repo_info
-        .as_ref()
-        .map(|r| Bytes::from(serde_json::to_vec(r).expect("RepoInfo serializes")));
-
-    let app: Router = Router::new()
+/// Build the axum router for `ravelact browse` from pre-serialized bodies.
+///
+/// `api_body` and `repo_body` are pre-serialized so each request is a cheap
+/// `Bytes` clone (Arc-backed) instead of repeated JSON serialization. The
+/// router shape — route ordering, `with_state(ir)` placement — is kept in
+/// lockstep with the serve loop so the integration tests in
+/// `tests/e2e_browse.rs` continue to observe identical behavior.
+pub(crate) fn build_router(ir: Arc<Ir>, api_body: Bytes, repo_body: Option<Bytes>) -> Router {
+    Router::new()
         .route("/", get(serve_index))
         // axum's catch-all `{*path}` is evaluated AFTER more-specific routes,
         // so `/api/*` handlers below still take precedence.
@@ -463,7 +453,28 @@ async fn serve(
         .route("/api/node", get(api_node))
         .route("/api/impact", get(api_impact))
         .route("/api/trace", get(api_trace))
-        .with_state(ir);
+        .with_state(ir)
+}
+
+async fn serve(
+    ir: Arc<Ir>,
+    graph: Value,
+    repo_info: Option<RepoInfo>,
+    port: Option<u16>,
+    no_open: bool,
+) -> Result<()> {
+    // Serialize once and hand each request a cheap Bytes clone (Arc-backed).
+    let api_body = Bytes::from(serde_json::to_vec(&graph)?);
+    // Pre-serialize repo info too so each request is a Bytes clone, not a
+    // re-serialization. `None` means no `origin` remote / unsupported scheme
+    // (`git://`, `file://`, …) / malformed URL / detached HEAD with no SHA —
+    // the route returns 404 in that case so the frontend can hide the
+    // "Open in GitHub" link gracefully.
+    let repo_body: Option<Bytes> = repo_info
+        .as_ref()
+        .map(|r| Bytes::from(serde_json::to_vec(r).expect("RepoInfo serializes")));
+
+    let app = build_router(ir, api_body, repo_body);
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port.unwrap_or(0))).await?;
     let addr = listener.local_addr()?;
@@ -1041,9 +1052,6 @@ mod tests {
         assert_eq!(resp.0.kind, "workflow");
         assert_eq!(resp.0.id, format!("wf:{wf_id}"));
         assert!(!resp.0.label.is_empty(), "label must be non-empty");
-        // entry_triggers may be empty (workflow with only workflow_call) but
-        // the field must always be present in the response shape.
-        let _ = resp.0.entry_triggers;
     }
 
     #[tokio::test]
@@ -1165,17 +1173,6 @@ mod tests {
                 "entry_workflows must not exceed declarations: {row:?}",
             );
         }
-    }
-
-    #[test]
-    fn router_accepts_arc_ir_state() {
-        // Regression: Task 0 introduced `with_state(Arc<Ir>)`. This test
-        // confirms the Router compiles end-to-end with the new state type,
-        // independent of whether any handler currently extracts it. Tasks
-        // 1-4 add handlers that consume the state; this test guards the
-        // wiring those handlers depend on.
-        let ir = load_simple_ir();
-        let _app: Router = Router::new().route("/", get(serve_index)).with_state(ir);
     }
 
     #[test]
@@ -1347,5 +1344,667 @@ mod tests {
                 "unexpected edge kind: {kind}",
             );
         }
+    }
+
+    #[test]
+    fn build_graph_json_covers_synthetic_external_refs() {
+        // Synthetic fixtures include external action `uses: actions/checkout@v4`,
+        // which exercises `ensure_external_action` / `external_action_*`
+        // branches that the `simple` fixture does not reach.
+        let ir = build_ir(
+            Path::new("tests/fixtures/synthetic/nonstandard-composite-path"),
+            &GlobSet::empty(),
+        )
+        .expect("synthetic fixture should load");
+        let v = build_graph_json(&ir);
+        let nodes = v
+            .get("nodes")
+            .and_then(Value::as_array)
+            .expect("nodes is an array");
+        let kinds: std::collections::HashSet<&str> = nodes
+            .iter()
+            .filter_map(|n| n.get("data")?.get("kind")?.as_str())
+            .collect();
+        assert!(
+            kinds.contains("external-action"),
+            "synthetic fixture should include external-action nodes, got: {kinds:?}",
+        );
+    }
+
+    #[test]
+    fn build_graph_json_covers_local_workflow_calls() {
+        // multi-caller fixture has `uses: ./.github/workflows/callee.yml`
+        // edges that exercise the local-workflow ensure path.
+        let ir = build_ir(Path::new("tests/fixtures/multi-caller"), &GlobSet::empty())
+            .expect("multi-caller fixture should load");
+        let v = build_graph_json(&ir);
+        let edges = v
+            .get("edges")
+            .and_then(Value::as_array)
+            .expect("edges is an array");
+        let kinds: std::collections::HashSet<&str> = edges
+            .iter()
+            .filter_map(|e| e.get("data")?.get("kind")?.as_str())
+            .collect();
+        assert!(
+            kinds.contains("calls-workflow") || kinds.contains("uses-local-workflow"),
+            "multi-caller fixture should produce workflow-call edges, got: {kinds:?}",
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // /api/search
+    // -----------------------------------------------------------------
+
+    fn run_api_search(ir: Arc<Ir>, params: SearchParams) -> SearchResponse {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async { api_search(State(ir), Query(params)).await.0 })
+    }
+
+    #[test]
+    fn api_search_empty_query_returns_empty() {
+        let ir = load_simple_ir();
+        let resp = run_api_search(
+            ir,
+            SearchParams {
+                q: None,
+                kind: None,
+                limit: None,
+            },
+        );
+        assert!(resp.matches.is_empty());
+        assert_eq!(resp.total, 0);
+        assert!(!resp.truncated);
+    }
+
+    #[test]
+    fn api_search_whitespace_only_query_returns_empty() {
+        let ir = load_simple_ir();
+        let resp = run_api_search(
+            ir,
+            SearchParams {
+                q: Some("   ".into()),
+                kind: None,
+                limit: None,
+            },
+        );
+        assert!(resp.matches.is_empty());
+    }
+
+    #[test]
+    fn api_search_returns_workflow_matches_for_known_trigger() {
+        // The `simple` fixture's ci.yml lists `push` as a trigger; that
+        // event name participates in the search corpus, so a query for
+        // "push" must yield at least one workflow row.
+        let ir = load_simple_ir();
+        let resp = run_api_search(
+            ir,
+            SearchParams {
+                q: Some("push".into()),
+                kind: None,
+                limit: None,
+            },
+        );
+        assert!(
+            resp.matches.iter().any(|m| m.kind == "workflow"),
+            "search for `push` should hit at least one workflow",
+        );
+    }
+
+    #[test]
+    fn api_search_kind_filter_restricts_results() {
+        let ir = load_simple_ir();
+        // First, baseline — search without filter.
+        let unfiltered = run_api_search(
+            ir.clone(),
+            SearchParams {
+                q: Some("ci".into()),
+                kind: None,
+                limit: None,
+            },
+        );
+        // Filter to local-action only; no local-action carries "ci" as a
+        // substring in the simple fixture, so the result must be empty
+        // even though the unfiltered query has hits.
+        let filtered = run_api_search(
+            ir,
+            SearchParams {
+                q: Some("ci".into()),
+                kind: Some("local-action".into()),
+                limit: None,
+            },
+        );
+        assert!(!unfiltered.matches.is_empty());
+        // The simple fixture has no local-action whose corpus contains "ci",
+        // so the kind-restricted result must be empty. Asserting only
+        // `.all(|m| m.kind == "local-action")` would pass vacuously on an
+        // empty slice and miss a regression where the filter silently
+        // returned everything (or nothing) regardless of the requested kind.
+        assert!(filtered.matches.is_empty());
+    }
+
+    #[test]
+    fn api_search_truncates_to_limit() {
+        let ir = load_simple_ir();
+        let resp = run_api_search(
+            ir,
+            SearchParams {
+                q: Some("workflows".into()), // file-path token that every workflow shares
+                kind: None,
+                limit: Some(1),
+            },
+        );
+        assert!(resp.matches.len() <= 1);
+        if resp.total > 1 {
+            assert!(resp.truncated);
+        }
+    }
+
+    #[test]
+    fn api_search_multi_token_requires_all_to_match() {
+        let ir = load_simple_ir();
+        let resp = run_api_search(
+            ir,
+            SearchParams {
+                // Token combination unlikely to all appear in a single node.
+                q: Some("push zzzzzzzz".into()),
+                kind: None,
+                limit: None,
+            },
+        );
+        assert!(
+            resp.matches.is_empty(),
+            "multi-token AND should reject when one token is absent",
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // /api/event-impact
+    // -----------------------------------------------------------------
+
+    fn run_event_impact(ir: Arc<Ir>, event: Option<String>) -> EventImpactResponse {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        rt.block_on(async {
+            api_event_impact(State(ir), Query(EventImpactParams { event }))
+                .await
+                .0
+        })
+    }
+
+    #[test]
+    fn api_event_impact_empty_or_whitespace_returns_empty() {
+        // None.unwrap_or_default() = "" and "   " both trim to empty,
+        // hitting the same trim().is_empty() short-circuit branch.
+        let ir = load_simple_ir();
+        for event in [None, Some("   ".into())] {
+            let resp = run_event_impact(ir.clone(), event);
+            assert!(resp.entry_workflows.is_empty());
+            assert!(resp.node_ids.is_empty());
+        }
+    }
+
+    #[test]
+    fn api_event_impact_known_event_returns_workflows() {
+        let ir = load_simple_ir();
+        let resp = run_event_impact(ir, Some("push".into()));
+        assert_eq!(resp.event, "push");
+        assert!(
+            !resp.entry_workflows.is_empty(),
+            "push event should resolve to at least one entry workflow",
+        );
+        // Returned node ids must be sorted, deduplicated, and non-empty.
+        assert!(resp.node_ids.windows(2).all(|w| w[0] < w[1]));
+    }
+
+    #[test]
+    fn api_event_impact_unknown_event_returns_empty_collections() {
+        let ir = load_simple_ir();
+        let resp = run_event_impact(ir, Some("nonexistent-event".into()));
+        assert_eq!(resp.event, "nonexistent-event");
+        assert!(resp.entry_workflows.is_empty());
+        assert!(resp.node_ids.is_empty());
+    }
+
+    // -----------------------------------------------------------------
+    // build_router + /api/* / static asset routing
+    // -----------------------------------------------------------------
+
+    fn router_for(ir: Arc<Ir>, repo_body: Option<Bytes>) -> Router {
+        let api_body = Bytes::from(serde_json::to_vec(&build_graph_json(&ir)).expect("graph"));
+        build_router(ir, api_body, repo_body)
+    }
+
+    async fn oneshot_get(router: Router, uri: &str) -> axum::http::Response<axum::body::Body> {
+        use tower::ServiceExt;
+        let req = axum::http::Request::builder()
+            .uri(uri)
+            .body(axum::body::Body::empty())
+            .expect("request");
+        router.oneshot(req).await.expect("oneshot")
+    }
+
+    async fn read_body(resp: axum::http::Response<axum::body::Body>) -> Vec<u8> {
+        axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .expect("body bytes")
+            .to_vec()
+    }
+
+    #[tokio::test]
+    async fn build_router_serves_index_html() {
+        let router = router_for(load_simple_ir(), None);
+        let resp = oneshot_get(router, "/").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .expect("content-type")
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(ct.starts_with("text/html"));
+        let body = read_body(resp).await;
+        assert!(!body.is_empty(), "index.html body must be non-empty");
+    }
+
+    #[tokio::test]
+    async fn build_router_returns_404_for_unknown_asset() {
+        let router = router_for(load_simple_ir(), None);
+        let resp = oneshot_get(router, "/assets/does-not-exist-xyz.js").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn build_router_api_graph_serves_pre_serialized_body() {
+        let ir = load_simple_ir();
+        let graph = build_graph_json(&ir);
+        let expected = serde_json::to_vec(&graph).expect("graph bytes");
+        let router = build_router(ir, Bytes::from(expected.clone()), None);
+        let resp = oneshot_get(router, "/api/graph").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .expect("content-type")
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(ct.starts_with("application/json"));
+        let body = read_body(resp).await;
+        assert_eq!(body, expected);
+    }
+
+    #[tokio::test]
+    async fn build_router_api_repo_returns_404_when_none() {
+        let router = router_for(load_simple_ir(), None);
+        let resp = oneshot_get(router, "/api/repo").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn build_router_api_repo_returns_200_when_present() {
+        let info = RepoInfo {
+            host: "github.com".into(),
+            owner: "wadackel".into(),
+            repo: "ravelact".into(),
+            git_ref: "main".into(),
+        };
+        let body = Bytes::from(serde_json::to_vec(&info).expect("info bytes"));
+        let router = router_for(load_simple_ir(), Some(body.clone()));
+        let resp = oneshot_get(router, "/api/repo").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .expect("content-type")
+            .to_str()
+            .unwrap()
+            .to_string();
+        assert!(ct.starts_with("application/json"));
+        let got = read_body(resp).await;
+        assert_eq!(got, body.as_ref());
+    }
+
+    #[tokio::test]
+    async fn build_router_api_triggers_returns_json_rows() {
+        let router = router_for(load_simple_ir(), None);
+        let resp = oneshot_get(router, "/api/triggers").await;
+        assert_eq!(resp.status(), axum::http::StatusCode::OK);
+        let body = read_body(resp).await;
+        let v: Value = serde_json::from_slice(&body).expect("json");
+        assert!(v.get("rows").and_then(Value::as_array).is_some());
+    }
+
+    // -----------------------------------------------------------------
+    // mime_for_extension
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn mime_for_extension_covers_known_types_and_fallback() {
+        assert_eq!(
+            mime_for_extension("app.js"),
+            "application/javascript; charset=utf-8",
+        );
+        assert_eq!(
+            mime_for_extension("worker.mjs"),
+            "application/javascript; charset=utf-8",
+        );
+        assert_eq!(mime_for_extension("style.css"), "text/css; charset=utf-8",);
+        assert_eq!(
+            mime_for_extension("data.json"),
+            "application/json; charset=utf-8",
+        );
+        assert_eq!(
+            mime_for_extension("source.js.map"),
+            "application/json; charset=utf-8",
+        );
+        assert_eq!(mime_for_extension("icon.svg"), "image/svg+xml");
+        assert_eq!(mime_for_extension("logo.png"), "image/png");
+        assert_eq!(mime_for_extension("photo.jpg"), "image/jpeg");
+        assert_eq!(mime_for_extension("photo.jpeg"), "image/jpeg");
+        assert_eq!(mime_for_extension("anim.gif"), "image/gif");
+        assert_eq!(mime_for_extension("pic.webp"), "image/webp");
+        assert_eq!(mime_for_extension("favicon.ico"), "image/x-icon");
+        assert_eq!(mime_for_extension("font.woff"), "font/woff");
+        assert_eq!(mime_for_extension("font.woff2"), "font/woff2");
+        // Unknown extension / no extension at all.
+        assert_eq!(mime_for_extension("blob.bin"), "application/octet-stream");
+        assert_eq!(
+            mime_for_extension("no-extension"),
+            "application/octet-stream",
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // parse_remote_url — additional matrix
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn parse_remote_url_accepts_scp_form_without_user() {
+        // `host:path` SCP form without the `user@` prefix — supported
+        // because some private mirrors omit the login.
+        assert_eq!(
+            parse_remote_url("github.com:wadackel/ravelact.git"),
+            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+        );
+    }
+
+    #[test]
+    fn parse_remote_url_lowercases_host() {
+        // `ssh://` is non-special in `url` crate, so the host is preserved
+        // verbatim and must be lowercased explicitly.
+        assert_eq!(
+            parse_remote_url("ssh://git@GitHub.com/wadackel/ravelact"),
+            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+        );
+    }
+
+    #[test]
+    fn parse_remote_url_rejects_empty_scp_host() {
+        // Leading colon means empty host part — must reject.
+        assert_eq!(parse_remote_url(":owner/repo"), None);
+        // SCP with explicit `user@` but no host.
+        assert_eq!(parse_remote_url("git@:owner/repo"), None);
+    }
+
+    #[test]
+    fn parse_remote_url_strips_single_trailing_slash() {
+        assert_eq!(
+            parse_remote_url("https://github.com/wadackel/ravelact/"),
+            Some(("github.com".into(), "wadackel".into(), "ravelact".into())),
+        );
+    }
+
+    #[test]
+    fn parse_remote_url_rejects_owner_or_repo_empty_post_strip() {
+        // `.git` strip leaves empty repo.
+        assert_eq!(parse_remote_url("https://github.com/owner/.git"), None);
+    }
+
+    // -----------------------------------------------------------------
+    // run_git + compute_repo_info — tempdir + real git
+    // -----------------------------------------------------------------
+
+    /// Seed a tempdir with a minimal git repo. Returns the dir handle.
+    fn seed_git_repo(remote: Option<&str>, default_branch: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let run = |args: &[&str]| {
+            let status = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir.path())
+                .args(args)
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .expect("git");
+            assert!(status.success(), "git {args:?} failed");
+        };
+        run(&["init", "-q", "-b", default_branch]);
+        run(&["config", "user.email", "t@example.com"]);
+        run(&["config", "user.name", "t"]);
+        run(&["config", "commit.gpgsign", "false"]);
+        if let Some(url) = remote {
+            run(&["remote", "add", "origin", url]);
+        }
+        std::fs::write(dir.path().join("README"), "seed").expect("write");
+        run(&["add", "README"]);
+        run(&["commit", "-q", "-m", "seed"]);
+        dir
+    }
+
+    #[test]
+    fn run_git_returns_none_when_command_fails() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        // `dir` is not a git repo, so `rev-parse HEAD` exits non-zero.
+        assert_eq!(run_git(dir.path(), &["rev-parse", "HEAD"]), None);
+    }
+
+    #[test]
+    fn run_git_returns_trimmed_stdout_on_success() {
+        let dir = seed_git_repo(None, "main");
+        let head = run_git(dir.path(), &["rev-parse", "HEAD"]).expect("HEAD");
+        assert_eq!(head.len(), 40, "sha should be 40 hex chars: {head}");
+        assert!(head.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn compute_repo_info_returns_none_without_origin() {
+        let dir = seed_git_repo(None, "main");
+        assert_eq!(compute_repo_info(dir.path()), None);
+    }
+
+    #[test]
+    fn compute_repo_info_returns_none_for_non_github_scheme() {
+        let dir = seed_git_repo(Some("git://example.com/o/r"), "main");
+        assert_eq!(compute_repo_info(dir.path()), None);
+    }
+
+    #[test]
+    fn compute_repo_info_resolves_https_origin_and_branch() {
+        let dir = seed_git_repo(Some("https://github.com/wadackel/ravelact.git"), "main");
+        let info = compute_repo_info(dir.path()).expect("repo info");
+        assert_eq!(info.host, "github.com");
+        assert_eq!(info.owner, "wadackel");
+        assert_eq!(info.repo, "ravelact");
+        assert_eq!(info.git_ref, "main");
+    }
+
+    #[test]
+    fn compute_repo_info_resolves_scp_origin() {
+        let dir = seed_git_repo(Some("git@github.com:wadackel/ravelact.git"), "trunk");
+        let info = compute_repo_info(dir.path()).expect("repo info");
+        assert_eq!(info.host, "github.com");
+        assert_eq!(info.owner, "wadackel");
+        assert_eq!(info.repo, "ravelact");
+        assert_eq!(info.git_ref, "trunk");
+    }
+
+    #[test]
+    fn compute_repo_info_falls_back_to_sha_for_detached_head() {
+        let dir = seed_git_repo(Some("https://github.com/o/r.git"), "main");
+        // Detach HEAD by checking out the commit directly.
+        let head = run_git(dir.path(), &["rev-parse", "HEAD"]).expect("HEAD");
+        let status = std::process::Command::new("git")
+            .arg("-C")
+            .arg(dir.path())
+            .args(["checkout", "--detach", &head])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("git");
+        assert!(status.success());
+        let info = compute_repo_info(dir.path()).expect("repo info");
+        assert_eq!(info.git_ref, head);
+    }
+
+    #[test]
+    fn compute_repo_info_resolves_ghe_host() {
+        let dir = seed_git_repo(Some("https://ghe.example.com/team/proj.git"), "main");
+        let info = compute_repo_info(dir.path()).expect("repo info");
+        assert_eq!(info.host, "ghe.example.com");
+        assert_eq!(info.owner, "team");
+        assert_eq!(info.repo, "proj");
+    }
+
+    // -----------------------------------------------------------------
+    // build_graph_json — external workflow + docker branches
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn build_graph_json_emits_external_workflow_node_for_cross_repo_call() {
+        // cross-repo-call fixture has `uses: example-org/.../@SHA` at the
+        // job level — exercises the ensure_external_workflow path that the
+        // simple / multi-caller fixtures do not reach.
+        let ir = build_ir(
+            Path::new("tests/fixtures/synthetic/cross-repo-call"),
+            &GlobSet::empty(),
+        )
+        .expect("cross-repo-call fixture should load");
+        let v = build_graph_json(&ir);
+        let nodes = v
+            .get("nodes")
+            .and_then(Value::as_array)
+            .expect("nodes is an array");
+        let kinds: std::collections::HashSet<&str> = nodes
+            .iter()
+            .filter_map(|n| n.get("data")?.get("kind")?.as_str())
+            .collect();
+        assert!(
+            kinds.contains("external-workflow"),
+            "cross-repo-call should emit external-workflow node, got: {kinds:?}",
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // api_node — local-action / external-action / unknown kind
+    // -----------------------------------------------------------------
+
+    #[tokio::test]
+    async fn api_node_returns_local_action_summary() {
+        let ir = load_simple_ir();
+        let action_id = ir
+            .actions
+            .first()
+            .expect("simple fixture has at least one local action")
+            .id
+            .0
+            .clone();
+        let params = NodeParams {
+            kind: "local-action".into(),
+            id: action_id.clone(),
+        };
+        let resp = api_node(State(ir), Query(params))
+            .await
+            .expect("local-action lookup");
+        assert_eq!(resp.0.kind, "local-action");
+        assert_eq!(resp.0.id, format!("la:{action_id}"));
+        assert!(!resp.0.summary.is_empty());
+    }
+
+    #[tokio::test]
+    async fn api_node_returns_external_action_summary() {
+        let ir = Arc::new(
+            build_ir(
+                Path::new("tests/fixtures/synthetic/nonstandard-composite-path"),
+                &GlobSet::empty(),
+            )
+            .expect("synthetic fixture"),
+        );
+        let ea = ir
+            .external_actions
+            .first()
+            .expect("fixture must include an external action")
+            .clone();
+        // api_node expects the id WITHOUT the `ea:` prefix.
+        let full = external_action_node_id(&ea);
+        let bare = full.strip_prefix("ea:").expect("ea: prefix").to_string();
+        let params = NodeParams {
+            kind: "external-action".into(),
+            id: bare,
+        };
+        let resp = api_node(State(ir), Query(params))
+            .await
+            .expect("external-action lookup");
+        assert_eq!(resp.0.kind, "external-action");
+        assert_eq!(resp.0.id, full);
+        assert!(resp.0.summary.contains('@'));
+    }
+
+    #[tokio::test]
+    async fn api_node_returns_404_for_unknown_local_action() {
+        let ir = load_simple_ir();
+        let resp = api_node(
+            State(ir),
+            Query(NodeParams {
+                kind: "local-action".into(),
+                id: "does-not-exist".into(),
+            }),
+        )
+        .await;
+        assert_eq!(resp.err(), Some(StatusCode::NOT_FOUND));
+    }
+
+    #[tokio::test]
+    async fn api_node_returns_404_for_unknown_external_action() {
+        let ir = load_simple_ir();
+        let resp = api_node(
+            State(ir),
+            Query(NodeParams {
+                kind: "external-action".into(),
+                id: "nope/nope@deadbeef".into(),
+            }),
+        )
+        .await;
+        assert_eq!(resp.err(), Some(StatusCode::NOT_FOUND));
+    }
+
+    // -----------------------------------------------------------------
+    // api_event_impact for external-workflow trace (collect_trace_node_ids
+    // ExternalWorkflow / Docker branches)
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn api_event_impact_includes_external_workflow_nodes() {
+        let ir = Arc::new(
+            build_ir(
+                Path::new("tests/fixtures/synthetic/cross-repo-call"),
+                &GlobSet::empty(),
+            )
+            .expect("cross-repo-call fixture"),
+        );
+        let resp = run_event_impact(ir, Some("workflow_dispatch".into()));
+        assert!(!resp.entry_workflows.is_empty());
+        let has_external = resp.node_ids.iter().any(|n| n.starts_with("ew:"));
+        assert!(
+            has_external,
+            "cross-repo-call should produce an ew: node id: {:?}",
+            resp.node_ids,
+        );
     }
 }

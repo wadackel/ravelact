@@ -55,6 +55,7 @@ insta = { version = "1", features = ["json"] }
 predicates = "3"
 serial_test = "3"
 tempfile = "3"
+tower = { version = "0.5", features = ["util"], default-features = false }
 
 [[bench]]
 name = "queries"

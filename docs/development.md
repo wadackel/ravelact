@@ -204,18 +204,28 @@ Build artifacts are cached at `${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
 
 ## Coverage
 
-Code coverage is measured with [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov), bundled in the dev shell. Coverage is **informational only** — there is no threshold and the CI job does not block PR merge.
+Code coverage is measured with [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov), bundled in the dev shell.
+
+### Coverage policy
+
+Every file under `src/` must report **≥ 90% line coverage**. The `coverage` CI job fails when any file drops below the floor, so a PR that regresses coverage cannot merge. The threshold is hard-coded in `.github/workflows/ci.yaml` (search for `THRESHOLD=90`); changing it requires editing the workflow.
+
+- The floor applies **per file**, not to the workspace total. A 95% total can still fail if one file is at 87%.
+- The metric is line coverage from `cargo llvm-cov --lcov`. Branch / region / function coverage are not gated.
+- The floor applies to `src/` only. `tests/`, `benches/`, `web/`, and generated code are out of scope.
 
 ### Local run
 
 ```sh
-nix develop -c just coverage
+nix develop -c just coverage         # generate lcov.info + print summary
+nix develop -c just coverage-gate    # generate lcov.info + fail if any src/ file < 90%
 ```
 
 Outputs:
 
 - `lcov.info` at the repo root (gitignored) for editor integrations such as VS Code's *Coverage Gutters*.
 - A per-file summary printed to the terminal.
+- `coverage-gate` exits non-zero with `<file>: XX.XX% below 90%` lines for each regression, matching what the CI gate prints.
 
 ### PR comment
 
@@ -224,11 +234,21 @@ The `coverage` job in `ci.yaml` posts a sticky comment on every PR that shows:
 - **Total coverage** with delta vs `main` in percentage points.
 - **Per-file coverage** with hit/found line counts and per-file delta vs `main`. Files added in the PR appear with `Δ = new`; if no base lcov is available (first run, retention expiry), all deltas show `N/A`.
 
-The base lcov is fetched from the most recent successful CI run on `main`, so the diff lags `main` by one CI run. The comment is updated in place via a marker (`<!-- ravelact-coverage-report:v1 -->`).
+The base lcov is fetched from the most recent successful CI run on `main`, so the diff lags `main` by one CI run. The comment is updated in place via a marker (`<!-- ravelact-coverage-report:v1 -->`). The comment posts **before** the gate step runs, so the table is still visible even on a failed coverage run.
+
+### Excluding code that genuinely cannot be unit-tested
+
+`#[coverage(off)]` is gated behind an unstable feature and `rust-toolchain.toml` pins stable, so it is not available today. When a piece of code is genuinely untestable (e.g. a TCP bind, OS signal handler, `webbrowser::open` call), the supported workflow is:
+
+1. Extract the untestable code into the smallest possible module file (e.g. `src/cli/render/foo_runtime.rs`).
+2. Add `--ignore-filename-regex 'src/cli/render/foo_runtime\.rs'` to the `coverage` recipe in `justfile`.
+3. Call out in the PR description **which** lines were excluded and **why** they cannot be tested.
+
+This PR introduces no exclusions; `tests/e2e_browse.rs` covers the runtime tail of `cli/render/browse.rs` (TCP bind, browser launch, signal handler) as an integration smoke test rather than a unit-coverage source. Note that `cargo-llvm-cov` does **not** automatically merge coverage from the spawned `ravelact` subprocess into the main `lcov.info`, so subprocess-only code paths still count as uncovered. Cover them with in-file unit tests against extracted helpers, not by spawning the binary.
 
 ### Known false-negative areas
 
-- **CLI argument parsing** in `src/cli/` is exercised end-to-end via `assert_cmd` in `tests/`, but `cargo-llvm-cov` only counts coverage from the test binaries themselves; argument-parsing branches reached only by the spawned `ravelact` subprocess can show as uncovered even when tests do drive them. Treat low coverage on `cli/parse*.rs` as informational.
+- **CLI subprocess paths**: any code only reached by spawning the `ravelact` binary (e.g. `tests/e2e_browse.rs` and `tests/completions.rs`) does not contribute to `lcov.info`. Cover those branches via in-file unit tests (see `src/cli/render/browse.rs::mod tests` for the pattern) rather than relying on the integration tests.
 - **Error formatting helpers** that print to stderr only fire on rare malformed inputs and are intentionally not exhaustively tested.
 
 ## Workflow file conventions
