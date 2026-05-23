@@ -16,23 +16,21 @@ import type { Message } from "@bufbuild/protobuf";
 /**
  * Describes the file ravelact/browse/v1/browse.proto.
  */
-export const file_ravelact_browse_v1_browse: GenFile /*@__PURE__*/ = fileDesc(
-  "Ch9yYXZlbGFjdC9icm93c2UvdjEvYnJvd3NlLnByb3RvEhJyYXZlbGFjdC5icm93c2UudjEiEQoPR2V0R3JhcGhSZXF1ZXN0ImgKEEdldEdyYXBoUmVzcG9uc2USKQoFbm9kZXMYASADKAsyGi5yYXZlbGFjdC5icm93c2UudjEuQ3lOb2RlEikKBWVkZ2VzGAIgAygLMhoucmF2ZWxhY3QuYnJvd3NlLnYxLkN5RWRnZSI2CgZDeU5vZGUSLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeU5vZGVEYXRhIjUKCkN5Tm9kZURhdGESCgoCaWQYASABKAkSDQoFbGFiZWwYAiABKAkSDAoEa2luZBgDIAEoCSI2CgZDeUVkZ2USLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeUVkZ2VEYXRhIkYKCkN5RWRnZURhdGESCgoCaWQYASABKAkSDgoGc291cmNlGAIgASgJEg4KBnRhcmdldBgDIAEoCRIMCgRraW5kGAQgASgJIhAKDkdldFJlcG9SZXF1ZXN0IkkKD0dldFJlcG9SZXNwb25zZRIMCgRob3N0GAEgASgJEg0KBW93bmVyGAIgASgJEgwKBHJlcG8YAyABKAkSCwoDcmVmGAQgASgJIhUKE0xpc3RUcmlnZ2Vyc1JlcXVlc3QiSAoUTGlzdFRyaWdnZXJzUmVzcG9uc2USMAoEcm93cxgBIAMoCzIiLnJhdmVsYWN0LmJyb3dzZS52MS5UcmlnZ2VyU3VtbWFyeSKBAQoOVHJpZ2dlclN1bW1hcnkSDQoFZXZlbnQYASABKAkSFwoPZW50cnlfd29ya2Zsb3dzGAIgASgNEhQKDGRlY2xhcmF0aW9ucxgDIAEoDRINCgV0eXBlZBgEIAEoDRIQCghmaWx0ZXJlZBgFIAEoDRIQCghleGFtcGxlcxgGIAMoCSJUCg1TZWFyY2hSZXF1ZXN0EgkKAXEYASABKAkSEQoEa2luZBgCIAEoCUgAiAEBEhIKBWxpbWl0GAMgASgNSAGIAQFCBwoFX2tpbmRCCAoGX2xpbWl0ImQKDlNlYXJjaFJlc3BvbnNlEjAKB21hdGNoZXMYASADKAsyHy5yYXZlbGFjdC5icm93c2UudjEuU2VhcmNoTWF0Y2gSEQoJdHJ1bmNhdGVkGAIgASgIEg0KBXRvdGFsGAMgASgNIjYKC1NlYXJjaE1hdGNoEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkiJgoVR2V0RXZlbnRJbXBhY3RSZXF1ZXN0Eg0KBWV2ZW50GAEgASgJIlIKFkdldEV2ZW50SW1wYWN0UmVzcG9uc2USDQoFZXZlbnQYASABKAkSFwoPZW50cnlfd29ya2Zsb3dzGAIgAygJEhAKCG5vZGVfaWRzGAMgAygJIioKDkdldE5vZGVSZXF1ZXN0EgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkizAEKD0dldE5vZGVSZXNwb25zZRIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEg0KBWxhYmVsGAMgASgJEgwKBGZpbGUYBCABKAkSDwoHc3VtbWFyeRgFIAEoCRIWCg5lbnRyeV90cmlnZ2VycxgGIAMoCRIPCgdyZWZzX2luGAcgAygJEhAKCHJlZnNfb3V0GAggAygJEjYKDWlmX2NvbmRpdGlvbnMYCSADKAsyHy5yYXZlbGFjdC5icm93c2UudjEuSWZDb25kaXRpb24ifgoLSWZDb25kaXRpb24SMQoDam9iGAEgASgLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLkpvYklmQ29uZGl0aW9uSAASMwoEc3RlcBgCIAEoCzIjLnJhdmVsYWN0LmJyb3dzZS52MS5TdGVwSWZDb25kaXRpb25IAEIHCgVzY29wZSI0Cg5Kb2JJZkNvbmRpdGlvbhIOCgZqb2JfaWQYASABKAkSEgoKZXhwcmVzc2lvbhgCIAEoCSKhAQoPU3RlcElmQ29uZGl0aW9uEhMKBmpvYl9pZBgBIAEoCUgAiAEBEhIKCnN0ZXBfaW5kZXgYAiABKA0SFAoHc3RlcF9pZBgDIAEoCUgBiAEBEhYKCXN0ZXBfbmFtZRgEIAEoCUgCiAEBEhIKCmV4cHJlc3Npb24YBSABKAlCCQoHX2pvYl9pZEIKCghfc3RlcF9pZEIMCgpfc3RlcF9uYW1lIh4KEEdldEltcGFjdFJlcXVlc3QSCgoCaWQYASABKAkiawoRR2V0SW1wYWN0UmVzcG9uc2USEQoJd29ya2Zsb3dzGAEgAygJEjEKB2FjdGlvbnMYAiADKAsyIC5yYXZlbGFjdC5icm93c2UudjEuSW1wYWN0QWN0aW9uEhAKCHVua25vd25zGAMgAygJIigKDEltcGFjdEFjdGlvbhIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJIhoKDFRyYWNlUmVxdWVzdBIKCgJpZBgBIAEoCSJUCg1UcmFjZVJlc3BvbnNlEi8KBHRyZWUYASABKAsyIS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VKc29uTm9kZRISCgpldmVudF91c2VkGAIgASgJIv8DCg1UcmFjZUpzb25Ob2RlEjkKCHdvcmtmbG93GAEgASgLMiUucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlV29ya2Zsb3dOb2RlSAASNQoGYWN0aW9uGAIgASgLMiMucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQWN0aW9uTm9kZUgAEkYKD2V4dGVybmFsX2FjdGlvbhgDIAEoCzIrLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUV4dGVybmFsQWN0aW9uTm9kZUgAEkoKEWV4dGVybmFsX3dvcmtmbG93GAQgASgLMi0ucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlRXh0ZXJuYWxXb3JrZmxvd05vZGVIABI1CgZkb2NrZXIYBSABKAsyIy5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VEb2NrZXJOb2RlSAASOwoJYW5ub3RhdGVkGAYgASgLMiYucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQW5ub3RhdGVkTm9kZUgAEjMKBWN5Y2xlGAcgASgLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQ3ljbGVOb2RlSAASNwoHZ3VhcmRlZBgIIAEoCzIkLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUd1YXJkZWROb2RlSABCBgoEbm9kZSJUChFUcmFjZVdvcmtmbG93Tm9kZRIKCgJpZBgBIAEoCRIzCghjaGlsZHJlbhgCIAMoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlIlIKD1RyYWNlQWN0aW9uTm9kZRIKCgJpZBgBIAEoCRIzCghjaGlsZHJlbhgCIAMoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlImgKF1RyYWNlRXh0ZXJuYWxBY3Rpb25Ob2RlEg0KBW93bmVyGAEgASgJEgwKBHJlcG8YAiABKAkSFAoHc3VicGF0aBgDIAEoCUgAiAEBEg4KBmdpdHJlZhgEIAEoCUIKCghfc3VicGF0aCJWChlUcmFjZUV4dGVybmFsV29ya2Zsb3dOb2RlEg0KBW93bmVyGAEgASgJEgwKBHJlcG8YAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZnaXRyZWYYBCABKAkiIAoPVHJhY2VEb2NrZXJOb2RlEg0KBWltYWdlGAEgASgJIngKElRyYWNlQW5ub3RhdGVkTm9kZRIMCgR2ZXJiGAEgASgJEhAKCGRhbmdsaW5nGAIgASgIEg0KBWxhYmVsGAMgASgJEjMKCGNoaWxkcmVuGAQgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiNQoOVHJhY2VDeWNsZU5vZGUSEwoLdGFyZ2V0X2tpbmQYASABKAkSDgoGdGFyZ2V0GAIgASgJIlUKEFRyYWNlR3VhcmRlZE5vZGUSDwoHaWZfZXhwchgBIAEoCRIwCgVpbm5lchgCIAEoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlMtMFCg1Ccm93c2VTZXJ2aWNlElUKCEdldEdyYXBoEiMucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEdyYXBoUmVxdWVzdBokLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRHcmFwaFJlc3BvbnNlElIKB0dldFJlcG8SIi5yYXZlbGFjdC5icm93c2UudjEuR2V0UmVwb1JlcXVlc3QaIy5yYXZlbGFjdC5icm93c2UudjEuR2V0UmVwb1Jlc3BvbnNlEmEKDExpc3RUcmlnZ2VycxInLnJhdmVsYWN0LmJyb3dzZS52MS5MaXN0VHJpZ2dlcnNSZXF1ZXN0GigucmF2ZWxhY3QuYnJvd3NlLnYxLkxpc3RUcmlnZ2Vyc1Jlc3BvbnNlEk8KBlNlYXJjaBIhLnJhdmVsYWN0LmJyb3dzZS52MS5TZWFyY2hSZXF1ZXN0GiIucmF2ZWxhY3QuYnJvd3NlLnYxLlNlYXJjaFJlc3BvbnNlEmcKDkdldEV2ZW50SW1wYWN0EikucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEV2ZW50SW1wYWN0UmVxdWVzdBoqLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRFdmVudEltcGFjdFJlc3BvbnNlElIKB0dldE5vZGUSIi5yYXZlbGFjdC5icm93c2UudjEuR2V0Tm9kZVJlcXVlc3QaIy5yYXZlbGFjdC5icm93c2UudjEuR2V0Tm9kZVJlc3BvbnNlElgKCUdldEltcGFjdBIkLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRJbXBhY3RSZXF1ZXN0GiUucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEltcGFjdFJlc3BvbnNlEkwKBVRyYWNlEiAucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlUmVxdWVzdBohLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZVJlc3BvbnNlYgZwcm90bzM",
-);
+export const file_ravelact_browse_v1_browse: GenFile = /*@__PURE__*/
+  fileDesc("Ch9yYXZlbGFjdC9icm93c2UvdjEvYnJvd3NlLnByb3RvEhJyYXZlbGFjdC5icm93c2UudjEiEQoPR2V0R3JhcGhSZXF1ZXN0ImgKEEdldEdyYXBoUmVzcG9uc2USKQoFbm9kZXMYASADKAsyGi5yYXZlbGFjdC5icm93c2UudjEuQ3lOb2RlEikKBWVkZ2VzGAIgAygLMhoucmF2ZWxhY3QuYnJvd3NlLnYxLkN5RWRnZSI2CgZDeU5vZGUSLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeU5vZGVEYXRhIjUKCkN5Tm9kZURhdGESCgoCaWQYASABKAkSDQoFbGFiZWwYAiABKAkSDAoEa2luZBgDIAEoCSI2CgZDeUVkZ2USLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeUVkZ2VEYXRhIkYKCkN5RWRnZURhdGESCgoCaWQYASABKAkSDgoGc291cmNlGAIgASgJEg4KBnRhcmdldBgDIAEoCRIMCgRraW5kGAQgASgJIhAKDkdldFJlcG9SZXF1ZXN0IkkKD0dldFJlcG9SZXNwb25zZRIMCgRob3N0GAEgASgJEg0KBW93bmVyGAIgASgJEgwKBHJlcG8YAyABKAkSCwoDcmVmGAQgASgJIhUKE0xpc3RUcmlnZ2Vyc1JlcXVlc3QiSAoUTGlzdFRyaWdnZXJzUmVzcG9uc2USMAoEcm93cxgBIAMoCzIiLnJhdmVsYWN0LmJyb3dzZS52MS5UcmlnZ2VyU3VtbWFyeSKBAQoOVHJpZ2dlclN1bW1hcnkSDQoFZXZlbnQYASABKAkSFwoPZW50cnlfd29ya2Zsb3dzGAIgASgNEhQKDGRlY2xhcmF0aW9ucxgDIAEoDRINCgV0eXBlZBgEIAEoDRIQCghmaWx0ZXJlZBgFIAEoDRIQCghleGFtcGxlcxgGIAMoCSJUCg1TZWFyY2hSZXF1ZXN0EgkKAXEYASABKAkSEQoEa2luZBgCIAEoCUgAiAEBEhIKBWxpbWl0GAMgASgNSAGIAQFCBwoFX2tpbmRCCAoGX2xpbWl0ImQKDlNlYXJjaFJlc3BvbnNlEjAKB21hdGNoZXMYASADKAsyHy5yYXZlbGFjdC5icm93c2UudjEuU2VhcmNoTWF0Y2gSEQoJdHJ1bmNhdGVkGAIgASgIEg0KBXRvdGFsGAMgASgNIjYKC1NlYXJjaE1hdGNoEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkiJgoVR2V0RXZlbnRJbXBhY3RSZXF1ZXN0Eg0KBWV2ZW50GAEgASgJIlIKFkdldEV2ZW50SW1wYWN0UmVzcG9uc2USDQoFZXZlbnQYASABKAkSFwoPZW50cnlfd29ya2Zsb3dzGAIgAygJEhAKCG5vZGVfaWRzGAMgAygJIioKDkdldE5vZGVSZXF1ZXN0EgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkizAEKD0dldE5vZGVSZXNwb25zZRIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJEg0KBWxhYmVsGAMgASgJEgwKBGZpbGUYBCABKAkSDwoHc3VtbWFyeRgFIAEoCRIWCg5lbnRyeV90cmlnZ2VycxgGIAMoCRIPCgdyZWZzX2luGAcgAygJEhAKCHJlZnNfb3V0GAggAygJEjYKDWlmX2NvbmRpdGlvbnMYCSADKAsyHy5yYXZlbGFjdC5icm93c2UudjEuSWZDb25kaXRpb24ifgoLSWZDb25kaXRpb24SMQoDam9iGAEgASgLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLkpvYklmQ29uZGl0aW9uSAASMwoEc3RlcBgCIAEoCzIjLnJhdmVsYWN0LmJyb3dzZS52MS5TdGVwSWZDb25kaXRpb25IAEIHCgVzY29wZSI0Cg5Kb2JJZkNvbmRpdGlvbhIOCgZqb2JfaWQYASABKAkSEgoKZXhwcmVzc2lvbhgCIAEoCSKhAQoPU3RlcElmQ29uZGl0aW9uEhMKBmpvYl9pZBgBIAEoCUgAiAEBEhIKCnN0ZXBfaW5kZXgYAiABKA0SFAoHc3RlcF9pZBgDIAEoCUgBiAEBEhYKCXN0ZXBfbmFtZRgEIAEoCUgCiAEBEhIKCmV4cHJlc3Npb24YBSABKAlCCQoHX2pvYl9pZEIKCghfc3RlcF9pZEIMCgpfc3RlcF9uYW1lIh4KEEdldEltcGFjdFJlcXVlc3QSCgoCaWQYASABKAkiawoRR2V0SW1wYWN0UmVzcG9uc2USEQoJd29ya2Zsb3dzGAEgAygJEjEKB2FjdGlvbnMYAiADKAsyIC5yYXZlbGFjdC5icm93c2UudjEuSW1wYWN0QWN0aW9uEhAKCHVua25vd25zGAMgAygJIigKDEltcGFjdEFjdGlvbhIKCgJpZBgBIAEoCRIMCgRraW5kGAIgASgJIhoKDFRyYWNlUmVxdWVzdBIKCgJpZBgBIAEoCSJUCg1UcmFjZVJlc3BvbnNlEi8KBHRyZWUYASABKAsyIS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VKc29uTm9kZRISCgpldmVudF91c2VkGAIgASgJIv8DCg1UcmFjZUpzb25Ob2RlEjkKCHdvcmtmbG93GAEgASgLMiUucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlV29ya2Zsb3dOb2RlSAASNQoGYWN0aW9uGAIgASgLMiMucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQWN0aW9uTm9kZUgAEkYKD2V4dGVybmFsX2FjdGlvbhgDIAEoCzIrLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUV4dGVybmFsQWN0aW9uTm9kZUgAEkoKEWV4dGVybmFsX3dvcmtmbG93GAQgASgLMi0ucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlRXh0ZXJuYWxXb3JrZmxvd05vZGVIABI1CgZkb2NrZXIYBSABKAsyIy5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VEb2NrZXJOb2RlSAASOwoJYW5ub3RhdGVkGAYgASgLMiYucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQW5ub3RhdGVkTm9kZUgAEjMKBWN5Y2xlGAcgASgLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlQ3ljbGVOb2RlSAASNwoHZ3VhcmRlZBgIIAEoCzIkLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUd1YXJkZWROb2RlSABCBgoEbm9kZSJUChFUcmFjZVdvcmtmbG93Tm9kZRIKCgJpZBgBIAEoCRIzCghjaGlsZHJlbhgCIAMoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlIlIKD1RyYWNlQWN0aW9uTm9kZRIKCgJpZBgBIAEoCRIzCghjaGlsZHJlbhgCIAMoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlImgKF1RyYWNlRXh0ZXJuYWxBY3Rpb25Ob2RlEg0KBW93bmVyGAEgASgJEgwKBHJlcG8YAiABKAkSFAoHc3VicGF0aBgDIAEoCUgAiAEBEg4KBmdpdHJlZhgEIAEoCUIKCghfc3VicGF0aCJWChlUcmFjZUV4dGVybmFsV29ya2Zsb3dOb2RlEg0KBW93bmVyGAEgASgJEgwKBHJlcG8YAiABKAkSDAoEcGF0aBgDIAEoCRIOCgZnaXRyZWYYBCABKAkiIAoPVHJhY2VEb2NrZXJOb2RlEg0KBWltYWdlGAEgASgJIngKElRyYWNlQW5ub3RhdGVkTm9kZRIMCgR2ZXJiGAEgASgJEhAKCGRhbmdsaW5nGAIgASgIEg0KBWxhYmVsGAMgASgJEjMKCGNoaWxkcmVuGAQgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiNQoOVHJhY2VDeWNsZU5vZGUSEwoLdGFyZ2V0X2tpbmQYASABKAkSDgoGdGFyZ2V0GAIgASgJIlUKEFRyYWNlR3VhcmRlZE5vZGUSDwoHaWZfZXhwchgBIAEoCRIwCgVpbm5lchgCIAEoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlMtMFCg1Ccm93c2VTZXJ2aWNlElUKCEdldEdyYXBoEiMucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEdyYXBoUmVxdWVzdBokLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRHcmFwaFJlc3BvbnNlElIKB0dldFJlcG8SIi5yYXZlbGFjdC5icm93c2UudjEuR2V0UmVwb1JlcXVlc3QaIy5yYXZlbGFjdC5icm93c2UudjEuR2V0UmVwb1Jlc3BvbnNlEmEKDExpc3RUcmlnZ2VycxInLnJhdmVsYWN0LmJyb3dzZS52MS5MaXN0VHJpZ2dlcnNSZXF1ZXN0GigucmF2ZWxhY3QuYnJvd3NlLnYxLkxpc3RUcmlnZ2Vyc1Jlc3BvbnNlEk8KBlNlYXJjaBIhLnJhdmVsYWN0LmJyb3dzZS52MS5TZWFyY2hSZXF1ZXN0GiIucmF2ZWxhY3QuYnJvd3NlLnYxLlNlYXJjaFJlc3BvbnNlEmcKDkdldEV2ZW50SW1wYWN0EikucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEV2ZW50SW1wYWN0UmVxdWVzdBoqLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRFdmVudEltcGFjdFJlc3BvbnNlElIKB0dldE5vZGUSIi5yYXZlbGFjdC5icm93c2UudjEuR2V0Tm9kZVJlcXVlc3QaIy5yYXZlbGFjdC5icm93c2UudjEuR2V0Tm9kZVJlc3BvbnNlElgKCUdldEltcGFjdBIkLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRJbXBhY3RSZXF1ZXN0GiUucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEltcGFjdFJlc3BvbnNlEkwKBVRyYWNlEiAucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlUmVxdWVzdBohLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZVJlc3BvbnNlYgZwcm90bzM");
 
 /**
  * @generated from message ravelact.browse.v1.GetGraphRequest
  */
-export type GetGraphRequest = Message<"ravelact.browse.v1.GetGraphRequest"> & {};
+export type GetGraphRequest = Message<"ravelact.browse.v1.GetGraphRequest"> & {
+};
 
 /**
  * Describes the message ravelact.browse.v1.GetGraphRequest.
  * Use `create(GetGraphRequestSchema)` to create a new message.
  */
-export const GetGraphRequestSchema: GenMessage<GetGraphRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  0,
-);
+export const GetGraphRequestSchema: GenMessage<GetGraphRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 0);
 
 /**
  * @generated from message ravelact.browse.v1.GetGraphResponse
@@ -53,10 +51,8 @@ export type GetGraphResponse = Message<"ravelact.browse.v1.GetGraphResponse"> & 
  * Describes the message ravelact.browse.v1.GetGraphResponse.
  * Use `create(GetGraphResponseSchema)` to create a new message.
  */
-export const GetGraphResponseSchema: GenMessage<GetGraphResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  1,
-);
+export const GetGraphResponseSchema: GenMessage<GetGraphResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 1);
 
 /**
  * Cytoscape's `{ data: {...} }` envelope is preserved verbatim so the SPA
@@ -75,10 +71,8 @@ export type CyNode = Message<"ravelact.browse.v1.CyNode"> & {
  * Describes the message ravelact.browse.v1.CyNode.
  * Use `create(CyNodeSchema)` to create a new message.
  */
-export const CyNodeSchema: GenMessage<CyNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  2,
-);
+export const CyNodeSchema: GenMessage<CyNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 2);
 
 /**
  * @generated from message ravelact.browse.v1.CyNodeData
@@ -109,10 +103,8 @@ export type CyNodeData = Message<"ravelact.browse.v1.CyNodeData"> & {
  * Describes the message ravelact.browse.v1.CyNodeData.
  * Use `create(CyNodeDataSchema)` to create a new message.
  */
-export const CyNodeDataSchema: GenMessage<CyNodeData> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  3,
-);
+export const CyNodeDataSchema: GenMessage<CyNodeData> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 3);
 
 /**
  * @generated from message ravelact.browse.v1.CyEdge
@@ -128,10 +120,8 @@ export type CyEdge = Message<"ravelact.browse.v1.CyEdge"> & {
  * Describes the message ravelact.browse.v1.CyEdge.
  * Use `create(CyEdgeSchema)` to create a new message.
  */
-export const CyEdgeSchema: GenMessage<CyEdge> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  4,
-);
+export const CyEdgeSchema: GenMessage<CyEdge> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 4);
 
 /**
  * @generated from message ravelact.browse.v1.CyEdgeData
@@ -165,24 +155,21 @@ export type CyEdgeData = Message<"ravelact.browse.v1.CyEdgeData"> & {
  * Describes the message ravelact.browse.v1.CyEdgeData.
  * Use `create(CyEdgeDataSchema)` to create a new message.
  */
-export const CyEdgeDataSchema: GenMessage<CyEdgeData> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  5,
-);
+export const CyEdgeDataSchema: GenMessage<CyEdgeData> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 5);
 
 /**
  * @generated from message ravelact.browse.v1.GetRepoRequest
  */
-export type GetRepoRequest = Message<"ravelact.browse.v1.GetRepoRequest"> & {};
+export type GetRepoRequest = Message<"ravelact.browse.v1.GetRepoRequest"> & {
+};
 
 /**
  * Describes the message ravelact.browse.v1.GetRepoRequest.
  * Use `create(GetRepoRequestSchema)` to create a new message.
  */
-export const GetRepoRequestSchema: GenMessage<GetRepoRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  6,
-);
+export const GetRepoRequestSchema: GenMessage<GetRepoRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 6);
 
 /**
  * @generated from message ravelact.browse.v1.GetRepoResponse
@@ -215,24 +202,21 @@ export type GetRepoResponse = Message<"ravelact.browse.v1.GetRepoResponse"> & {
  * Describes the message ravelact.browse.v1.GetRepoResponse.
  * Use `create(GetRepoResponseSchema)` to create a new message.
  */
-export const GetRepoResponseSchema: GenMessage<GetRepoResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  7,
-);
+export const GetRepoResponseSchema: GenMessage<GetRepoResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 7);
 
 /**
  * @generated from message ravelact.browse.v1.ListTriggersRequest
  */
-export type ListTriggersRequest = Message<"ravelact.browse.v1.ListTriggersRequest"> & {};
+export type ListTriggersRequest = Message<"ravelact.browse.v1.ListTriggersRequest"> & {
+};
 
 /**
  * Describes the message ravelact.browse.v1.ListTriggersRequest.
  * Use `create(ListTriggersRequestSchema)` to create a new message.
  */
-export const ListTriggersRequestSchema: GenMessage<ListTriggersRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  8,
-);
+export const ListTriggersRequestSchema: GenMessage<ListTriggersRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 8);
 
 /**
  * @generated from message ravelact.browse.v1.ListTriggersResponse
@@ -248,7 +232,7 @@ export type ListTriggersResponse = Message<"ravelact.browse.v1.ListTriggersRespo
  * Describes the message ravelact.browse.v1.ListTriggersResponse.
  * Use `create(ListTriggersResponseSchema)` to create a new message.
  */
-export const ListTriggersResponseSchema: GenMessage<ListTriggersResponse> /*@__PURE__*/ =
+export const ListTriggersResponseSchema: GenMessage<ListTriggersResponse> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 9);
 
 /**
@@ -294,10 +278,8 @@ export type TriggerSummary = Message<"ravelact.browse.v1.TriggerSummary"> & {
  * Describes the message ravelact.browse.v1.TriggerSummary.
  * Use `create(TriggerSummarySchema)` to create a new message.
  */
-export const TriggerSummarySchema: GenMessage<TriggerSummary> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  10,
-);
+export const TriggerSummarySchema: GenMessage<TriggerSummary> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 10);
 
 /**
  * @generated from message ravelact.browse.v1.SearchRequest
@@ -325,10 +307,8 @@ export type SearchRequest = Message<"ravelact.browse.v1.SearchRequest"> & {
  * Describes the message ravelact.browse.v1.SearchRequest.
  * Use `create(SearchRequestSchema)` to create a new message.
  */
-export const SearchRequestSchema: GenMessage<SearchRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  11,
-);
+export const SearchRequestSchema: GenMessage<SearchRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 11);
 
 /**
  * @generated from message ravelact.browse.v1.SearchResponse
@@ -354,10 +334,8 @@ export type SearchResponse = Message<"ravelact.browse.v1.SearchResponse"> & {
  * Describes the message ravelact.browse.v1.SearchResponse.
  * Use `create(SearchResponseSchema)` to create a new message.
  */
-export const SearchResponseSchema: GenMessage<SearchResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  12,
-);
+export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 12);
 
 /**
  * @generated from message ravelact.browse.v1.SearchMatch
@@ -383,10 +361,8 @@ export type SearchMatch = Message<"ravelact.browse.v1.SearchMatch"> & {
  * Describes the message ravelact.browse.v1.SearchMatch.
  * Use `create(SearchMatchSchema)` to create a new message.
  */
-export const SearchMatchSchema: GenMessage<SearchMatch> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  13,
-);
+export const SearchMatchSchema: GenMessage<SearchMatch> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 13);
 
 /**
  * @generated from message ravelact.browse.v1.GetEventImpactRequest
@@ -402,7 +378,7 @@ export type GetEventImpactRequest = Message<"ravelact.browse.v1.GetEventImpactRe
  * Describes the message ravelact.browse.v1.GetEventImpactRequest.
  * Use `create(GetEventImpactRequestSchema)` to create a new message.
  */
-export const GetEventImpactRequestSchema: GenMessage<GetEventImpactRequest> /*@__PURE__*/ =
+export const GetEventImpactRequestSchema: GenMessage<GetEventImpactRequest> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 14);
 
 /**
@@ -431,7 +407,7 @@ export type GetEventImpactResponse = Message<"ravelact.browse.v1.GetEventImpactR
  * Describes the message ravelact.browse.v1.GetEventImpactResponse.
  * Use `create(GetEventImpactResponseSchema)` to create a new message.
  */
-export const GetEventImpactResponseSchema: GenMessage<GetEventImpactResponse> /*@__PURE__*/ =
+export const GetEventImpactResponseSchema: GenMessage<GetEventImpactResponse> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 15);
 
 /**
@@ -455,10 +431,8 @@ export type GetNodeRequest = Message<"ravelact.browse.v1.GetNodeRequest"> & {
  * Describes the message ravelact.browse.v1.GetNodeRequest.
  * Use `create(GetNodeRequestSchema)` to create a new message.
  */
-export const GetNodeRequestSchema: GenMessage<GetNodeRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  16,
-);
+export const GetNodeRequestSchema: GenMessage<GetNodeRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 16);
 
 /**
  * @generated from message ravelact.browse.v1.GetNodeResponse
@@ -521,10 +495,8 @@ export type GetNodeResponse = Message<"ravelact.browse.v1.GetNodeResponse"> & {
  * Describes the message ravelact.browse.v1.GetNodeResponse.
  * Use `create(GetNodeResponseSchema)` to create a new message.
  */
-export const GetNodeResponseSchema: GenMessage<GetNodeResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  17,
-);
+export const GetNodeResponseSchema: GenMessage<GetNodeResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 17);
 
 /**
  * Discriminated union preserving the invariant that step-scope carries
@@ -538,32 +510,27 @@ export type IfCondition = Message<"ravelact.browse.v1.IfCondition"> & {
   /**
    * @generated from oneof ravelact.browse.v1.IfCondition.scope
    */
-  scope:
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.JobIfCondition job = 1;
-         */
-        value: JobIfCondition;
-        case: "job";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.StepIfCondition step = 2;
-         */
-        value: StepIfCondition;
-        case: "step";
-      }
-    | { case: undefined; value?: undefined };
+  scope: {
+    /**
+     * @generated from field: ravelact.browse.v1.JobIfCondition job = 1;
+     */
+    value: JobIfCondition;
+    case: "job";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.StepIfCondition step = 2;
+     */
+    value: StepIfCondition;
+    case: "step";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
  * Describes the message ravelact.browse.v1.IfCondition.
  * Use `create(IfConditionSchema)` to create a new message.
  */
-export const IfConditionSchema: GenMessage<IfCondition> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  18,
-);
+export const IfConditionSchema: GenMessage<IfCondition> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 18);
 
 /**
  * @generated from message ravelact.browse.v1.JobIfCondition
@@ -584,10 +551,8 @@ export type JobIfCondition = Message<"ravelact.browse.v1.JobIfCondition"> & {
  * Describes the message ravelact.browse.v1.JobIfCondition.
  * Use `create(JobIfConditionSchema)` to create a new message.
  */
-export const JobIfConditionSchema: GenMessage<JobIfCondition> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  19,
-);
+export const JobIfConditionSchema: GenMessage<JobIfCondition> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 19);
 
 /**
  * @generated from message ravelact.browse.v1.StepIfCondition
@@ -628,10 +593,8 @@ export type StepIfCondition = Message<"ravelact.browse.v1.StepIfCondition"> & {
  * Describes the message ravelact.browse.v1.StepIfCondition.
  * Use `create(StepIfConditionSchema)` to create a new message.
  */
-export const StepIfConditionSchema: GenMessage<StepIfCondition> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  20,
-);
+export const StepIfConditionSchema: GenMessage<StepIfCondition> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 20);
 
 /**
  * @generated from message ravelact.browse.v1.GetImpactRequest
@@ -647,10 +610,8 @@ export type GetImpactRequest = Message<"ravelact.browse.v1.GetImpactRequest"> & 
  * Describes the message ravelact.browse.v1.GetImpactRequest.
  * Use `create(GetImpactRequestSchema)` to create a new message.
  */
-export const GetImpactRequestSchema: GenMessage<GetImpactRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  21,
-);
+export const GetImpactRequestSchema: GenMessage<GetImpactRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 21);
 
 /**
  * @generated from message ravelact.browse.v1.GetImpactResponse
@@ -678,10 +639,8 @@ export type GetImpactResponse = Message<"ravelact.browse.v1.GetImpactResponse"> 
  * Describes the message ravelact.browse.v1.GetImpactResponse.
  * Use `create(GetImpactResponseSchema)` to create a new message.
  */
-export const GetImpactResponseSchema: GenMessage<GetImpactResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  22,
-);
+export const GetImpactResponseSchema: GenMessage<GetImpactResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 22);
 
 /**
  * @generated from message ravelact.browse.v1.ImpactAction
@@ -704,10 +663,8 @@ export type ImpactAction = Message<"ravelact.browse.v1.ImpactAction"> & {
  * Describes the message ravelact.browse.v1.ImpactAction.
  * Use `create(ImpactActionSchema)` to create a new message.
  */
-export const ImpactActionSchema: GenMessage<ImpactAction> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  23,
-);
+export const ImpactActionSchema: GenMessage<ImpactAction> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 23);
 
 /**
  * @generated from message ravelact.browse.v1.TraceRequest
@@ -723,10 +680,8 @@ export type TraceRequest = Message<"ravelact.browse.v1.TraceRequest"> & {
  * Describes the message ravelact.browse.v1.TraceRequest.
  * Use `create(TraceRequestSchema)` to create a new message.
  */
-export const TraceRequestSchema: GenMessage<TraceRequest> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  24,
-);
+export const TraceRequestSchema: GenMessage<TraceRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 24);
 
 /**
  * @generated from message ravelact.browse.v1.TraceResponse
@@ -750,10 +705,8 @@ export type TraceResponse = Message<"ravelact.browse.v1.TraceResponse"> & {
  * Describes the message ravelact.browse.v1.TraceResponse.
  * Use `create(TraceResponseSchema)` to create a new message.
  */
-export const TraceResponseSchema: GenMessage<TraceResponse> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  25,
-);
+export const TraceResponseSchema: GenMessage<TraceResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 25);
 
 /**
  * Mirrors `src/query/trace.rs::TraceJsonNode` (8 variants). Encoded as a
@@ -766,74 +719,63 @@ export type TraceJsonNode = Message<"ravelact.browse.v1.TraceJsonNode"> & {
   /**
    * @generated from oneof ravelact.browse.v1.TraceJsonNode.node
    */
-  node:
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceWorkflowNode workflow = 1;
-         */
-        value: TraceWorkflowNode;
-        case: "workflow";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceActionNode action = 2;
-         */
-        value: TraceActionNode;
-        case: "action";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceExternalActionNode external_action = 3;
-         */
-        value: TraceExternalActionNode;
-        case: "externalAction";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceExternalWorkflowNode external_workflow = 4;
-         */
-        value: TraceExternalWorkflowNode;
-        case: "externalWorkflow";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceDockerNode docker = 5;
-         */
-        value: TraceDockerNode;
-        case: "docker";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceAnnotatedNode annotated = 6;
-         */
-        value: TraceAnnotatedNode;
-        case: "annotated";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceCycleNode cycle = 7;
-         */
-        value: TraceCycleNode;
-        case: "cycle";
-      }
-    | {
-        /**
-         * @generated from field: ravelact.browse.v1.TraceGuardedNode guarded = 8;
-         */
-        value: TraceGuardedNode;
-        case: "guarded";
-      }
-    | { case: undefined; value?: undefined };
+  node: {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceWorkflowNode workflow = 1;
+     */
+    value: TraceWorkflowNode;
+    case: "workflow";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceActionNode action = 2;
+     */
+    value: TraceActionNode;
+    case: "action";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceExternalActionNode external_action = 3;
+     */
+    value: TraceExternalActionNode;
+    case: "externalAction";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceExternalWorkflowNode external_workflow = 4;
+     */
+    value: TraceExternalWorkflowNode;
+    case: "externalWorkflow";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceDockerNode docker = 5;
+     */
+    value: TraceDockerNode;
+    case: "docker";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceAnnotatedNode annotated = 6;
+     */
+    value: TraceAnnotatedNode;
+    case: "annotated";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceCycleNode cycle = 7;
+     */
+    value: TraceCycleNode;
+    case: "cycle";
+  } | {
+    /**
+     * @generated from field: ravelact.browse.v1.TraceGuardedNode guarded = 8;
+     */
+    value: TraceGuardedNode;
+    case: "guarded";
+  } | { case: undefined; value?: undefined };
 };
 
 /**
  * Describes the message ravelact.browse.v1.TraceJsonNode.
  * Use `create(TraceJsonNodeSchema)` to create a new message.
  */
-export const TraceJsonNodeSchema: GenMessage<TraceJsonNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  26,
-);
+export const TraceJsonNodeSchema: GenMessage<TraceJsonNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 26);
 
 /**
  * @generated from message ravelact.browse.v1.TraceWorkflowNode
@@ -854,10 +796,8 @@ export type TraceWorkflowNode = Message<"ravelact.browse.v1.TraceWorkflowNode"> 
  * Describes the message ravelact.browse.v1.TraceWorkflowNode.
  * Use `create(TraceWorkflowNodeSchema)` to create a new message.
  */
-export const TraceWorkflowNodeSchema: GenMessage<TraceWorkflowNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  27,
-);
+export const TraceWorkflowNodeSchema: GenMessage<TraceWorkflowNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 27);
 
 /**
  * @generated from message ravelact.browse.v1.TraceActionNode
@@ -878,10 +818,8 @@ export type TraceActionNode = Message<"ravelact.browse.v1.TraceActionNode"> & {
  * Describes the message ravelact.browse.v1.TraceActionNode.
  * Use `create(TraceActionNodeSchema)` to create a new message.
  */
-export const TraceActionNodeSchema: GenMessage<TraceActionNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  28,
-);
+export const TraceActionNodeSchema: GenMessage<TraceActionNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 28);
 
 /**
  * @generated from message ravelact.browse.v1.TraceExternalActionNode
@@ -912,7 +850,7 @@ export type TraceExternalActionNode = Message<"ravelact.browse.v1.TraceExternalA
  * Describes the message ravelact.browse.v1.TraceExternalActionNode.
  * Use `create(TraceExternalActionNodeSchema)` to create a new message.
  */
-export const TraceExternalActionNodeSchema: GenMessage<TraceExternalActionNode> /*@__PURE__*/ =
+export const TraceExternalActionNodeSchema: GenMessage<TraceExternalActionNode> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 29);
 
 /**
@@ -944,7 +882,7 @@ export type TraceExternalWorkflowNode = Message<"ravelact.browse.v1.TraceExterna
  * Describes the message ravelact.browse.v1.TraceExternalWorkflowNode.
  * Use `create(TraceExternalWorkflowNodeSchema)` to create a new message.
  */
-export const TraceExternalWorkflowNodeSchema: GenMessage<TraceExternalWorkflowNode> /*@__PURE__*/ =
+export const TraceExternalWorkflowNodeSchema: GenMessage<TraceExternalWorkflowNode> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 30);
 
 /**
@@ -961,10 +899,8 @@ export type TraceDockerNode = Message<"ravelact.browse.v1.TraceDockerNode"> & {
  * Describes the message ravelact.browse.v1.TraceDockerNode.
  * Use `create(TraceDockerNodeSchema)` to create a new message.
  */
-export const TraceDockerNodeSchema: GenMessage<TraceDockerNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  31,
-);
+export const TraceDockerNodeSchema: GenMessage<TraceDockerNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 31);
 
 /**
  * @generated from message ravelact.browse.v1.TraceAnnotatedNode
@@ -998,10 +934,8 @@ export type TraceAnnotatedNode = Message<"ravelact.browse.v1.TraceAnnotatedNode"
  * Describes the message ravelact.browse.v1.TraceAnnotatedNode.
  * Use `create(TraceAnnotatedNodeSchema)` to create a new message.
  */
-export const TraceAnnotatedNodeSchema: GenMessage<TraceAnnotatedNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  32,
-);
+export const TraceAnnotatedNodeSchema: GenMessage<TraceAnnotatedNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 32);
 
 /**
  * @generated from message ravelact.browse.v1.TraceCycleNode
@@ -1024,10 +958,8 @@ export type TraceCycleNode = Message<"ravelact.browse.v1.TraceCycleNode"> & {
  * Describes the message ravelact.browse.v1.TraceCycleNode.
  * Use `create(TraceCycleNodeSchema)` to create a new message.
  */
-export const TraceCycleNodeSchema: GenMessage<TraceCycleNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  33,
-);
+export const TraceCycleNodeSchema: GenMessage<TraceCycleNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 33);
 
 /**
  * @generated from message ravelact.browse.v1.TraceGuardedNode
@@ -1048,10 +980,8 @@ export type TraceGuardedNode = Message<"ravelact.browse.v1.TraceGuardedNode"> & 
  * Describes the message ravelact.browse.v1.TraceGuardedNode.
  * Use `create(TraceGuardedNodeSchema)` to create a new message.
  */
-export const TraceGuardedNodeSchema: GenMessage<TraceGuardedNode> /*@__PURE__*/ = messageDesc(
-  file_ravelact_browse_v1_browse,
-  34,
-);
+export const TraceGuardedNodeSchema: GenMessage<TraceGuardedNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 34);
 
 /**
  * All RPCs are unary. The single consumer is the React SPA bundled into
@@ -1070,7 +1000,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetGraphRequestSchema;
     output: typeof GetGraphResponseSchema;
-  };
+  },
   /**
    * GitHub provenance of the local repository (host/owner/repo/ref). Returns
    * NotFound when the browse root is not a git repository, lacks an `origin`
@@ -1083,7 +1013,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetRepoRequestSchema;
     output: typeof GetRepoResponseSchema;
-  };
+  },
   /**
    * Per-event trigger summary across the workflow estate.
    *
@@ -1093,7 +1023,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof ListTriggersRequestSchema;
     output: typeof ListTriggersResponseSchema;
-  };
+  },
   /**
    * Multi-token AND, case-insensitive substring search over the graph nodes.
    *
@@ -1103,7 +1033,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof SearchRequestSchema;
     output: typeof SearchResponseSchema;
-  };
+  },
   /**
    * Nodes reachable from workflows that list `event` as an entry trigger.
    *
@@ -1113,7 +1043,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetEventImpactRequestSchema;
     output: typeof GetEventImpactResponseSchema;
-  };
+  },
   /**
    * Detail of a single node (workflow / local-action / external-action).
    * Returns NotFound for unknown id or unsupported kind (external-workflow /
@@ -1125,7 +1055,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetNodeRequestSchema;
     output: typeof GetNodeResponseSchema;
-  };
+  },
   /**
    * Backward reachability for a workflow (everything it transitively pulls
    * in).
@@ -1136,7 +1066,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetImpactRequestSchema;
     output: typeof GetImpactResponseSchema;
-  };
+  },
   /**
    * Trace tree rooted at a workflow's first entry trigger. Returns NotFound
    * when the workflow has no entry trigger (reusable-only workflows).
@@ -1147,5 +1077,7 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof TraceRequestSchema;
     output: typeof TraceResponseSchema;
-  };
-}> /*@__PURE__*/ = serviceDesc(file_ravelact_browse_v1_browse, 0);
+  },
+}> = /*@__PURE__*/
+  serviceDesc(file_ravelact_browse_v1_browse, 0);
+

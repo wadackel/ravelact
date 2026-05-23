@@ -48,8 +48,16 @@ proto-plugins-check:
 # Regenerate vendored Rust + TS code from proto/. Run after editing any
 # .proto file. Plugin discovery merges $PATH with the SPA's
 # node_modules/.bin so `protoc-gen-es` is found without a global install.
+#
+# `cargo fmt` runs immediately afterwards because rustfmt is stable
+# and reformats `#[allow(...)]` lists from buffa-codegen's single-line
+# output into multi-line form. Without this post-fmt step, `just format`
+# and `just proto-check-drift` would disagree about the canonical
+# shape of the generated Rust files. Stable rustfmt has no per-file
+# ignore directive, so we make the post-fmt form the canonical form.
 proto-gen: proto-plugins-check
     PATH="$PWD/web/node_modules/.bin:$PATH" buf generate
+    cargo fmt --all
 
 # Lint .proto files against buf's STANDARD ruleset.
 proto-lint:

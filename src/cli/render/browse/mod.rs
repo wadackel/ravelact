@@ -1493,8 +1493,8 @@ mod tests {
     /// silently regress.
     #[test]
     fn trace_json_to_proto_maps_every_variant() {
-        use crate::query::trace::TraceJsonNode as J;
         use crate::ir::AnnotationVerb;
+        use crate::query::trace::TraceJsonNode as J;
 
         let node = J::Guarded {
             if_expr: "github.event_name == 'push'".to_string(),
@@ -1554,11 +1554,7 @@ mod tests {
 
         // Annotated[0] = Workflow with 3 children covering Action /
         // ExternalAction / Docker variants.
-        let workflow = match annotated.children[0]
-            .node
-            .as_ref()
-            .expect("oneof set")
-        {
+        let workflow = match annotated.children[0].node.as_ref().expect("oneof set") {
             pb::trace_json_node::Node::Workflow(w) => w,
             other => panic!("expected Workflow, got {other:?}"),
         };
@@ -1611,8 +1607,8 @@ mod tests {
     /// match inside `trace_json_to_proto`'s Annotated handling.
     #[test]
     fn trace_json_to_proto_annotated_dispatches_verb() {
-        use crate::query::trace::TraceJsonNode as J;
         use crate::ir::AnnotationVerb;
+        use crate::query::trace::TraceJsonNode as J;
 
         let node = J::Annotated {
             verb: AnnotationVerb::Dispatches,
