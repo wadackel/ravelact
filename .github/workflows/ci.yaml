@@ -18,6 +18,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -39,6 +41,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -54,6 +58,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -64,11 +70,13 @@ jobs:
       - name: just test
         run: nix develop --command just test
 
-  actionlint:
+  lint-actions:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -80,6 +88,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -108,6 +118,8 @@ jobs:
       RAVELACT_RELEASE_FIXTURE_PORT: 8765
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - name: Stub web/dist for rust-embed
@@ -193,6 +205,8 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -238,6 +252,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}
@@ -401,6 +416,7 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-ci-${{ runner.os }}

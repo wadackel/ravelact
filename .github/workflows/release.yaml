@@ -33,6 +33,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal
       - uses: ./.github/actions/setup-nix-devshell
@@ -118,6 +120,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup-nix-devshell
         with:
           cache-key-prefix: nix-publish-crate-${{ runner.os }}
@@ -180,8 +184,10 @@ jobs:
         run: nix develop --command cargo publish --locked --allow-dirty
       - name: Skip already published crate
         if: steps.publish-preflight.outputs.already_published == 'true'
-        run: |
-          echo "${{ steps.publish-preflight.outputs.crate_name }} ${{ steps.publish-preflight.outputs.crate_version }} is already published on crates.io"
+        env:
+          CRATE_NAME: ${{ steps.publish-preflight.outputs.crate_name }}
+          CRATE_VERSION: ${{ steps.publish-preflight.outputs.crate_version }}
+        run: echo "${CRATE_NAME} ${CRATE_VERSION} is already published on crates.io"
 
   release:
     needs:
@@ -194,6 +200,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: artifacts

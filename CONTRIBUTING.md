@@ -4,7 +4,7 @@ Thanks for your interest in `ravelact`. This page is the short on-ramp; the full
 
 ## Quick start
 
-Clone the repo and drop into the Nix dev shell — that gives you the pinned Rust toolchain, `just`, and `actionlint` in one go:
+Clone the repo and drop into the Nix dev shell — that gives you the pinned Rust toolchain, `just`, `actionlint`, and `zizmor` in one go:
 
 ```sh
 git clone https://github.com/wadackel/ravelact.git
