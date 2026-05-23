@@ -343,4 +343,17 @@ describe("App — orchestration", () => {
     await user.keyboard("{Enter}");
     expect(fitNodes).toHaveBeenCalledWith(["wf:.github/workflows/ci.yaml"]);
   });
+
+  it("mounts PoweredBy exactly once inside the graph section, even before /api/graph resolves", () => {
+    // The Graph payload is stubbed but PoweredBy renders unconditionally, so
+    // the credit must already be present on the very first render — before
+    // any async fetch settles.
+    render(<App />);
+    const graphSection = screen.getByTestId("graph-section");
+    const credits = within(graphSection).getAllByRole("link", {
+      name: /Powered by ravelact/i,
+    });
+    expect(credits).toHaveLength(1);
+    expect(credits[0]).toHaveAttribute("href", "https://github.com/wadackel/ravelact");
+  });
 });
