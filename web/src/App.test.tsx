@@ -29,6 +29,7 @@ vi.mock("./ui/components/Graph.tsx", () => {
   type GraphStubProps = {
     onNodeClick: (id: string, kind: string) => void;
     onBackgroundTap: () => void;
+    onLayoutError?: (message: string) => void;
     selectedId: string | null;
     matchedIds: Set<string> | null;
     analysisIds: Set<string> | null;
@@ -59,6 +60,7 @@ import { App } from "./App.tsx";
 type GraphStubProps = {
   onNodeClick: (id: string, kind: string) => void;
   onBackgroundTap: () => void;
+  onLayoutError?: (message: string) => void;
   selectedId: string | null;
   matchedIds: Set<string> | null;
   analysisIds: Set<string> | null;

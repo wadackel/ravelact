@@ -8,6 +8,7 @@ type RavelactRf = {
   tapFirstWorkflowExcept(excludeId: string): string | null;
   backgroundTap(): void;
   fadedIds(): string[];
+  panBy(dx: number, dy: number): void;
 };
 
 declare global {
@@ -366,4 +367,43 @@ test("background tap clears highlight and closes panel", async ({ page }) => {
   );
 
   await expect(page.getByRole("complementary", { name: "Node detail panel" })).toBeHidden();
+});
+
+test("viewport culling: store stays complete while DOM only renders visible nodes", async ({
+  page,
+}) => {
+  await waitForGraph(page);
+
+  // Wait for the initial fitView to settle. With `onlyRenderVisibleElements`
+  // ON, the DOM should at this point still hold every node because fitView
+  // scaled everything into the viewport.
+  const beforeCount = await page.evaluate(
+    () => (globalThis as { __ravelactRf?: RavelactRf }).__ravelactRf!.getNodes().length,
+  );
+  expect(beforeCount).toBeGreaterThan(0);
+
+  // Pan far enough that some nodes leave the viewport. The dogfood graph
+  // is laid out LR; a horizontal pan of 4000px guarantees at least one
+  // node falls off-screen at default zoom.
+  await page.evaluate(() => {
+    (globalThis as { __ravelactRf?: RavelactRf }).__ravelactRf!.panBy(4000, 0);
+  });
+
+  // ReactFlow re-runs the visible-node selector on the next render after
+  // viewport mutation. Give it a moment to settle.
+  await page.waitForTimeout(150);
+
+  // Store count is invariant — `useReactFlow().getNodes()` reads the
+  // backing zustand store regardless of viewport culling.
+  const afterCount = await page.evaluate(
+    () => (globalThis as { __ravelactRf?: RavelactRf }).__ravelactRf!.getNodes().length,
+  );
+  expect(afterCount).toBe(beforeCount);
+
+  // DOM count should drop because culling now omits off-screen nodes.
+  // We assert strictly less; if dogfood's layout coincidentally keeps
+  // every node in view after a 4000px pan the assertion will catch the
+  // regression.
+  const domCount = await page.locator(".react-flow__node").count();
+  expect(domCount).toBeLessThan(beforeCount);
 });

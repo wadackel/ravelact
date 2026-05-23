@@ -173,6 +173,7 @@ export function App() {
               payload={payload}
               onNodeClick={handleNodeClick}
               onBackgroundTap={handleClearSelected}
+              onLayoutError={setError}
               selectedId={selected?.id ?? null}
               matchedIds={matchedIds}
               analysisIds={analysisIds}

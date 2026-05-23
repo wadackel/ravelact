@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   type Edge,
-  MarkerType,
   type Node,
   type NodeMouseHandler,
   ReactFlow,
@@ -12,10 +11,9 @@ import {
   useReactFlow,
   useStore,
 } from "@xyflow/react";
-import dagre from "dagre";
 import type { GraphPayload, NodeKind } from "../../lib/types.ts";
-import { formatNodeLabel } from "../../lib/kind-format.ts";
 import { isVisible, reachableSet } from "../../lib/graph-filter.ts";
+import { computeLayout, type LayoutResult } from "../../lib/graph-layout.ts";
 import { isPerfHarnessEnabled, setRavelactRf } from "../../lib/dev-globals.ts";
 import { GraphNode, type GraphNodeData } from "./GraphNode.tsx";
 
@@ -24,18 +22,21 @@ import { GraphNode, type GraphNodeData } from "./GraphNode.tsx";
 // to update.
 const asGraphNodeData = (n: { data: unknown }): GraphNodeData => n.data as GraphNodeData;
 
-// Approximate per-node box used by dagre to lay out the graph. Actual
-// HTML node size is determined by CSS in `index.css`; these are the
-// reservation rectangles dagre uses to assign rank/order positions.
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 56;
-
 const NODE_TYPES = { card: GraphNode };
+
+// Threshold for showing the "Computing layout..." overlay. dogfood is
+// typically below this so the overlay never appears; synthetic-300+
+// crosses it and the spinner shows for the actual compute window.
+const LOADING_INDICATOR_DELAY_MS = 50;
 
 export type GraphProps = {
   payload: GraphPayload;
   onNodeClick: (id: string, kind: NodeKind) => void;
   onBackgroundTap: () => void;
+  // Called when the async layout pipeline (worker + main-thread retry)
+  // rejects. App surfaces this through the existing ErrorBanner. When
+  // omitted the error is logged and the graph stays empty.
+  onLayoutError?: (message: string) => void;
   selectedId: string | null;
   // `null` = no active search (do not let the search clause drive fade).
   // An empty Set means "active search with zero hits" → everything fades.
@@ -45,91 +46,88 @@ export type GraphProps = {
   analysisIds: Set<string> | null;
 };
 
-function buildLayout(payload: GraphPayload): {
-  nodes: Node<GraphNodeData>[];
-  edges: Edge[];
-} {
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({
-    rankdir: "LR",
-    nodesep: 24,
-    ranksep: 80,
-    edgesep: 16,
-    marginx: 24,
-    marginy: 24,
-  });
-  g.setDefaultEdgeLabel(() => ({}));
-
-  for (const n of payload.nodes) {
-    g.setNode(n.data.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  }
-  for (const e of payload.edges) {
-    g.setEdge(e.data.source, e.data.target);
-  }
-  dagre.layout(g);
-
-  const nodes: Node<GraphNodeData>[] = payload.nodes.map((n) => {
-    const pos = g.node(n.data.id);
-    const { name, subtitle } = formatNodeLabel(n.data.kind, n.data.label);
-    return {
-      id: n.data.id,
-      type: "card",
-      position: { x: pos.x - NODE_WIDTH / 2, y: pos.y - NODE_HEIGHT / 2 },
-      data: { name, subtitle, kind: n.data.kind, faded: false },
-      draggable: false,
-      connectable: false,
-      selectable: true,
-    };
-  });
-
-  const edges: Edge[] = payload.edges.map((e) => ({
-    id: e.data.id,
-    source: e.data.source,
-    target: e.data.target,
-    type: "default",
-    markerEnd: { type: MarkerType.ArrowClosed, color: "#3b82f6" },
-    style: { stroke: "#3b82f6", strokeWidth: 1.5 },
-  }));
-
-  return { nodes, edges };
-}
-
 function GraphInner({
   payload,
   onNodeClick,
   onBackgroundTap,
+  onLayoutError,
   selectedId,
   matchedIds,
   analysisIds,
 }: GraphProps) {
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildLayout(payload),
-    [payload],
-  );
+  const [layout, setLayout] = useState<LayoutResult | null>(null);
+  const [spinnerVisible, setSpinnerVisible] = useState<boolean>(false);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<GraphNodeData>>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+
+  // Compute the dagre layout off the main thread (Worker) and feed the
+  // result into the ReactFlow store. A 50ms timer gates the overlay so
+  // dogfood-scale layouts (typically a few ms) do not flash a spinner.
+  // The AbortController is wired into `computeLayout` so an unmount or
+  // payload change mid-flight terminates the underlying worker rather
+  // than letting it run to completion only to drop the result.
+  useEffect(() => {
+    const abortCtrl = new AbortController();
+    setLayout(null);
+    setSpinnerVisible(false);
+
+    const spinnerTimer = setTimeout(() => {
+      if (!abortCtrl.signal.aborted) setSpinnerVisible(true);
+    }, LOADING_INDICATOR_DELAY_MS);
+
+    computeLayout(payload, abortCtrl.signal)
+      .then((result) => {
+        if (abortCtrl.signal.aborted) return;
+        clearTimeout(spinnerTimer);
+        setSpinnerVisible(false);
+        setLayout(result);
+        setNodes(result.nodes);
+        setEdges(result.edges);
+      })
+      .catch((err: unknown) => {
+        if (abortCtrl.signal.aborted) return;
+        clearTimeout(spinnerTimer);
+        setSpinnerVisible(false);
+        const message = err instanceof Error ? err.message : String(err);
+        if (onLayoutError) {
+          onLayoutError(message);
+        } else {
+          console.error("graph-layout failed", err);
+        }
+      });
+
+    return () => {
+      abortCtrl.abort();
+      clearTimeout(spinnerTimer);
+    };
+  }, [payload, onLayoutError, setNodes, setEdges]);
+
+  // Pre-extract the adjacency tuples used by `reachableSet`. Memoised
+  // on `payload.edges` so the fade effect below depends on a stable
+  // array reference and re-runs only when the underlying graph
+  // topology changes — not whenever any unrelated `payload` field
+  // happens to be reassigned by a future caller.
+  const adjacencyEdges = useMemo(
+    () => payload.edges.map((e) => ({ source: e.data.source, target: e.data.target })),
+    [payload.edges],
+  );
 
   // Single writer of `data.faded` / edge `className`. Both inputs —
   // search match set and click-driven reachable set — feed into one
   // OR-composed effect, mirroring the prior cytoscape single-writer
   // invariant. A node is faded only when BOTH clauses say "fade it":
   // not in the search match (when search is active) AND not in the
-  // selected reachable set (when a selection is active).
+  // selected reachable set (when a selection is active). Skips until
+  // the first layout result lands so the initial paint is not racing
+  // against an empty node array.
   useEffect(() => {
+    if (!layout) return;
     if (isPerfHarnessEnabled()) {
       performance.mark("perf:tap-enter");
     }
 
-    const reachable = selectedId
-      ? reachableSet(
-          payload.edges.map((e) => ({
-            source: e.data.source,
-            target: e.data.target,
-          })),
-          selectedId,
-        )
-      : null;
+    const reachable = selectedId ? reachableSet(adjacencyEdges, selectedId) : null;
 
     const filters = { matchedIds, analysisIds, reachable };
     const visible = (id: string) => isVisible(id, filters);
@@ -147,7 +145,7 @@ function GraphInner({
         return e.className === className ? e : { ...e, className };
       }),
     );
-  }, [selectedId, matchedIds, analysisIds, payload, setNodes, setEdges]);
+  }, [layout, selectedId, matchedIds, analysisIds, adjacencyEdges, setNodes, setEdges]);
 
   // Perf probe: mark after the commit that contains the new faded
   // state. `nodes` identity changes per setNodes call.
@@ -170,36 +168,36 @@ function GraphInner({
 
   // Expose a test surface for e2e + the perf harness. Reads live
   // state from the ReactFlow store via `useReactFlow` so the hook
-  // never returns stale snapshots.
-  const rf = useReactFlow();
-  // Keep the latest callbacks in a ref so the effect can read them
-  // without subscribing — installing the global handle should run once
-  // per ReactFlow instance, not on every parent re-render that
-  // produces a fresh inline arrow.
+  // never returns stale snapshots. Generic parameter ties
+  // `rf.getNodes()` to `Node<GraphNodeData>[]` so the test-surface
+  // installer below can read `.data.kind` without an extra cast.
+  // Installation is gated on `layout` so `waitForGraph` consumers
+  // cannot observe an empty store between mount and the first layout
+  // resolve (the Worker race).
+  const rf = useReactFlow<Node<GraphNodeData>, Edge>();
   const callbacksRef = useRef({ onNodeClick, onBackgroundTap });
   callbacksRef.current = { onNodeClick, onBackgroundTap };
   useEffect(() => {
+    if (!layout) return;
     return setRavelactRf({
       getNodes: () => rf.getNodes(),
       getEdges: () => rf.getEdges(),
       tapNode: (id: string) => {
         const n = rf.getNodes().find((x) => x.id === id);
         if (!n) return null;
-        callbacksRef.current.onNodeClick(id, asGraphNodeData(n).kind);
+        callbacksRef.current.onNodeClick(id, n.data.kind);
         return id;
       },
       tapFirstWorkflow: () => {
-        const n = rf.getNodes().find((x) => asGraphNodeData(x).kind === "workflow");
+        const n = rf.getNodes().find((x) => x.data.kind === "workflow");
         if (!n) return null;
-        callbacksRef.current.onNodeClick(n.id, asGraphNodeData(n).kind);
+        callbacksRef.current.onNodeClick(n.id, n.data.kind);
         return n.id;
       },
       tapFirstWorkflowExcept: (excludeId: string) => {
-        const n = rf
-          .getNodes()
-          .find((x) => x.id !== excludeId && asGraphNodeData(x).kind === "workflow");
+        const n = rf.getNodes().find((x) => x.id !== excludeId && x.data.kind === "workflow");
         if (!n) return null;
-        callbacksRef.current.onNodeClick(n.id, asGraphNodeData(n).kind);
+        callbacksRef.current.onNodeClick(n.id, n.data.kind);
         return n.id;
       },
       backgroundTap: () => callbacksRef.current.onBackgroundTap(),
@@ -223,7 +221,7 @@ function GraphInner({
       fadedIds: () => {
         const fadedNodes = rf
           .getNodes()
-          .filter((n) => asGraphNodeData(n).faded)
+          .filter((n) => n.data.faded)
           .map((n) => n.id);
         const fadedEdges = rf
           .getEdges()
@@ -232,28 +230,41 @@ function GraphInner({
         return [...fadedNodes, ...fadedEdges].sort();
       },
     });
-  }, [rf]);
+  }, [rf, layout]);
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      nodeTypes={NODE_TYPES}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onNodeClick={onNodeClickRf}
-      onPaneClick={onPaneClick}
-      fitView
-      fitViewOptions={{ padding: 0.15 }}
-      proOptions={{ hideAttribution: true }}
-      minZoom={0.2}
-      maxZoom={2}
-      nodesDraggable={false}
-      nodesConnectable={false}
-      elementsSelectable
-    >
-      <ZoomAwareBackground />
-    </ReactFlow>
+    <>
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={NODE_TYPES}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClickRf}
+        onPaneClick={onPaneClick}
+        fitView
+        fitViewOptions={{ padding: 0.15 }}
+        onlyRenderVisibleElements
+        proOptions={{ hideAttribution: true }}
+        minZoom={0.2}
+        maxZoom={2}
+        nodesDraggable={false}
+        nodesConnectable={false}
+        elementsSelectable
+      >
+        <ZoomAwareBackground />
+      </ReactFlow>
+      {spinnerVisible && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="graph-loading"
+          className="absolute inset-0 flex items-center justify-center pointer-events-none text-fg-muted text-sm font-sans"
+        >
+          Computing layout…
+        </div>
+      )}
+    </>
   );
 }
 
