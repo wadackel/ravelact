@@ -11,6 +11,7 @@ lint:
 
 lint-actions:
     actionlint
+    zizmor --offline .github/workflows .github/actions action.yaml
 
 test:
     cargo test

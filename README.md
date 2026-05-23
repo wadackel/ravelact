@@ -893,7 +893,7 @@ jobs:
       - run: ravelact wiring --root .
 ```
 
-`actionlint` still belongs in the same CI suite. It validates GitHub Actions syntax and caller-side `with:` usage; `ravelact` adds estate-wide graph, permissions, secrets, and wiring checks.
+`actionlint` and `zizmor` both still belong in the same CI suite. `actionlint` validates GitHub Actions syntax, schema, and caller-side `with:` usage. `zizmor` audits security patterns (template-injection, artipacked, excessive-permissions, dangerous-triggers, unpinned-uses, and similar). `ravelact` adds estate-wide graph, permissions-propagation, secrets-propagation, and wiring checks. The three are complementary, not redundant.
 
 ### Optional hygiene gates
 

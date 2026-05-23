@@ -78,6 +78,7 @@
             just
             jq
             actionlint
+            zizmor
             cargo-llvm-cov
             nodejs_22
             pnpm_9

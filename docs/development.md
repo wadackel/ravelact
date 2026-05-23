@@ -7,7 +7,7 @@ Reference for building, testing, and maintaining `ravelact` locally.
 The project ships a [Nix](https://nixos.org/) flake and a [`justfile`](https://just.systems/) for a reproducible toolchain. All canonical recipes run inside the Nix dev shell.
 
 ```sh
-nix develop                  # enter dev shell (rust toolchain + just + jq + actionlint)
+nix develop                  # enter dev shell (rust toolchain + just + jq + actionlint + zizmor)
 exit                         # leave the shell
 ```
 
@@ -22,7 +22,7 @@ Always invoke `just` rather than inventing ad-hoc `cargo` invocations.
 | `just format` | `cargo fmt --all` | Format Rust sources |
 | `just lint` | `cargo clippy --all-targets -- -D warnings` | Lint with clippy (warnings are errors) |
 | `just test` | `cargo test` | Run the full test suite |
-| `just lint-actions` | `actionlint` | Lint `.github/workflows/*.yaml` |
+| `just lint-actions` | `actionlint && zizmor --offline .github/workflows .github/actions action.yaml` | Lint + security audit `.github/workflows/*.yaml` and composite actions |
 | `just build` | `cargo build` | Debug build |
 | `just build-release` | `cargo build --release --locked` | Release build |
 | `just install` | `cargo install --path . --locked` | Install to `~/.cargo/bin` |
