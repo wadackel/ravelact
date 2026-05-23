@@ -1484,6 +1484,153 @@ mod tests {
         }
     }
 
+    /// `trace_json_to_proto` is exercised via `trace_response` in the
+    /// happy-path test above, but only the Workflow / Action /
+    /// ExternalAction variants land in the simple fixture's trace tree.
+    /// This test feeds a hand-built `trace_query::TraceJsonNode` covering
+    /// all eight oneof arms so the proto-encoding logic for
+    /// ExternalWorkflow / Docker / Annotated / Cycle / Guarded does not
+    /// silently regress.
+    #[test]
+    fn trace_json_to_proto_maps_every_variant() {
+        use crate::query::trace::TraceJsonNode as J;
+        use crate::ir::AnnotationVerb;
+
+        let node = J::Guarded {
+            if_expr: "github.event_name == 'push'".to_string(),
+            inner: Box::new(J::Annotated {
+                verb: AnnotationVerb::Triggers,
+                dangling: false,
+                label: "automerge".to_string(),
+                children: vec![
+                    J::Workflow {
+                        id: "wf:.github/workflows/ci.yaml".to_string(),
+                        children: vec![
+                            J::Action {
+                                id: "la:.github/actions/setup".to_string(),
+                                children: vec![],
+                            },
+                            J::ExternalAction {
+                                owner: "actions".to_string(),
+                                repo: "checkout".to_string(),
+                                subpath: Some("nested".to_string()),
+                                gitref: "v4".to_string(),
+                            },
+                            J::Docker {
+                                image: "docker://node:20".to_string(),
+                            },
+                        ],
+                    },
+                    J::ExternalWorkflow {
+                        owner: "owner".to_string(),
+                        repo: "repo".to_string(),
+                        path: ".github/workflows/release.yaml".to_string(),
+                        gitref: "main".to_string(),
+                    },
+                    J::Cycle {
+                        target_kind: "workflow",
+                        target: "wf:.github/workflows/loop.yaml".to_string(),
+                    },
+                ],
+            }),
+        };
+
+        let proto = trace_json_to_proto(&node);
+        let guarded = match proto.node.as_ref().expect("oneof must be set") {
+            pb::trace_json_node::Node::Guarded(g) => g,
+            other => panic!("expected Guarded, got {other:?}"),
+        };
+        assert_eq!(guarded.if_expr, "github.event_name == 'push'");
+
+        let annotated_node = guarded.inner.as_option().expect("guarded inner set");
+        let annotated = match annotated_node.node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::Annotated(a) => a,
+            other => panic!("expected Annotated, got {other:?}"),
+        };
+        assert_eq!(annotated.verb, "triggers");
+        assert!(!annotated.dangling);
+        assert_eq!(annotated.label, "automerge");
+        assert_eq!(annotated.children.len(), 3);
+
+        // Annotated[0] = Workflow with 3 children covering Action /
+        // ExternalAction / Docker variants.
+        let workflow = match annotated.children[0]
+            .node
+            .as_ref()
+            .expect("oneof set")
+        {
+            pb::trace_json_node::Node::Workflow(w) => w,
+            other => panic!("expected Workflow, got {other:?}"),
+        };
+        assert_eq!(workflow.id, "wf:.github/workflows/ci.yaml");
+        assert_eq!(workflow.children.len(), 3);
+        match workflow.children[0].node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::Action(a) => {
+                assert_eq!(a.id, "la:.github/actions/setup");
+            }
+            other => panic!("expected Action, got {other:?}"),
+        }
+        match workflow.children[1].node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::ExternalAction(ea) => {
+                assert_eq!(ea.owner, "actions");
+                assert_eq!(ea.repo, "checkout");
+                assert_eq!(ea.subpath.as_deref(), Some("nested"));
+                assert_eq!(ea.gitref, "v4");
+            }
+            other => panic!("expected ExternalAction, got {other:?}"),
+        }
+        match workflow.children[2].node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::Docker(d) => {
+                assert_eq!(d.image, "docker://node:20");
+            }
+            other => panic!("expected Docker, got {other:?}"),
+        }
+
+        // Annotated[1] = ExternalWorkflow.
+        match annotated.children[1].node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::ExternalWorkflow(ew) => {
+                assert_eq!(ew.owner, "owner");
+                assert_eq!(ew.repo, "repo");
+                assert_eq!(ew.path, ".github/workflows/release.yaml");
+                assert_eq!(ew.gitref, "main");
+            }
+            other => panic!("expected ExternalWorkflow, got {other:?}"),
+        }
+
+        // Annotated[2] = Cycle.
+        match annotated.children[2].node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::Cycle(c) => {
+                assert_eq!(c.target_kind, "workflow");
+                assert_eq!(c.target, "wf:.github/workflows/loop.yaml");
+            }
+            other => panic!("expected Cycle, got {other:?}"),
+        }
+    }
+
+    /// `AnnotationVerb::Dispatches` exercises the other arm of the
+    /// match inside `trace_json_to_proto`'s Annotated handling.
+    #[test]
+    fn trace_json_to_proto_annotated_dispatches_verb() {
+        use crate::query::trace::TraceJsonNode as J;
+        use crate::ir::AnnotationVerb;
+
+        let node = J::Annotated {
+            verb: AnnotationVerb::Dispatches,
+            dangling: true,
+            label: "release".to_string(),
+            children: vec![],
+        };
+        let proto = trace_json_to_proto(&node);
+        let annotated = match proto.node.as_ref().expect("oneof set") {
+            pb::trace_json_node::Node::Annotated(a) => a,
+            other => panic!("expected Annotated, got {other:?}"),
+        };
+        assert_eq!(annotated.verb, "dispatches");
+        assert!(annotated.dangling);
+        assert_eq!(annotated.label, "release");
+        assert!(annotated.children.is_empty());
+    }
+
     #[test]
     fn trace_response_returns_not_found_for_workflow_without_entry() {
         let ir = load_simple_ir();
