@@ -189,6 +189,8 @@ export function App() {
             repoInfo={repoInfo}
             tab={panelTab}
             onTabChange={setPanelTab}
+            selectedEvent={selectedEvent}
+            onSelectEvent={setSelectedEvent}
           />
         ) : (
           <OverviewPane

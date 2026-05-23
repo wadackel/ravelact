@@ -67,9 +67,19 @@ export type PanelProps = {
   repoInfo: RepoInfo | null;
   tab: Tab;
   onTabChange: (tab: Tab) => void;
+  selectedEvent: string | null;
+  onSelectEvent: (event: string | null) => void;
 };
 
-export function Panel({ openFor, onClose, repoInfo, tab, onTabChange }: PanelProps) {
+export function Panel({
+  openFor,
+  onClose,
+  repoInfo,
+  tab,
+  onTabChange,
+  selectedEvent,
+  onSelectEvent,
+}: PanelProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   // Fetch on demand. The effect reads `state.{details,impact,trace}`
@@ -213,9 +223,9 @@ export function Panel({ openFor, onClose, repoInfo, tab, onTabChange }: PanelPro
         tabIndex={0}
       >
         {tab === "details" && renderDetails(state, githubUrl)}
-        {tab === "triggers" && renderTriggers(state)}
+        {tab === "triggers" && renderTriggers(state, selectedEvent, onSelectEvent)}
         {tab === "impact" && renderImpact(state)}
-        {tab === "trace" && renderTrace(state)}
+        {tab === "trace" && renderTrace(state, selectedEvent, onSelectEvent)}
       </section>
     </aside>
   );
@@ -264,7 +274,11 @@ function renderDetails(state: State, githubUrl: string | null) {
   );
 }
 
-function renderTriggers(state: State) {
+function renderTriggers(
+  state: State,
+  selectedEvent: string | null,
+  onSelectEvent: (event: string | null) => void,
+) {
   if (state.detailsError) {
     return <Status type="error">Error: {state.detailsError}</Status>;
   }
@@ -280,10 +294,41 @@ function renderTriggers(state: State) {
     <Field label="Entry triggers">
       <ChipList>
         {state.details.entry_triggers.map((t) => (
-          <Chip key={t}>{t}</Chip>
+          <EventChipButton
+            key={t}
+            event={t}
+            selected={selectedEvent === t}
+            onToggle={onSelectEvent}
+          />
         ))}
       </ChipList>
     </Field>
+  );
+}
+
+// Interactive trigger chip that drives App's `selectedEvent` state.
+// Clicking calls `onToggle(selected ? null : event)` so the same chip
+// click both selects and clears, matching OverviewPane's row toggle
+// (OverviewPane.tsx:67-72). Visual shape mirrors `Chip` for layout
+// consistency; active state borrows OverviewPane's accent tokens.
+function EventChipButton({
+  event,
+  selected,
+  onToggle,
+}: {
+  event: string;
+  selected: boolean;
+  onToggle: (event: string | null) => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={selected}
+      onClick={() => onToggle(selected ? null : event)}
+      className="inline-block bg-bg-elev2 text-fg border border-border rounded-xl px-2.5 py-1 text-[11px] font-sans cursor-pointer transition hover:bg-bg-elev aria-pressed:bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] aria-pressed:border-accent aria-pressed:text-accent aria-pressed:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
+    >
+      {event}
+    </button>
   );
 }
 
@@ -341,7 +386,11 @@ function renderImpact(state: State) {
   );
 }
 
-function renderTrace(state: State) {
+function renderTrace(
+  state: State,
+  selectedEvent: string | null,
+  onSelectEvent: (event: string | null) => void,
+) {
   if (state.traceError) {
     return <Status type="error">Error: {state.traceError}</Status>;
   }
@@ -354,7 +403,11 @@ function renderTrace(state: State) {
   return (
     <>
       <Field label="Event used">
-        <Chip>{state.trace.event_used}</Chip>
+        <EventChipButton
+          event={state.trace.event_used}
+          selected={selectedEvent === state.trace.event_used}
+          onToggle={onSelectEvent}
+        />
       </Field>
       <Field label="Tree">
         <pre className="font-mono text-xs whitespace-pre overflow-x-auto bg-bg-elev p-3 border border-border-soft rounded-md text-fg">

@@ -19,16 +19,25 @@ import * as api from "../../lib/api.ts";
 import type { NodeKind, RepoInfo } from "../../lib/types.ts";
 import { Panel, type Tab } from "./Panel.tsx";
 
-// Mirrors App.tsx's wiring: owns the active tab state and keys the
-// inner Panel on `openFor.id` so a per-node remount still resets the
-// data slices while the tab survives.
+// Mirrors App.tsx's wiring: owns the active tab + event-selection
+// state and keys the inner Panel on `openFor.id` so a per-node
+// remount still resets the data slices while the tab survives.
 function ControlledPanel(props: {
   initialTab?: Tab;
   openFor: { id: string; kind: NodeKind };
   onClose: () => void;
   repoInfo: RepoInfo | null;
+  initialSelectedEvent?: string | null;
+  onSelectEvent?: (event: string | null) => void;
 }) {
   const [tab, setTab] = useState<Tab>(props.initialTab ?? "details");
+  const [selectedEvent, setSelectedEvent] = useState<string | null>(
+    props.initialSelectedEvent ?? null,
+  );
+  const handleSelectEvent = (event: string | null) => {
+    setSelectedEvent(event);
+    props.onSelectEvent?.(event);
+  };
   return (
     <Panel
       key={props.openFor.id}
@@ -37,6 +46,8 @@ function ControlledPanel(props: {
       repoInfo={props.repoInfo}
       tab={tab}
       onTabChange={setTab}
+      selectedEvent={selectedEvent}
+      onSelectEvent={handleSelectEvent}
     />
   );
 }
@@ -226,6 +237,109 @@ describe("Panel — fetch + cacheRef invariants", () => {
     );
     await screen.findByText("Not found");
     expect(screen.queryByRole("link", { name: "Open in GitHub" })).toBeNull();
+  });
+
+  it("Triggers tab chip is a button with aria-pressed=false when no event is selected", async () => {
+    render(
+      <ControlledPanel
+        initialTab="triggers"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    const chip = await screen.findByRole("button", { name: "push" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("clicking a Triggers tab chip fires onSelectEvent with the event", async () => {
+    const onSelectEvent = vi.fn();
+    render(
+      <ControlledPanel
+        initialTab="triggers"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        onSelectEvent={onSelectEvent}
+      />,
+    );
+    const chip = await screen.findByRole("button", { name: "push" });
+    fireEvent.click(chip);
+    expect(onSelectEvent).toHaveBeenCalledWith("push");
+  });
+
+  it("re-clicking the active Triggers tab chip fires onSelectEvent(null) (toggle off)", async () => {
+    const onSelectEvent = vi.fn();
+    render(
+      <ControlledPanel
+        initialTab="triggers"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        initialSelectedEvent="push"
+        onSelectEvent={onSelectEvent}
+      />,
+    );
+    const chip = await screen.findByRole("button", { name: "push" });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(chip);
+    expect(onSelectEvent).toHaveBeenCalledWith(null);
+  });
+
+  it("active Triggers tab chip carries the aria-pressed accent style tokens (drift guard)", async () => {
+    render(
+      <ControlledPanel
+        initialTab="triggers"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        initialSelectedEvent="push"
+      />,
+    );
+    const chip = await screen.findByRole("button", { name: "push" });
+    // The active-state styling pivots on `aria-pressed:` variants. If
+    // a refactor drops the accent tokens the visual cue regresses
+    // silently — this guard catches that without depending on a real
+    // CSS engine.
+    expect(chip.className).toContain("aria-pressed:bg-");
+    expect(chip.className).toContain("aria-pressed:border-accent");
+    expect(chip.className).toContain("aria-pressed:text-accent");
+  });
+
+  it("Trace tab 'Event used' chip is a button and drives onSelectEvent on click", async () => {
+    const onSelectEvent = vi.fn();
+    render(
+      <ControlledPanel
+        initialTab="trace"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        onSelectEvent={onSelectEvent}
+      />,
+    );
+    // The trace mock at the top of the suite returns event_used: "push".
+    const chip = await screen.findByRole("button", { name: "push" });
+    expect(chip).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(chip);
+    expect(onSelectEvent).toHaveBeenCalledWith("push");
+  });
+
+  it("Trace tab 'Event used' chip reflects selectedEvent and toggles off on re-click", async () => {
+    const onSelectEvent = vi.fn();
+    render(
+      <ControlledPanel
+        initialTab="trace"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        initialSelectedEvent="push"
+        onSelectEvent={onSelectEvent}
+      />,
+    );
+    const chip = await screen.findByRole("button", { name: "push" });
+    expect(chip).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(chip);
+    expect(onSelectEvent).toHaveBeenCalledWith(null);
   });
 
   it("changing openFor to a new node invalidates the cache and re-fetches", async () => {
