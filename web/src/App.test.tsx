@@ -129,7 +129,7 @@ const TRIGGERS_RESPONSE = {
   rows: [
     {
       event: "push",
-      entry_workflows: 1,
+      entryWorkflows: 1,
       declarations: 1,
       typed: 0,
       filtered: 0,
@@ -137,7 +137,7 @@ const TRIGGERS_RESPONSE = {
     },
     {
       event: "pull_request",
-      entry_workflows: 1,
+      entryWorkflows: 1,
       declarations: 1,
       typed: 0,
       filtered: 0,
@@ -163,8 +163,8 @@ describe("App — orchestration", () => {
     });
     (api.fetchEventImpact as ReturnType<typeof vi.fn>).mockResolvedValue({
       event: "pull_request",
-      entry_workflows: ["wf:.github/workflows/ci.yaml"],
-      node_ids: ["wf:.github/workflows/ci.yaml"],
+      entryWorkflows: ["wf:.github/workflows/ci.yaml"],
+      nodeIds: ["wf:.github/workflows/ci.yaml"],
     });
     (api.fetchRepo as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -173,10 +173,10 @@ describe("App — orchestration", () => {
       label: "CI",
       file: ".github/workflows/ci.yaml",
       summary: "1 job, 1 trigger",
-      entry_triggers: ["push"],
-      refs_in: [],
-      refs_out: [],
-      if_conditions: [],
+      entryTriggers: ["push"],
+      refsIn: [],
+      refsOut: [],
+      ifConditions: [],
     });
   });
 

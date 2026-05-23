@@ -13,7 +13,11 @@ use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-mod render;
+// `render::browse::{proto, connect}` is exposed to integration tests in
+// `tests/e2e_browse.rs`. Re-exporting the whole render module is the
+// thinnest cut that makes the chain reachable; siblings remain
+// crate-private per their `pub(super)` markers.
+pub mod render;
 mod stdin_input;
 
 #[derive(Parser, Debug)]

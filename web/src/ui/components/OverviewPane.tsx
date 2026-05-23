@@ -84,11 +84,11 @@ export function OverviewPane({
                       <span
                         data-selected={isSelected ? "true" : undefined}
                         className="inline-flex items-center justify-center min-w-[22px] h-[18px] px-1.5 rounded-full text-[11px] font-sans bg-bg-elev2 text-fg-muted data-[selected=true]:bg-[color-mix(in_srgb,var(--color-accent)_18%,transparent)] data-[selected=true]:text-accent"
-                        aria-label={`${t.entry_workflows} entry workflow${
-                          t.entry_workflows === 1 ? "" : "s"
+                        aria-label={`${t.entryWorkflows} entry workflow${
+                          t.entryWorkflows === 1 ? "" : "s"
                         }`}
                       >
-                        {t.entry_workflows}
+                        {t.entryWorkflows}
                       </span>
                     </button>
                   </li>

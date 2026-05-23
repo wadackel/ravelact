@@ -37,6 +37,28 @@ Run the full chain before declaring work complete — it mirrors the four CI job
 nix develop -c just format lint test lint-actions
 ```
 
+### Proto dev-loop
+
+`browse`'s HTTP API is defined in `proto/ravelact/browse/v1/browse.proto` and consumed by both the Rust server and the React SPA via generated code committed under `src/cli/render/browse/{proto,connect}/` and `web/src/proto/`. After editing the `.proto` file, regenerate the vendored output:
+
+```sh
+nix develop -c just proto-gen        # regenerates Rust + TS from proto/
+nix develop -c just proto-lint       # buf lint (also runs as part of `just lint`)
+nix develop -c just proto-check-drift # CI mirror: regen + git diff --exit-code
+```
+
+`just proto-gen` invokes three plugins that ship as standalone `cargo install` binaries (not in nixpkgs):
+
+```sh
+nix develop -c cargo install --locked protoc-gen-buffa protoc-gen-buffa-packaging connectrpc-codegen
+```
+
+`protoc-gen-es` (the TypeScript generator) lives in `web/node_modules/.bin/` after `pnpm install`. `just proto-gen` precondition-checks all four binaries and prints the install command if any is missing.
+
+#### Why `buffa`, not `prost`
+
+The browse stack uses [`buffa`](https://github.com/anthropics/buffa) for proto messages and [`connectrpc`](https://github.com/anthropics/connect-rust) for the service runtime — both maintained by Anthropic and designed to compose. `buffa` is zero-copy (returns borrowed `*View<'a>` types alongside owned structs) and supports the proto3 JSON canonical mapping out of the box, which Connect-Web on the SPA side expects. `prost` would force a JSON-codec adapter layer on the server and would not share message types with the `connectrpc` server crate. Contributors familiar with `prost` will find the generated `buffa` types unfamiliar (note `MessageField<T>` instead of `Option<T>` for nested messages, and the `.as_option()` accessor); the rest of the API is similar.
+
 ### Release builds
 
 ```sh
@@ -64,9 +86,13 @@ nix develop -c just build-release
 # HMR dev loop (two terminals).
 # Terminal 1: backend API on :7878
 nix develop -c cargo run --release -- --root . browse --port 7878 --no-open
-# Terminal 2: Vite dev server with /api/* proxied to :7878
+# Terminal 2: Vite dev server with /ravelact.browse.v1.BrowseService/* proxied to :7878
 cd web && nix develop -c pnpm dev          # http://localhost:5173
 ```
+
+The SPA talks to the backend via a generated ConnectRPC client at
+`POST /ravelact.browse.v1.BrowseService/<Method>` (was: hand-written
+`GET /api/<thing>` in 0.0.6 and earlier — see [#39](https://github.com/wadackel/ravelact/issues/39)).
 
 Frontend-only checks:
 
@@ -269,11 +295,11 @@ The base lcov is fetched from the most recent successful CI run on `main`, so th
 2. Add `--ignore-filename-regex 'src/cli/render/foo_runtime\.rs'` to the `coverage` recipe in `justfile`.
 3. Call out in the PR description **which** lines were excluded and **why** they cannot be tested.
 
-This PR introduces no exclusions; `tests/e2e_browse.rs` covers the runtime tail of `cli/render/browse.rs` (TCP bind, browser launch, signal handler) as an integration smoke test rather than a unit-coverage source. Note that `cargo-llvm-cov` does **not** automatically merge coverage from the spawned `ravelact` subprocess into the main `lcov.info`, so subprocess-only code paths still count as uncovered. Cover them with in-file unit tests against extracted helpers, not by spawning the binary.
+This PR introduces no exclusions; `tests/e2e_browse.rs` covers the runtime tail of `cli/render/browse/mod.rs` (TCP bind, browser launch, signal handler) as an integration smoke test rather than a unit-coverage source. Note that `cargo-llvm-cov` does **not** automatically merge coverage from the spawned `ravelact` subprocess into the main `lcov.info`, so subprocess-only code paths still count as uncovered. Cover them with in-file unit tests against extracted helpers, not by spawning the binary.
 
 ### Known false-negative areas
 
-- **CLI subprocess paths**: any code only reached by spawning the `ravelact` binary (e.g. `tests/e2e_browse.rs` and `tests/completions.rs`) does not contribute to `lcov.info`. Cover those branches via in-file unit tests (see `src/cli/render/browse.rs::mod tests` for the pattern) rather than relying on the integration tests.
+- **CLI subprocess paths**: any code only reached by spawning the `ravelact` binary (e.g. `tests/e2e_browse.rs` and `tests/completions.rs`) does not contribute to `lcov.info`. Cover those branches via in-file unit tests (see `src/cli/render/browse/mod.rs::mod tests` for the pattern) rather than relying on the integration tests.
 - **Error formatting helpers** that print to stderr only fire on rare malformed inputs and are intentionally not exhaustively tested.
 
 ## Workflow file conventions

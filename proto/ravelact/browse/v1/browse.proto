@@ -1,0 +1,311 @@
+// Source of truth for the `browse` subcommand's HTTP API.
+//
+// The Rust server in `src/cli/render/browse/` and the TypeScript SPA in
+// `web/src/` are both generated from this file. See `docs/development.md`
+// for the codegen dev loop. Field naming follows protobuf JSON canonical
+// mapping (lowerCamelCase on the wire).
+syntax = "proto3";
+
+package ravelact.browse.v1;
+
+// All RPCs are unary. The single consumer is the React SPA bundled into
+// the ravelact binary via rust-embed; the server is bound to 127.0.0.1
+// only, so there is no remote / multi-tenant story.
+service BrowseService {
+  // Cytoscape graph for the SPA's main canvas.
+  rpc GetGraph(GetGraphRequest) returns (GetGraphResponse);
+
+  // GitHub provenance of the local repository (host/owner/repo/ref). Returns
+  // NotFound when the browse root is not a git repository, lacks an `origin`
+  // remote, points at a non-GitHub-like host, or has neither a branch nor
+  // a HEAD SHA.
+  rpc GetRepo(GetRepoRequest) returns (GetRepoResponse);
+
+  // Per-event trigger summary across the workflow estate.
+  rpc ListTriggers(ListTriggersRequest) returns (ListTriggersResponse);
+
+  // Multi-token AND, case-insensitive substring search over the graph nodes.
+  rpc Search(SearchRequest) returns (SearchResponse);
+
+  // Nodes reachable from workflows that list `event` as an entry trigger.
+  rpc GetEventImpact(GetEventImpactRequest) returns (GetEventImpactResponse);
+
+  // Detail of a single node (workflow / local-action / external-action).
+  // Returns NotFound for unknown id or unsupported kind (external-workflow /
+  // docker are not first-class IR collections).
+  rpc GetNode(GetNodeRequest) returns (GetNodeResponse);
+
+  // Backward reachability for a workflow (everything it transitively pulls
+  // in).
+  rpc GetImpact(GetImpactRequest) returns (GetImpactResponse);
+
+  // Trace tree rooted at a workflow's first entry trigger. Returns NotFound
+  // when the workflow has no entry trigger (reusable-only workflows).
+  rpc Trace(TraceRequest) returns (TraceResponse);
+}
+
+// ---------------------------------------------------------------------------
+// GetGraph
+// ---------------------------------------------------------------------------
+
+message GetGraphRequest {}
+
+message GetGraphResponse {
+  repeated CyNode nodes = 1;
+  repeated CyEdge edges = 2;
+}
+
+// Cytoscape's `{ data: {...} }` envelope is preserved verbatim so the SPA
+// can hand the payload to `@xyflow/react` without remapping.
+message CyNode {
+  CyNodeData data = 1;
+}
+
+message CyNodeData {
+  string id = 1;
+  string label = 2;
+  // One of: workflow / local-action / external-action / external-workflow /
+  // docker. Kept as a free-form string because the SPA narrows it via a TS
+  // union and protobuf enums cannot express the open-string semantics of
+  // legacy node ids.
+  string kind = 3;
+}
+
+message CyEdge {
+  CyEdgeData data = 1;
+}
+
+message CyEdgeData {
+  string id = 1;
+  string source = 2;
+  string target = 3;
+  // One of: annotation / calls-workflow / uses-local-workflow /
+  // uses-local-action / uses-external-action / uses-docker.
+  string kind = 4;
+}
+
+// ---------------------------------------------------------------------------
+// GetRepo
+// ---------------------------------------------------------------------------
+
+message GetRepoRequest {}
+
+message GetRepoResponse {
+  string host = 1;
+  string owner = 2;
+  string repo = 3;
+  // Branch name when on a branch, HEAD SHA when detached.
+  string ref = 4;
+}
+
+// ---------------------------------------------------------------------------
+// ListTriggers
+// ---------------------------------------------------------------------------
+
+message ListTriggersRequest {}
+
+message ListTriggersResponse {
+  repeated TriggerSummary rows = 1;
+}
+
+message TriggerSummary {
+  string event = 1;
+  // Unique workflow count (excludes workflow_call-only declarations).
+  uint32 entry_workflows = 2;
+  uint32 declarations = 3;
+  uint32 typed = 4;
+  uint32 filtered = 5;
+  // Up to 3 representative workflow ids.
+  repeated string examples = 6;
+}
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+message SearchRequest {
+  // Empty / whitespace-only short-circuits to an empty result.
+  string q = 1;
+  optional string kind = 2;
+  optional uint32 limit = 3;
+}
+
+message SearchResponse {
+  repeated SearchMatch matches = 1;
+  bool truncated = 2;
+  uint32 total = 3;
+}
+
+message SearchMatch {
+  string id = 1;
+  string kind = 2;
+  string label = 3;
+}
+
+// ---------------------------------------------------------------------------
+// GetEventImpact
+// ---------------------------------------------------------------------------
+
+message GetEventImpactRequest {
+  string event = 1;
+}
+
+message GetEventImpactResponse {
+  // Echoed input.
+  string event = 1;
+  repeated string entry_workflows = 2;
+  repeated string node_ids = 3;
+}
+
+// ---------------------------------------------------------------------------
+// GetNode
+// ---------------------------------------------------------------------------
+
+message GetNodeRequest {
+  // workflow / local-action / external-action.
+  string kind = 1;
+  string id = 2;
+}
+
+message GetNodeResponse {
+  string id = 1;
+  // workflow / local-action / external-action.
+  string kind = 2;
+  string label = 3;
+  // Browse-root-relative forward-slash path; empty for external-action.
+  string file = 4;
+  string summary = 5;
+  repeated string entry_triggers = 6;
+  repeated string refs_in = 7;
+  repeated string refs_out = 8;
+  // Source-order: job-level entry first (if any), then its step-level
+  // entries. Unconditional jobs/steps are omitted.
+  repeated IfCondition if_conditions = 9;
+}
+
+// Discriminated union preserving the invariant that step-scope carries
+// step_index and job-scope does not. The Rust IR's `if:` data model has
+// two source forms (`jobs.<id>.if` and `jobs.<id>.steps[N].if`) and the
+// SPA reflects this in two distinct UI rows.
+message IfCondition {
+  oneof scope {
+    JobIfCondition job = 1;
+    StepIfCondition step = 2;
+  }
+}
+
+message JobIfCondition {
+  string job_id = 1;
+  string expression = 2;
+}
+
+message StepIfCondition {
+  // Null for composite local-action steps that live outside any job.
+  optional string job_id = 1;
+  // 1-based at the API boundary; the Rust IR keeps the 0-based index
+  // internally.
+  uint32 step_index = 2;
+  optional string step_id = 3;
+  optional string step_name = 4;
+  string expression = 5;
+}
+
+// ---------------------------------------------------------------------------
+// GetImpact
+// ---------------------------------------------------------------------------
+
+message GetImpactRequest {
+  string id = 1;
+}
+
+message GetImpactResponse {
+  repeated string workflows = 1;
+  repeated ImpactAction actions = 2;
+  // Seed ids that did not resolve to any known IR node.
+  repeated string unknowns = 3;
+}
+
+message ImpactAction {
+  string id = 1;
+  // composite / javascript / docker.
+  string kind = 2;
+}
+
+// ---------------------------------------------------------------------------
+// Trace
+// ---------------------------------------------------------------------------
+
+message TraceRequest {
+  string id = 1;
+}
+
+message TraceResponse {
+  TraceJsonNode tree = 1;
+  // The trigger event that anchored the trace (first entry trigger of the
+  // requested workflow).
+  string event_used = 2;
+}
+
+// Mirrors `src/query/trace.rs::TraceJsonNode` (8 variants). Encoded as a
+// oneof rather than a tagged-enum string so consumers can use exhaustive
+// switch on `case` without parsing a discriminator field.
+message TraceJsonNode {
+  oneof node {
+    TraceWorkflowNode workflow = 1;
+    TraceActionNode action = 2;
+    TraceExternalActionNode external_action = 3;
+    TraceExternalWorkflowNode external_workflow = 4;
+    TraceDockerNode docker = 5;
+    TraceAnnotatedNode annotated = 6;
+    TraceCycleNode cycle = 7;
+    TraceGuardedNode guarded = 8;
+  }
+}
+
+message TraceWorkflowNode {
+  string id = 1;
+  repeated TraceJsonNode children = 2;
+}
+
+message TraceActionNode {
+  string id = 1;
+  repeated TraceJsonNode children = 2;
+}
+
+message TraceExternalActionNode {
+  string owner = 1;
+  string repo = 2;
+  optional string subpath = 3;
+  string gitref = 4;
+}
+
+message TraceExternalWorkflowNode {
+  string owner = 1;
+  string repo = 2;
+  string path = 3;
+  string gitref = 4;
+}
+
+message TraceDockerNode {
+  string image = 1;
+}
+
+message TraceAnnotatedNode {
+  // dispatch / trigger annotation verb (from ravelact:dispatches /
+  // ravelact:triggers).
+  string verb = 1;
+  bool dangling = 2;
+  string label = 3;
+  repeated TraceJsonNode children = 4;
+}
+
+message TraceCycleNode {
+  // workflow / action.
+  string target_kind = 1;
+  string target = 2;
+}
+
+message TraceGuardedNode {
+  string if_expr = 1;
+  TraceJsonNode inner = 2;
+}

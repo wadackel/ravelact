@@ -332,13 +332,16 @@ test("search + event compose with OR: union is visible", async ({ page }) => {
   );
 });
 
-test("failed /api/graph fetch surfaces ErrorBanner", async ({ page }) => {
-  await page.route("**/api/graph", (route) => route.fulfill({ status: 500, body: "" }));
+test("failed GetGraph fetch surfaces ErrorBanner", async ({ page }) => {
+  const endpoint = "**/ravelact.browse.v1.BrowseService/GetGraph";
+  await page.route(endpoint, (route) => route.fulfill({ status: 500, body: "" }));
   await page.goto("/");
   const alert = page.getByRole("alert");
   await expect(alert).toBeVisible();
-  await expect(alert).toContainText("/api/graph 500");
-  await page.unroute("**/api/graph");
+  // Connect-Web normalizes an HTTP 500 with no Connect body to a
+  // ConnectError whose stringified message contains the HTTP status.
+  await expect(alert).toContainText("500");
+  await page.unroute(endpoint);
 });
 
 test("background tap clears highlight and closes panel", async ({ page }) => {

@@ -263,7 +263,7 @@ function renderDetails(state: State, githubUrl: string | null) {
         {n.id}
       </Field>
       <Field label="Kind">
-        <Kind kind={n.kind} variant="pill" />
+        <Kind kind={n.kind as NodeKind} variant="pill" />
       </Field>
       <Field label="Label">{n.label}</Field>
       {n.file && (
@@ -288,18 +288,25 @@ function renderDetails(state: State, githubUrl: string | null) {
           </a>
         </Field>
       )}
-      {n.if_conditions.length > 0 && (
+      {n.ifConditions.length > 0 && (
         <Field label="Conditions">
           <ul className="m-0 p-0 list-none [&>li]:py-1 [&>li:not(:last-child)]:border-b [&>li:not(:last-child)]:border-border-soft">
-            {n.if_conditions.map((c, i) => (
-              <li key={i} data-testid="condition-row" className="text-fg text-xs">
-                <div className="whitespace-pre-wrap break-all">
-                  <span className="text-fg-muted">{formatConditionPrefix(c)}</span>
-                  <span aria-hidden="true"> — </span>
-                  <span>{c.expression}</span>
-                </div>
-              </li>
-            ))}
+            {n.ifConditions.map((c, i) => {
+              const variant = c.scope;
+              if (variant === undefined || variant.case === undefined) {
+                return null;
+              }
+              const expression = variant.value.expression;
+              return (
+                <li key={i} data-testid="condition-row" className="text-fg text-xs">
+                  <div className="whitespace-pre-wrap break-all">
+                    <span className="text-fg-muted">{formatConditionPrefix(c)}</span>
+                    <span aria-hidden="true"> — </span>
+                    <span>{expression}</span>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </Field>
       )}
@@ -408,20 +415,25 @@ function CheckIcon() {
   );
 }
 
-// Discriminated-union narrowing keeps unreachable states (e.g. job entry
+// Protobuf-oneof narrowing keeps unreachable states (e.g. job entry
 // with a step_index) out of this helper. `!= null` checks are used so an
 // empty-string id from the API would not silently fall through to the
 // "no hint" branch.
 function formatConditionPrefix(c: IfCondition): string {
-  if (c.scope === "job") {
-    return `job ${c.job_id}`;
+  const variant = c.scope;
+  if (variant === undefined || variant.case === undefined) {
+    return "(unknown scope)";
   }
-  const stepLabel = `step #${c.step_index}`;
-  const stepHint = c.step_name ?? c.step_id;
-  if (c.job_id != null) {
+  if (variant.case === "job") {
+    return `job ${variant.value.jobId}`;
+  }
+  const step = variant.value;
+  const stepLabel = `step #${step.stepIndex}`;
+  const stepHint = step.stepName ?? step.stepId;
+  if (step.jobId != null) {
     return stepHint != null
-      ? `${stepLabel} (${c.job_id} / ${stepHint})`
-      : `${stepLabel} (${c.job_id})`;
+      ? `${stepLabel} (${step.jobId} / ${stepHint})`
+      : `${stepLabel} (${step.jobId})`;
   }
   return stepHint != null ? `${stepLabel} (${stepHint})` : stepLabel;
 }
@@ -437,7 +449,7 @@ function renderTriggers(
   if (state.details === undefined) {
     return <Status type="loading" />;
   }
-  if (state.details === null || state.details.entry_triggers.length === 0) {
+  if (state.details === null || state.details.entryTriggers.length === 0) {
     return (
       <Status type="empty">No entry triggers — this node is reusable-only or not a workflow</Status>
     );
@@ -445,7 +457,7 @@ function renderTriggers(
   return (
     <Field label="Entry triggers">
       <ChipList>
-        {state.details.entry_triggers.map((t) => (
+        {state.details.entryTriggers.map((t) => (
           <EventChipButton
             key={t}
             event={t}
@@ -556,15 +568,23 @@ function renderTrace(
     <>
       <Field label="Event used">
         <EventChipButton
-          event={state.trace.event_used}
-          selected={selectedEvent === state.trace.event_used}
+          event={state.trace.eventUsed}
+          selected={selectedEvent === state.trace.eventUsed}
           onToggle={onSelectEvent}
         />
       </Field>
       <Field label="Tree">
-        <pre className="font-mono text-xs whitespace-pre overflow-x-auto bg-bg-elev p-3 border border-border-soft rounded-md text-fg">
-          {renderTraceTree(state.trace.tree)}
-        </pre>
+        {state.trace.tree ? (
+          <pre className="font-mono text-xs whitespace-pre overflow-x-auto bg-bg-elev p-3 border border-border-soft rounded-md text-fg">
+            {renderTraceTree(state.trace.tree)}
+          </pre>
+        ) : (
+          // Match the empty-state shape used elsewhere in the Panel
+          // (triggers / impact branches) so screen readers see a
+          // `Status` region instead of a `<pre>` with an inline
+          // sentinel.
+          <Status type="empty">No trace tree</Status>
+        )}
       </Field>
     </>
   );

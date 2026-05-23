@@ -59,10 +59,10 @@ import { Graph } from "./Graph.tsx";
 
 const EMPTY_LAYOUT: LayoutResult = { nodes: [], edges: [] };
 
-const PAYLOAD: GraphPayload = {
+const PAYLOAD = {
   nodes: [{ data: { id: "wf:a", label: "A", kind: "workflow" } }],
   edges: [],
-};
+} as unknown as GraphPayload;
 
 function renderGraph(extra: { onLayoutError?: (m: string) => void } = {}) {
   return render(

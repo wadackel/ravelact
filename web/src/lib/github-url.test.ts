@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { githubUrlFor } from "./github-url.ts";
 import type { RepoInfo } from "./types.ts";
 
-const REPO: RepoInfo = {
+const REPO = {
   host: "github.com",
   owner: "wadackel",
   repo: "ravelact",
   ref: "main",
-};
+} as unknown as RepoInfo;
 
 describe("githubUrlFor — workflow", () => {
   it("builds /blob/<ref>/<path> when repo info is present", () => {

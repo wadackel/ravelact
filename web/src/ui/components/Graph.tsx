@@ -109,7 +109,7 @@ function GraphInner({
   // topology changes — not whenever any unrelated `payload` field
   // happens to be reassigned by a future caller.
   const adjacencyEdges = useMemo(
-    () => payload.edges.map((e) => ({ source: e.data.source, target: e.data.target })),
+    () => payload.edges.map((e) => ({ source: e.data!.source, target: e.data!.target })),
     [payload.edges],
   );
 

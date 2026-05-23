@@ -40,7 +40,10 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": {
+      // ConnectRPC endpoint is `POST
+      // /ravelact.browse.v1.BrowseService/<Method>`; forward the whole
+      // service-namespaced prefix to the ravelact backend.
+      "/ravelact.browse.v1.BrowseService": {
         target: `http://127.0.0.1:${ravelactPort}`,
         changeOrigin: false,
       },

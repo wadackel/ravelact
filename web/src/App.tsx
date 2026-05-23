@@ -139,7 +139,7 @@ export function App() {
     fetchEventImpact(selectedEvent, controller.signal)
       .then((r) => {
         if (controller.signal.aborted) return;
-        setAnalysisIds(new Set(r.node_ids));
+        setAnalysisIds(new Set(r.nodeIds));
       })
       .catch((e: unknown) => {
         if (controller.signal.aborted) return;

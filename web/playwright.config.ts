@@ -2,8 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 // Two-server harness:
 //
-//   1. Vite dev server on :5173 with `/api/*` proxied to ravelact at :7879
-//      (set via the `RAVELACT_PORT` env var read in `vite.config.ts`).
+//   1. Vite dev server on :5173 with `/ravelact.browse.v1.BrowseService/*`
+//      proxied to ravelact at :7879 (set via the `RAVELACT_PORT` env var
+//      read in `vite.config.ts`).
 //   2. ravelact `browse` on :7879 — separate from the dev workflow's :7878
 //      so a developer running `pnpm dev` in another shell does not collide
 //      when `pnpm e2e` is invoked. `reuseExistingServer: true` lets a
@@ -11,6 +12,11 @@ import { defineConfig } from "@playwright/test";
 //
 // In CI the binary must already exist at `../target/release/ravelact`
 // (produced by `just frontend && cargo build --release`, see justfile).
+//
+// The ravelact health-check URL is the SPA index served at `/`. The
+// ConnectRPC endpoints under `/ravelact.browse.v1.BrowseService/*`
+// require POST and would 405 a GET probe, so we point Playwright at
+// the static index instead.
 
 export default defineConfig({
   testDir: "./e2e",
@@ -35,7 +41,7 @@ export default defineConfig({
     },
     {
       command: "../target/release/ravelact --root .. browse --no-open --port 7879",
-      url: "http://localhost:7879/api/graph",
+      url: "http://localhost:7879/",
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },

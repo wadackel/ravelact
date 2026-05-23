@@ -7,12 +7,12 @@ import type { TriggerSummary } from "../../lib/types.ts";
 const SAMPLE_TRIGGERS: TriggerSummary[] = [
   {
     event: "push",
-    entry_workflows: 3,
+    entryWorkflows: 3,
     declarations: 3,
     typed: 0,
     filtered: 0,
     examples: [],
-  },
+  } as unknown as TriggerSummary,
 ];
 
 function renderHeader(overrides: Partial<React.ComponentProps<typeof Header>> = {}) {

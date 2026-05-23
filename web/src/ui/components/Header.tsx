@@ -21,7 +21,7 @@ export function Header({
 
   const counts = useMemo(() => {
     if (!triggers) return null;
-    const entryWorkflows = triggers.reduce((a, x) => a + (x.entry_workflows ?? 0), 0);
+    const entryWorkflows = triggers.reduce((a, x) => a + (x.entryWorkflows ?? 0), 0);
     return { events: triggers.length, entryWorkflows };
   }, [triggers]);
 
