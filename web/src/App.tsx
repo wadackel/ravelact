@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { fetchEventImpact, fetchGraph, fetchRepo, fetchSearch, fetchTriggers } from "./lib/api.ts";
 import { getRavelactRf } from "./lib/dev-globals.ts";
 import { NODE_KINDS } from "./lib/kind-format.ts";
+import { readPersistedWidth, writePersistedWidth } from "./lib/panel-width.ts";
 import { useDebounced } from "./ui/hooks/useDebounced.ts";
 import type { GraphPayload, NodeKind, RepoInfo, TriggerSummary } from "./lib/types.ts";
 import { ErrorBanner } from "./ui/components/ErrorBanner.tsx";
@@ -46,6 +47,17 @@ export function App() {
   // OverviewPane's clicks drive).
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [analysisIds, setAnalysisIds] = useState<Set<string> | null>(null);
+
+  // Shared width for the right pane. Lifted out of Panel / OverviewPane
+  // so switching between them does not snap back to the default.
+  // Persisted to localStorage from the handler (not an effect) so the
+  // initial mount does not re-write the value that was just read, and
+  // storage-blocked environments do not warn on every page load.
+  const [panelWidth, setPanelWidth] = useState<number>(() => readPersistedWidth());
+  const handlePanelWidthChange = useCallback((next: number) => {
+    setPanelWidth(next);
+    writePersistedWidth(next);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,12 +205,16 @@ export function App() {
             onTabChange={setPanelTab}
             selectedEvent={selectedEvent}
             onSelectEvent={setSelectedEvent}
+            width={panelWidth}
+            onWidthChange={handlePanelWidthChange}
           />
         ) : (
           <OverviewPane
             triggers={triggers}
             selectedEvent={selectedEvent}
             onSelectEvent={setSelectedEvent}
+            width={panelWidth}
+            onWidthChange={handlePanelWidthChange}
           />
         )}
       </main>

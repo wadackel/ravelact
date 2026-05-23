@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -53,6 +54,37 @@ vi.mock("./ui/components/Graph.tsx", () => {
   }
   return { Graph };
 });
+
+// 3. ResizableRightPane: replace with a stub that publishes its latest
+//    props to a global hook so the persistence + width-propagation
+//    tests can observe and drive width changes without mounting
+//    re-resizable's DOM.
+type ResizableStubProps = {
+  width: number;
+  onWidthChange: (next: number) => void;
+};
+vi.mock("./ui/components/ResizableRightPane.tsx", () => {
+  function setLatestProps(p: ResizableStubProps) {
+    type GlobalHook = { __testResizableLatestProps?: ResizableStubProps };
+    (globalThis as GlobalHook).__testResizableLatestProps = p;
+  }
+  function ResizableRightPane(props: ResizableStubProps & { children: ReactNode }) {
+    setLatestProps({ width: props.width, onWidthChange: props.onWidthChange });
+    return (
+      <div data-testid="resizable-stub" data-width={props.width}>
+        {props.children}
+      </div>
+    );
+  }
+  return { ResizableRightPane };
+});
+
+function latestResizableProps(): ResizableStubProps {
+  type GlobalHook = { __testResizableLatestProps?: ResizableStubProps };
+  const v = (globalThis as GlobalHook).__testResizableLatestProps;
+  if (!v) throw new Error("ResizableRightPane stub has not rendered yet");
+  return v;
+}
 
 import * as api from "./lib/api.ts";
 import { App } from "./App.tsx";
@@ -153,10 +185,13 @@ describe("App — orchestration", () => {
     vi.clearAllMocks();
     type GlobalHook = {
       __testGraphLatestProps?: unknown;
+      __testResizableLatestProps?: unknown;
       __ravelactRf?: RavelactRf;
     };
     delete (globalThis as GlobalHook).__testGraphLatestProps;
+    delete (globalThis as GlobalHook).__testResizableLatestProps;
     delete (globalThis as GlobalHook).__ravelactRf;
+    localStorage.clear();
   });
 
   it("fans out fetchGraph and fetchTriggers once on mount", async () => {
@@ -356,5 +391,68 @@ describe("App — orchestration", () => {
     });
     expect(credits).toHaveLength(1);
     expect(credits[0]).toHaveAttribute("href", "https://github.com/wadackel/ravelact");
+  });
+
+  describe("right-pane width persistence", () => {
+    it("starts at 360 when localStorage is empty", async () => {
+      render(<App />);
+      await waitFor(() => latestResizableProps());
+      expect(latestResizableProps().width).toBe(360);
+    });
+
+    it("restores a persisted in-range value on mount", async () => {
+      localStorage.setItem("ravelact:panel-width", "500");
+      render(<App />);
+      await waitFor(() => latestResizableProps());
+      expect(latestResizableProps().width).toBe(500);
+    });
+
+    it.each([
+      ["99999", "above MAX_CAP"],
+      ["-10", "negative"],
+      ["abc", "non-numeric"],
+      ["", "empty"],
+      ["100", "below MIN"],
+    ])("falls back to 360 when persisted value is %s (%s)", async (raw) => {
+      localStorage.setItem("ravelact:panel-width", raw);
+      render(<App />);
+      await waitFor(() => latestResizableProps());
+      expect(latestResizableProps().width).toBe(360);
+    });
+
+    it("onWidthChange writes through to localStorage and updates the width prop", async () => {
+      render(<App />);
+      await waitFor(() => latestResizableProps());
+      act(() => {
+        latestResizableProps().onWidthChange(450);
+      });
+      expect(localStorage.getItem("ravelact:panel-width")).toBe("450");
+      expect(latestResizableProps().width).toBe(450);
+    });
+
+    it("preserves the width across Panel ↔ OverviewPane toggles", async () => {
+      render(<App />);
+      await waitFor(() => latestResizableProps());
+      // Start at default 360; bump to 480.
+      act(() => latestResizableProps().onWidthChange(480));
+      expect(latestResizableProps().width).toBe(480);
+
+      // OverviewPane → Panel via a node click on the graph stub.
+      await waitFor(() => latestGraphProps());
+      act(() => latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow"));
+      await waitFor(() => {
+        expect(
+          screen.getByRole("complementary", { name: "Node detail panel" }),
+        ).toBeInTheDocument();
+      });
+      expect(latestResizableProps().width).toBe(480);
+
+      // Panel → OverviewPane via background tap.
+      act(() => latestGraphProps().onBackgroundTap());
+      await waitFor(() => {
+        expect(screen.getByRole("complementary", { name: "Graph overview" })).toBeInTheDocument();
+      });
+      expect(latestResizableProps().width).toBe(480);
+    });
   });
 });

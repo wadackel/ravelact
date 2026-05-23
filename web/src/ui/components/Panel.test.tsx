@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
@@ -13,6 +13,13 @@ vi.mock("../../lib/api.ts", () => ({
   fetchTriggers: vi.fn(),
   fetchSearch: vi.fn(),
   fetchEventImpact: vi.fn(),
+}));
+
+// Pass-through stub for ResizableRightPane: render children directly,
+// so the existing role-based queries on the inner <aside> still match
+// without dragging re-resizable's DOM (handle div, etc.) into jsdom.
+vi.mock("./ResizableRightPane.tsx", () => ({
+  ResizableRightPane: ({ children }: { children: ReactNode }) => <>{children}</>,
 }));
 
 import * as api from "../../lib/api.ts";
@@ -48,6 +55,8 @@ function ControlledPanel(props: {
       onTabChange={setTab}
       selectedEvent={selectedEvent}
       onSelectEvent={handleSelectEvent}
+      width={360}
+      onWidthChange={() => {}}
     />
   );
 }

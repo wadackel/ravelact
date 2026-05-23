@@ -1,8 +1,29 @@
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { OverviewPane } from "./OverviewPane.tsx";
+
+// Pass-through stub for ResizableRightPane so existing role / label
+// queries on the inner <aside> keep matching without re-resizable's
+// DOM in jsdom.
+vi.mock("./ResizableRightPane.tsx", () => ({
+  ResizableRightPane: ({ children }: { children: ReactNode }) => <>{children}</>,
+}));
+
+import { OverviewPane, type OverviewPaneProps } from "./OverviewPane.tsx";
 import type { TriggerSummary } from "../../lib/types.ts";
+
+function renderOverview(overrides: Partial<OverviewPaneProps> = {}) {
+  const props: OverviewPaneProps = {
+    triggers: null,
+    selectedEvent: null,
+    onSelectEvent: () => {},
+    width: 360,
+    onWidthChange: () => {},
+    ...overrides,
+  };
+  return render(<OverviewPane {...props} />);
+}
 
 const SAMPLE: TriggerSummary[] = [
   {
@@ -27,17 +48,17 @@ describe("OverviewPane", () => {
   afterEach(() => cleanup());
 
   it("shows a loading status when triggers is null", () => {
-    render(<OverviewPane triggers={null} selectedEvent={null} onSelectEvent={() => {}} />);
+    renderOverview({ triggers: null });
     expect(screen.getByRole("status")).toHaveTextContent("Loading");
   });
 
   it("shows an empty message when triggers is an empty array", () => {
-    render(<OverviewPane triggers={[]} selectedEvent={null} onSelectEvent={() => {}} />);
+    renderOverview({ triggers: [] });
     expect(screen.getByText("No events declared")).toBeInTheDocument();
   });
 
   it("renders one button per event with the entry-workflows count", () => {
-    render(<OverviewPane triggers={SAMPLE} selectedEvent={null} onSelectEvent={() => {}} />);
+    renderOverview({ triggers: SAMPLE });
     const options = screen.getAllByRole("button", {
       name: /^(push|pull_request)/,
     });
@@ -51,7 +72,7 @@ describe("OverviewPane", () => {
   it("clicking an event button invokes onSelectEvent with that event", async () => {
     const user = userEvent.setup();
     const onSelectEvent = vi.fn();
-    render(<OverviewPane triggers={SAMPLE} selectedEvent={null} onSelectEvent={onSelectEvent} />);
+    renderOverview({ triggers: SAMPLE, onSelectEvent });
     await user.click(screen.getByRole("button", { name: /^push/ }));
     expect(onSelectEvent).toHaveBeenCalledWith("push");
   });
@@ -59,7 +80,7 @@ describe("OverviewPane", () => {
   it("clicking the SELECTED event toggles it off (null)", async () => {
     const user = userEvent.setup();
     const onSelectEvent = vi.fn();
-    render(<OverviewPane triggers={SAMPLE} selectedEvent="push" onSelectEvent={onSelectEvent} />);
+    renderOverview({ triggers: SAMPLE, selectedEvent: "push", onSelectEvent });
     await user.click(screen.getByRole("button", { name: /^push/ }));
     expect(onSelectEvent).toHaveBeenCalledWith(null);
   });
@@ -67,7 +88,7 @@ describe("OverviewPane", () => {
   it("marks the selected event with aria-pressed and exposes Clear", async () => {
     const user = userEvent.setup();
     const onSelectEvent = vi.fn();
-    render(<OverviewPane triggers={SAMPLE} selectedEvent="push" onSelectEvent={onSelectEvent} />);
+    renderOverview({ triggers: SAMPLE, selectedEvent: "push", onSelectEvent });
     expect(screen.getByRole("button", { name: /^push/ })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: /^pull_request/ })).toHaveAttribute(
       "aria-pressed",
@@ -80,7 +101,7 @@ describe("OverviewPane", () => {
   it("Escape inside the pane clears the selection when one is active", async () => {
     const user = userEvent.setup();
     const onSelectEvent = vi.fn();
-    render(<OverviewPane triggers={SAMPLE} selectedEvent="push" onSelectEvent={onSelectEvent} />);
+    renderOverview({ triggers: SAMPLE, selectedEvent: "push", onSelectEvent });
     // Focus an event button inside the pane so the keydown lands on
     // the aside subtree, then dispatch Escape.
     await user.click(screen.getByRole("button", { name: /^push/ }));
