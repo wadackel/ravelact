@@ -8,6 +8,10 @@
 
 It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}` in the repository, then turns that map into practical answers: what runs from a trigger, who calls a reusable workflow or local action, what a PR diff impacts, which declarations are orphaned, and where wiring, permissions, secrets, or refactor opportunities need attention.
 
+<p align="center">
+  <img src="docs/images/browse-hero.png" alt="ravelact browse — workflow graph with a workflow node selected, showing the right-side Panel with the Trace tab expanded over the Details, Triggers, and Impact tabs" width="900">
+</p>
+
 > [!NOTE]
 > `ravelact` runs offline against the local repository — no GitHub API calls and no token is required. Local-action discovery prunes derived / VCS-internal directories at any depth: `.git`, `target`, `node_modules`, `dist`, `build`.
 
@@ -33,6 +37,7 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
   - [Check](#check)
   - [Suggest](#suggest)
   - [Export](#export)
+  - [Browse](#browse)
   - [Build & cache](#build--cache)
   - [Shell completion](#shell-completion)
   - [Exit codes](#exit-codes)
@@ -48,6 +53,9 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 - [License](#license)
 
 ## Features
+
+🖥️ **Interactive Web UI (PoC)**
+- Run `ravelact browse` to explore the workflow graph in your browser — pan, zoom, search, click into a node for details / triggers / impact / trace, or pick a trigger event to see what it impacts.
 
 🧭 **Workflow Graph Navigation**
 - Trace every workflow reachable from an event with `trace`.
@@ -253,6 +261,7 @@ wf_1 --> extwf_0
 | `dump` | Export | Print the IR as JSON | 0 |
 | `graph` | Export | Render the call graph as Mermaid `graph LR` | 0 |
 | `build` | Other | Build IR and persist the cache | 0 |
+| `browse` | Other | Launch local server and render the workflow graph in a browser (PoC) | 0 |
 | `completion <shell>` | Other | Print shell-completion setup snippet (bash / zsh / fish) | 0 |
 
 ### Global flags
@@ -720,6 +729,44 @@ wf_1 --> extwf_0
 Paste the resulting Mermaid into a renderer (mermaid.live, GitHub Flavored Markdown ` ```mermaid ` block, etc.) to visualise the call graph.
 
 `--format text` (default) emits raw Mermaid suitable for `> graph.mmd` or for piping into a renderer. `--format markdown` wraps the same Mermaid in a `### Graph` heading + fenced ` ```mermaid ` block, ready to drop into a PR comment or GitHub Job Summary (GitHub renders ` ```mermaid ` blocks natively). Use `dump` for IR JSON. When `--event <event>` matches no entry-points, the Markdown output still emits the fenced block; the body is a `%% (no entry-point matches event <event>)` diagnostic comment.
+
+### Browse
+
+`browse` is a proof-of-concept interactive Web UI for the workflow estate. It launches a local HTTP server bound to `127.0.0.1` on an ephemeral port (or the `--port <N>` you pin), serves the React SPA bundled into the binary, and opens your default browser at the resulting URL. Pass `--no-open` to skip the browser launch for headless / scripted use. The server prunes `tests/fixtures/**` from the graph by default — pass `--include-test-fixtures` to opt back in.
+
+#### Quick start
+
+```sh
+ravelact browse                  # opens http://127.0.0.1:<port>/
+ravelact browse --port 7878      # pin the port
+ravelact browse --no-open        # headless / scripted use
+```
+
+<p align="center">
+  <img src="docs/images/browse-overview.png" alt="ravelact browse — Overview pane with the push trigger event selected; the workflow graph fades every node not transitively reachable from a push-triggered entry workflow" width="720">
+</p>
+
+The Overview pane lists every trigger event declared by the estate; clicking one highlights the entry workflows it fires and fades the rest of the graph, mirroring the `ravelact trace --event <name>` reachable set in graph form.
+
+<p align="center">
+  <img src="docs/images/browse-node-detail.png" alt="ravelact browse — local action node selected, with the Panel's Impact tab listing the workflows that transitively depend on the action" width="720">
+</p>
+
+Selecting any node opens the side Panel. The Impact tab answers "if this changes, which entry workflows are affected?" — driving the same reverse-dependency walk as `ravelact impact`. Sibling tabs (Details, Triggers, Trace) cover node metadata, entry-trigger summary, and the forward-trace tree respectively.
+
+<p align="center">
+  <img src="docs/images/browse-search.png" alt="ravelact browse — search box filtering nodes to those matching the query 'ci'; matched nodes stay vivid while everything else fades" width="720">
+</p>
+
+The search box (top-right, `⌘K` / `Ctrl+K`) matches against node ids, labels, and trigger events. Matched nodes stay vivid; the rest fade, so the result reads as a single highlighted subgraph rather than a separate list.
+
+#### Limitations
+
+`browse` is a PoC. The graph is built once at server start — there is no live reload, so re-run the command after editing workflow files. The UI is light-theme only. It ships with the binary via `rust-embed`, so a stock `cargo install ravelact` is enough — no `pnpm install` on the consumer side.
+
+#### Developer reference
+
+`docs/development.md` has the full [`browse` dev workflow](docs/development.md#browse-subcommand-dev-workflow), including the HMR two-terminal loop, the perf harness at 300 workflows, and the `just snapshot-readme` recipe that regenerates the screenshots above.
 
 ### Build & cache
 

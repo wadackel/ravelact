@@ -79,3 +79,22 @@ clean:
 #   just dev-synthetic 300 --port 7878  # pin port
 dev-synthetic *args:
     deno run --allow-all script/spawn-synthetic-browse.ts {{args}}
+
+# Regenerate the browse screenshots committed under docs/images/. Runs
+# web/scripts/snapshot-readme.ts (Node + tsx + @playwright/test) against
+# `target/release/ravelact` and rewrites docs/images/browse-*.png.
+#
+# Requires:
+#   - the release binary (`just build-release`)
+#   - Playwright Chromium in the global cache (once:
+#     `cd web && nix develop -c pnpm exec playwright install chromium`)
+#
+# The script runs `oxipng -o 4 --strip safe` on each emitted PNG and exits
+# non-zero if the regenerated PNGs differ from the committed files. Pass
+# `--update` to commit new bytes:
+#   just snapshot-readme            # verify only (fails on drift)
+#   just snapshot-readme --update   # rewrite committed PNGs
+#
+# Must not run concurrently with `pnpm e2e` — both may bind localhost ports.
+snapshot-readme *args:
+    cd web && pnpm exec tsx scripts/snapshot-readme.ts {{args}}
