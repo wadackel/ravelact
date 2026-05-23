@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 // Mock the api module BEFORE importing Panel so its module-level
 // `import` resolves to the spies. `vi.mock` is hoisted in vitest.
@@ -16,7 +16,7 @@ vi.mock("../../lib/api.ts", () => ({
 }));
 
 import * as api from "../../lib/api.ts";
-import type { NodeKind, RepoInfo } from "../../lib/types.ts";
+import type { IfCondition, NodeKind, RepoInfo } from "../../lib/types.ts";
 import { Panel, type Tab } from "./Panel.tsx";
 
 // Mirrors App.tsx's wiring: owns the active tab + event-selection
@@ -69,6 +69,7 @@ function nodeResponse(id: string) {
     entry_triggers: ["push"],
     refs_in: [],
     refs_out: [],
+    if_conditions: [],
   };
 }
 
@@ -210,6 +211,7 @@ describe("Panel — fetch + cacheRef invariants", () => {
       entry_triggers: [],
       refs_in: [],
       refs_out: [],
+      if_conditions: [],
     });
     render(
       <ControlledPanel
@@ -467,5 +469,193 @@ describe("Panel — Copy button", () => {
       warn.mockRestore();
       err.mockRestore();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Conditions surface (Details tab — `/api/node` `if_conditions` payload)
+// ---------------------------------------------------------------------------
+
+function nodeWithIfConditions(
+  if_conditions: IfCondition[],
+  overrides: Partial<{ id: string; kind: "workflow" | "local-action" | "external-action" }> = {},
+) {
+  return {
+    id: overrides.id ?? "wf:x",
+    kind: overrides.kind ?? ("workflow" as const),
+    label: overrides.id ?? "wf:x",
+    file: ".github/workflows/x.yaml",
+    summary: "1 job(s), 1 trigger(s)",
+    entry_triggers: ["push"],
+    refs_in: [],
+    refs_out: [],
+    if_conditions,
+  };
+}
+
+describe("Panel — Conditions surface", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it("hides the Conditions surface when if_conditions is empty (workflow)", async () => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(nodeWithIfConditions([]));
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    // Wait for Details to leave the loading state.
+    await screen.findByText(".github/workflows/x.yaml");
+    expect(screen.queryByText("Conditions")).toBeNull();
+  });
+
+  it("hides the Conditions surface for an external-action node (always empty)", async () => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      nodeWithIfConditions([], { id: "ea:actions/checkout@v4", kind: "external-action" }),
+    );
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "ea:actions/checkout@v4", kind: "external-action" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    // Wait for Details to render (Label appears regardless of file/summary).
+    await screen.findByText("ea:actions/checkout@v4");
+    expect(screen.queryByText("Conditions")).toBeNull();
+  });
+
+  it("renders a job-level if condition with job id and expression", async () => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      nodeWithIfConditions([
+        {
+          scope: "job",
+          job_id: "deploy",
+          expression: "github.ref == 'refs/heads/main'",
+        },
+      ]),
+    );
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    expect(await screen.findByText("Conditions")).toBeVisible();
+    expect(screen.getByText("job deploy")).toBeVisible();
+    expect(screen.getByText("github.ref == 'refs/heads/main'")).toBeVisible();
+  });
+
+  it("renders workflow job + step entries preserving source order with step context", async () => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      nodeWithIfConditions([
+        {
+          scope: "job",
+          job_id: "build",
+          expression: "EXPR_JOB",
+        },
+        {
+          scope: "step",
+          job_id: "build",
+          step_index: 1,
+          step_id: null,
+          step_name: "Compile",
+          expression: "EXPR_STEP",
+        },
+      ]),
+    );
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    await screen.findByText("Conditions");
+    // Source order: job entry first, step entry second. Walk the row list
+    // in DOM order and read the prefix/expression text per row.
+    const rows = screen.getAllByTestId("condition-row");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText("job build")).toBeVisible();
+    expect(within(rows[0]!).getByText("EXPR_JOB")).toBeVisible();
+    expect(within(rows[1]!).getByText("step #1 (build / Compile)")).toBeVisible();
+    expect(within(rows[1]!).getByText("EXPR_STEP")).toBeVisible();
+  });
+
+  it("renders a composite local-action step entry without job-id context", async () => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      nodeWithIfConditions(
+        [
+          {
+            scope: "step",
+            job_id: null,
+            step_index: 1,
+            step_id: "finalize",
+            step_name: null,
+            expression: "runner.os == 'Linux'",
+          },
+        ],
+        { id: "la:.github/actions/foo", kind: "local-action" },
+      ),
+    );
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "la:.github/actions/foo", kind: "local-action" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    const row = await screen.findByTestId("condition-row");
+    expect(within(row).getByText("step #1 (finalize)")).toBeVisible();
+    expect(within(row).getByText("runner.os == 'Linux'")).toBeVisible();
+    // job_id is null here — no "/ <job>" segment should appear. Scoping
+    // the negative check to the condition row avoids false positives
+    // from surrounding chrome that may legitimately mention other ids.
+    expect(row.textContent ?? "").not.toContain(" / ");
+  });
+
+  it("preserves newlines in a multiline expression with whitespace-pre-wrap", async () => {
+    const multiline = "github.event_name == 'push'\n&& startsWith(github.ref, 'refs/tags/')";
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      nodeWithIfConditions([
+        {
+          scope: "step",
+          job_id: "release",
+          step_index: 1,
+          step_id: null,
+          step_name: null,
+          expression: multiline,
+        },
+      ]),
+    );
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    // testing-library's default normalizer collapses whitespace, which
+    // erases the `\n` we are asserting on. Read raw `textContent` off the
+    // condition row directly and verify the `whitespace-pre-wrap`
+    // utility is in place so visual line preservation does not silently
+    // regress.
+    const row = await screen.findByTestId("condition-row");
+    const wrapper = row.querySelector<HTMLDivElement>("div");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.className).toContain("whitespace-pre-wrap");
+    expect(row.textContent ?? "").toContain("\n");
+    expect(row.textContent ?? "").toContain(multiline);
   });
 });

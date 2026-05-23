@@ -144,6 +144,7 @@ describe("App — orchestration", () => {
       entry_triggers: ["push"],
       refs_in: [],
       refs_out: [],
+      if_conditions: [],
     });
   });
 

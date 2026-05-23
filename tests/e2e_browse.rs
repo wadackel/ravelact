@@ -348,6 +348,52 @@ mod tests {
         response
     }
 
+    /// `/api/node` must surface `if_conditions` for a workflow whose source
+    /// carries both job-level and step-level `if:` guards. Parses the JSON
+    /// body and asserts the expected entries explicitly so a future
+    /// addition of guarded steps cannot trip a brittle substring match
+    /// (e.g. `"step_index":1` accidentally matching `"step_index":10`).
+    /// The `step-if-guard` fixture is reused as the workflow input.
+    #[test]
+    fn api_node_surfaces_if_conditions_over_http() {
+        let fixture =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/synthetic/step-if-guard");
+        let (mut child, port) = spawn_browse_server(&fixture);
+
+        let id = urlencode_path(".github/workflows/ci.yml");
+        let response = http_get(port, &format!("/api/node?kind=workflow&id={id}"));
+        let body = body_after_headers(&response);
+        let body_str = String::from_utf8_lossy(body).into_owned();
+
+        let parsed: serde_json::Value = serde_json::from_slice(body)
+            .unwrap_or_else(|e| panic!("response is not valid JSON: {e}; body: {body_str}"));
+        let conditions = parsed
+            .get("if_conditions")
+            .and_then(|v| v.as_array())
+            .unwrap_or_else(|| panic!("response must carry if_conditions array; body: {body_str}"));
+
+        let has_job_entry = conditions.iter().any(|c| {
+            c.get("scope").and_then(|v| v.as_str()) == Some("job")
+                && c.get("job_id").and_then(|v| v.as_str()) == Some("combined")
+        });
+        assert!(
+            has_job_entry,
+            "response must include a job-scope entry for `combined`; body: {body_str}",
+        );
+
+        let has_step_entry = conditions.iter().any(|c| {
+            c.get("scope").and_then(|v| v.as_str()) == Some("step")
+                && c.get("step_index").and_then(|v| v.as_u64()) == Some(1)
+        });
+        assert!(
+            has_step_entry,
+            "response must include a step-scope entry with 1-based step_index=1; body: {body_str}",
+        );
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
     /// `tests/fixtures/foo/.github/actions/foo/action.yaml` is the canonical
     /// shape `browse` excludes by default. With no opt-out, `/api/graph`
     /// must not surface this local-action node.
