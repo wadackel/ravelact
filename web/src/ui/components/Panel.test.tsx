@@ -369,3 +369,103 @@ describe("Panel — fetch + cacheRef invariants", () => {
     expect(api.fetchNode).toHaveBeenLastCalledWith("workflow", "y");
   });
 });
+
+// The Copy button is exercised separately from the fetch/cache suite above so
+// the per-test clipboard mock and fake-timer lifecycle stay contained — those
+// affect microtask ordering and would complicate the existing assertions.
+describe("Panel — Copy button", () => {
+  let writeText: ReturnType<typeof vi.fn>;
+  let originalClipboard: PropertyDescriptor | undefined;
+
+  beforeEach(() => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValue(nodeResponse("wf:x"));
+    writeText = vi.fn();
+    originalClipboard = Object.getOwnPropertyDescriptor(navigator, "clipboard");
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    if (originalClipboard) {
+      Object.defineProperty(navigator, "clipboard", originalClipboard);
+    } else {
+      // jsdom may not pre-define `navigator.clipboard`; in that case drop
+      // the property we installed instead of leaving the stub behind.
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
+  });
+
+  it("renders the Copy button alongside the File row", async () => {
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    await screen.findByText(".github/workflows/x.yaml");
+    expect(screen.getByRole("button", { name: "Copy file path" })).toBeVisible();
+  });
+
+  it("writes the displayed file path on click and shows the Copied affordance", async () => {
+    writeText.mockResolvedValue(undefined);
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    await screen.findByText(".github/workflows/x.yaml");
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy file path" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(".github/workflows/x.yaml"));
+    // aria-live region announces success; sr-only but in the DOM.
+    await waitFor(() => expect(screen.getByText("Copied")).toBeInTheDocument());
+
+    // The feedback window is 1500 ms (COPY_FEEDBACK_MS); allow a small
+    // cushion to absorb scheduler / jsdom jitter.
+    await waitFor(() => expect(screen.queryByText("Copied")).not.toBeInTheDocument(), {
+      timeout: 3000,
+    });
+  });
+
+  it("falls back to a Copy failed state when writeText rejects, without an error log", async () => {
+    writeText.mockRejectedValue(new Error("denied"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      render(
+        <ControlledPanel
+          initialTab="details"
+          openFor={{ id: "wf:x", kind: "workflow" }}
+          onClose={() => {}}
+          repoInfo={null}
+        />,
+      );
+      await screen.findByText(".github/workflows/x.yaml");
+
+      fireEvent.click(screen.getByRole("button", { name: "Copy file path" }));
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(screen.getByText("Copy failed")).toBeInTheDocument());
+
+      expect(warn).toHaveBeenCalled();
+      expect(err).not.toHaveBeenCalled();
+
+      await waitFor(() => expect(screen.queryByText("Copy failed")).not.toBeInTheDocument(), {
+        timeout: 3000,
+      });
+    } finally {
+      warn.mockRestore();
+      err.mockRestore();
+    }
+  });
+});

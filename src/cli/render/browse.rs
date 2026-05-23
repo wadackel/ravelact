@@ -17,10 +17,11 @@ use crate::cache::CacheMode;
 use crate::ir::{
     ActionId, AnnotationResolution, ExternalActionRef, Ir, UsesRef, WorkflowId, WorkflowRef,
 };
+use crate::parser::workflow::path_to_forward;
 use crate::query::{
     impact as impact_query, trace as trace_query, triggers as triggers_query, walk,
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use axum::body::Bytes;
 use axum::extract::{Query, State};
 use axum::http::{header, StatusCode};
@@ -32,7 +33,7 @@ use rust_embed::Embed;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
 use url::Url;
@@ -40,6 +41,16 @@ use url::Url;
 #[derive(Embed)]
 #[folder = "web/dist/"]
 struct WebAssets;
+
+/// Shared axum state for `browse` handlers. Carries the IR plus the
+/// canonicalized browse root so `/api/node` can emit file paths relative
+/// to it. Both fields are `Arc` so the struct stays cheap to clone for
+/// every request (axum clones `State` on each invocation).
+#[derive(Clone)]
+pub(crate) struct BrowseState {
+    ir: Arc<Ir>,
+    root: Arc<PathBuf>,
+}
 
 pub(in crate::cli) fn run(
     root: &Path,
@@ -51,6 +62,18 @@ pub(in crate::cli) fn run(
     let ir = Arc::new(super::super::build_or_load(root, cache_mode, excludes)?);
     let graph = build_graph_json(&ir);
     let repo_info = compute_repo_info(root);
+    // Match the canonicalization that `discover_sources` (src/ir/build.rs)
+    // applies to root when populating `SourcePos.file`. Holding the same
+    // canonical form here means `strip_prefix` succeeds in the normal case;
+    // the absolute fallback in `api_node` covers cache-loaded IRs whose
+    // source paths point at a moved or renamed root.
+    let canon_root = root
+        .canonicalize()
+        .with_context(|| format!("canonicalize browse root {}", root.display()))?;
+    let state = BrowseState {
+        ir,
+        root: Arc::new(canon_root),
+    };
 
     // current_thread runtime: this is a single-user local server with at
     // most a handful of in-flight requests, so multi-threading would add
@@ -58,7 +81,7 @@ pub(in crate::cli) fn run(
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    runtime.block_on(serve(ir, graph, repo_info, port, no_open))
+    runtime.block_on(serve(state, graph, repo_info, port, no_open))
 }
 
 fn build_graph_json(ir: &Ir) -> Value {
@@ -414,7 +437,11 @@ fn split_owner_repo(rest: &str) -> Option<(String, String)> {
 /// router shape — route ordering, `with_state(ir)` placement — is kept in
 /// lockstep with the serve loop so the integration tests in
 /// `tests/e2e_browse.rs` continue to observe identical behavior.
-pub(crate) fn build_router(ir: Arc<Ir>, api_body: Bytes, repo_body: Option<Bytes>) -> Router {
+pub(crate) fn build_router(
+    state: BrowseState,
+    api_body: Bytes,
+    repo_body: Option<Bytes>,
+) -> Router {
     Router::new()
         .route("/", get(serve_index))
         // axum's catch-all `{*path}` is evaluated AFTER more-specific routes,
@@ -453,11 +480,11 @@ pub(crate) fn build_router(ir: Arc<Ir>, api_body: Bytes, repo_body: Option<Bytes
         .route("/api/node", get(api_node))
         .route("/api/impact", get(api_impact))
         .route("/api/trace", get(api_trace))
-        .with_state(ir)
+        .with_state(state)
 }
 
 async fn serve(
-    ir: Arc<Ir>,
+    state: BrowseState,
     graph: Value,
     repo_info: Option<RepoInfo>,
     port: Option<u16>,
@@ -474,7 +501,7 @@ async fn serve(
         .as_ref()
         .map(|r| Bytes::from(serde_json::to_vec(r).expect("RepoInfo serializes")));
 
-    let app = build_router(ir, api_body, repo_body);
+    let app = build_router(state, api_body, repo_body);
 
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port.unwrap_or(0))).await?;
     let addr = listener.local_addr()?;
@@ -551,7 +578,7 @@ struct TriggersResponse {
     rows: Vec<triggers_query::TriggerSummary>,
 }
 
-async fn api_triggers(State(ir): State<Arc<Ir>>) -> Json<TriggersResponse> {
+async fn api_triggers(State(BrowseState { ir, .. }): State<BrowseState>) -> Json<TriggersResponse> {
     Json(TriggersResponse {
         rows: triggers_query::triggers(&ir),
     })
@@ -590,7 +617,7 @@ struct SearchResponse {
 /// short-circuits to an empty result; results are truncated to `limit`
 /// (default 200) with `truncated` flag.
 async fn api_search(
-    State(ir): State<Arc<Ir>>,
+    State(BrowseState { ir, .. }): State<BrowseState>,
     Query(params): Query<SearchParams>,
 ) -> Json<SearchResponse> {
     let q = params.q.unwrap_or_default();
@@ -751,7 +778,7 @@ struct EventImpactResponse {
 /// tree into a flat id set. Used by the SPA's overview pane to
 /// highlight what an event drives.
 async fn api_event_impact(
-    State(ir): State<Arc<Ir>>,
+    State(BrowseState { ir, .. }): State<BrowseState>,
     Query(params): Query<EventImpactParams>,
 ) -> Json<EventImpactResponse> {
     let event = params.event.unwrap_or_default();
@@ -841,8 +868,20 @@ struct NodeResponse {
     refs_out: Vec<String>,
 }
 
+/// Render an IR source path as a forward-slash string relative to the
+/// browse root. The IR's `source.file` is the canonicalized absolute path
+/// recorded during `discover_sources`, so `strip_prefix` succeeds whenever
+/// the runtime root still matches the build-time root. The fallback path
+/// covers cache-loaded IRs whose root has since moved; emitting the
+/// absolute display keeps the UI's File row populated rather than blank.
+fn relative_source_path(file: &Path, root: &Path) -> String {
+    file.strip_prefix(root)
+        .map(path_to_forward)
+        .unwrap_or_else(|_| file.display().to_string())
+}
+
 async fn api_node(
-    State(ir): State<Arc<Ir>>,
+    State(BrowseState { ir, root }): State<BrowseState>,
     Query(params): Query<NodeParams>,
 ) -> Result<Json<NodeResponse>, StatusCode> {
     match params.kind.as_str() {
@@ -858,11 +897,12 @@ async fn api_node(
                 .filter(|t| t.is_entry_point())
                 .map(|t| t.event.name().to_string())
                 .collect();
+            let file = relative_source_path(&wf.source.file, &root);
             Ok(Json(NodeResponse {
                 id: workflow_node_id(&wf.id),
                 kind: "workflow".into(),
                 label: wf.name.clone().unwrap_or_else(|| wf.id.0.clone()),
-                file: wf.source.file.display().to_string(),
+                file,
                 summary: format!("{} job(s), {} trigger(s)", wf.jobs.len(), wf.triggers.len()),
                 entry_triggers,
                 refs_in: Vec::new(),
@@ -880,11 +920,12 @@ async fn api_node(
                 crate::ir::ActionKind::JavaScript { .. } => "javascript",
                 crate::ir::ActionKind::Docker => "docker",
             };
+            let file = relative_source_path(&la.source.file, &root);
             Ok(Json(NodeResponse {
                 id: action_node_id(&la.id),
                 kind: "local-action".into(),
                 label: la.name.clone().unwrap_or_else(|| la.id.0.clone()),
-                file: la.source.file.display().to_string(),
+                file,
                 summary: format!("{kind_label}; {} step(s)", la.steps.len()),
                 entry_triggers: Vec::new(),
                 refs_in: Vec::new(),
@@ -939,7 +980,7 @@ struct TraceResponse {
 }
 
 async fn api_trace(
-    State(ir): State<Arc<Ir>>,
+    State(BrowseState { ir, .. }): State<BrowseState>,
     Query(params): Query<IdParams>,
 ) -> Result<Json<TraceResponse>, StatusCode> {
     let wf = ir
@@ -976,7 +1017,7 @@ async fn api_trace(
 }
 
 async fn api_impact(
-    State(ir): State<Arc<Ir>>,
+    State(BrowseState { ir, .. }): State<BrowseState>,
     Query(params): Query<IdParams>,
 ) -> Json<ImpactResponse> {
     let (result, unknowns) = impact_query::impact(&ir, std::slice::from_ref(&params.id));
@@ -1014,6 +1055,17 @@ mod tests {
         Arc::new(ir)
     }
 
+    /// Wrap an IR into the axum state shape handlers expect. Unit tests in
+    /// this module never exercise the `root`-dependent branch, so an empty
+    /// PathBuf is sufficient — the `strip_prefix` fallback returns the
+    /// absolute path, which the assertions here do not inspect.
+    fn state_for(ir: Arc<Ir>) -> BrowseState {
+        BrowseState {
+            ir,
+            root: Arc::new(PathBuf::new()),
+        }
+    }
+
     const ALLOWED_NODE_KINDS: &[&str] = &[
         "workflow",
         "local-action",
@@ -1046,7 +1098,7 @@ mod tests {
             kind: "workflow".into(),
             id: wf_id.clone(),
         };
-        let resp = api_node(State(ir), Query(params))
+        let resp = api_node(State(state_for(ir)), Query(params))
             .await
             .expect("workflow lookup should succeed");
         assert_eq!(resp.0.kind, "workflow");
@@ -1061,7 +1113,7 @@ mod tests {
             kind: "workflow".into(),
             id: "nonexistent/workflow.yml".into(),
         };
-        let result = api_node(State(ir), Query(params)).await;
+        let result = api_node(State(state_for(ir)), Query(params)).await;
         assert!(matches!(result, Err(StatusCode::NOT_FOUND)));
     }
 
@@ -1072,7 +1124,7 @@ mod tests {
             kind: "external-workflow".into(),
             id: "anything".into(),
         };
-        let result = api_node(State(ir), Query(params)).await;
+        let result = api_node(State(state_for(ir)), Query(params)).await;
         assert!(matches!(result, Err(StatusCode::NOT_FOUND)));
     }
 
@@ -1089,7 +1141,7 @@ mod tests {
         let params = IdParams {
             id: seed_id.clone(),
         };
-        let resp = api_trace(State(ir), Query(params))
+        let resp = api_trace(State(state_for(ir)), Query(params))
             .await
             .expect("trace lookup should succeed");
         let TraceResponse { tree, event_used } = resp.0;
@@ -1115,7 +1167,7 @@ mod tests {
             .map(|w| w.id.0.clone())
             .unwrap_or_else(|| "completely/unknown.yml".to_string());
         let params = IdParams { id: target_id };
-        let result = api_trace(State(ir), Query(params)).await;
+        let result = api_trace(State(state_for(ir)), Query(params)).await;
         assert!(matches!(result, Err(StatusCode::NOT_FOUND)));
     }
 
@@ -1130,7 +1182,7 @@ mod tests {
             .0
             .clone();
         let params = IdParams { id: seed };
-        let Json(resp) = api_impact(State(ir), Query(params)).await;
+        let Json(resp) = api_impact(State(state_for(ir)), Query(params)).await;
         // ImpactResponse must always include all three fields, even when empty.
         // workflows + actions populated depends on fixture; just verify shape.
         let _ = resp.workflows;
@@ -1148,7 +1200,7 @@ mod tests {
         let params = IdParams {
             id: "completely/nonexistent.yml".into(),
         };
-        let Json(resp) = api_impact(State(ir), Query(params)).await;
+        let Json(resp) = api_impact(State(state_for(ir)), Query(params)).await;
         assert_eq!(
             resp.unknowns,
             vec!["completely/nonexistent.yml".to_string()],
@@ -1159,7 +1211,7 @@ mod tests {
     #[tokio::test]
     async fn api_triggers_returns_global_summary() {
         let ir = load_simple_ir();
-        let Json(resp) = api_triggers(State(ir.clone())).await;
+        let Json(resp) = api_triggers(State(state_for(ir.clone()))).await;
         assert!(
             !resp.rows.is_empty(),
             "simple fixture should declare at least one trigger event",
@@ -1401,7 +1453,7 @@ mod tests {
             .enable_all()
             .build()
             .expect("runtime");
-        rt.block_on(async { api_search(State(ir), Query(params)).await.0 })
+        rt.block_on(async { api_search(State(state_for(ir)), Query(params)).await.0 })
     }
 
     #[test]
@@ -1531,7 +1583,7 @@ mod tests {
             .build()
             .expect("runtime");
         rt.block_on(async {
-            api_event_impact(State(ir), Query(EventImpactParams { event }))
+            api_event_impact(State(state_for(ir)), Query(EventImpactParams { event }))
                 .await
                 .0
         })
@@ -1577,7 +1629,7 @@ mod tests {
 
     fn router_for(ir: Arc<Ir>, repo_body: Option<Bytes>) -> Router {
         let api_body = Bytes::from(serde_json::to_vec(&build_graph_json(&ir)).expect("graph"));
-        build_router(ir, api_body, repo_body)
+        build_router(state_for(ir), api_body, repo_body)
     }
 
     async fn oneshot_get(router: Router, uri: &str) -> axum::http::Response<axum::body::Body> {
@@ -1625,7 +1677,7 @@ mod tests {
         let ir = load_simple_ir();
         let graph = build_graph_json(&ir);
         let expected = serde_json::to_vec(&graph).expect("graph bytes");
-        let router = build_router(ir, Bytes::from(expected.clone()), None);
+        let router = build_router(state_for(ir), Bytes::from(expected.clone()), None);
         let resp = oneshot_get(router, "/api/graph").await;
         assert_eq!(resp.status(), axum::http::StatusCode::OK);
         let ct = resp
@@ -1919,7 +1971,7 @@ mod tests {
             kind: "local-action".into(),
             id: action_id.clone(),
         };
-        let resp = api_node(State(ir), Query(params))
+        let resp = api_node(State(state_for(ir)), Query(params))
             .await
             .expect("local-action lookup");
         assert_eq!(resp.0.kind, "local-action");
@@ -1948,7 +2000,7 @@ mod tests {
             kind: "external-action".into(),
             id: bare,
         };
-        let resp = api_node(State(ir), Query(params))
+        let resp = api_node(State(state_for(ir)), Query(params))
             .await
             .expect("external-action lookup");
         assert_eq!(resp.0.kind, "external-action");
@@ -1960,7 +2012,7 @@ mod tests {
     async fn api_node_returns_404_for_unknown_local_action() {
         let ir = load_simple_ir();
         let resp = api_node(
-            State(ir),
+            State(state_for(ir)),
             Query(NodeParams {
                 kind: "local-action".into(),
                 id: "does-not-exist".into(),
@@ -1974,7 +2026,7 @@ mod tests {
     async fn api_node_returns_404_for_unknown_external_action() {
         let ir = load_simple_ir();
         let resp = api_node(
-            State(ir),
+            State(state_for(ir)),
             Query(NodeParams {
                 kind: "external-action".into(),
                 id: "nope/nope@deadbeef".into(),
