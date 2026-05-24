@@ -2307,4 +2307,367 @@ mod tests {
             resp.node_ids,
         );
     }
+
+    // -----------------------------------------------------------------
+    // BrowseService trait async impls — drive each RPC through the
+    // generated `Owned*RequestView` so the trait-impl wrapper layer is
+    // exercised in-process. Each test decodes a request from an
+    // encoded `Default::default()` instance to dodge the borrowing
+    // gymnastics of the borrowed `*View<'a>` shape.
+    // -----------------------------------------------------------------
+
+    fn decoded_request<R, V>(req: &R) -> ::buffa::view::OwnedView<V>
+    where
+        R: ::buffa::Message,
+        V: ::buffa::view::MessageView<'static>,
+    {
+        ::buffa::view::OwnedView::<V>::decode(req.encode_to_bytes())
+            .expect("default request must decode")
+    }
+
+    fn empty_ctx() -> RequestContext {
+        RequestContext::new(axum::http::HeaderMap::new())
+    }
+
+    #[tokio::test]
+    async fn trait_get_graph_returns_ok() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::GetGraphRequest::default());
+        let resp = BrowseService::get_graph(&svc, empty_ctx(), req)
+            .await
+            .expect("get_graph must succeed")
+            .body;
+        assert!(!resp.nodes.is_empty(), "simple fixture must yield nodes");
+    }
+
+    #[tokio::test]
+    async fn trait_get_repo_returns_not_found_when_repo_info_missing() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::GetRepoRequest::default());
+        let err = BrowseService::get_repo(&svc, empty_ctx(), req)
+            .await
+            .expect_err("missing repo_info must surface NotFound");
+        assert_eq!(err.code, ::connectrpc::ErrorCode::NotFound);
+    }
+
+    #[tokio::test]
+    async fn trait_get_repo_returns_payload_when_repo_info_present() {
+        let ir = load_simple_ir();
+        let info = RepoInfo {
+            host: "github.com".to_string(),
+            owner: "wadackel".to_string(),
+            repo: "ravelact".to_string(),
+            git_ref: "main".to_string(),
+        };
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), Some(info));
+        let req = decoded_request(&pb::GetRepoRequest::default());
+        let resp = BrowseService::get_repo(&svc, empty_ctx(), req)
+            .await
+            .expect("get_repo with repo_info must succeed")
+            .body;
+        assert_eq!(resp.host, "github.com");
+        assert_eq!(resp.owner, "wadackel");
+        assert_eq!(resp.repo, "ravelact");
+        assert_eq!(resp.r#ref, "main");
+    }
+
+    #[tokio::test]
+    async fn trait_list_triggers_returns_ok() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::ListTriggersRequest::default());
+        let resp = BrowseService::list_triggers(&svc, empty_ctx(), req)
+            .await
+            .expect("list_triggers must succeed")
+            .body;
+        assert!(
+            !resp.rows.is_empty(),
+            "simple fixture must declare triggers"
+        );
+    }
+
+    #[tokio::test]
+    async fn trait_search_returns_ok_for_empty_query() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::SearchRequest::default());
+        let resp = BrowseService::search(&svc, empty_ctx(), req)
+            .await
+            .expect("search must succeed")
+            .body;
+        assert_eq!(resp.total, 0);
+        assert!(resp.matches.is_empty());
+    }
+
+    #[tokio::test]
+    async fn trait_get_event_impact_returns_ok() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::GetEventImpactRequest::default());
+        let _resp = BrowseService::get_event_impact(&svc, empty_ctx(), req)
+            .await
+            .expect("get_event_impact must succeed")
+            .body;
+    }
+
+    #[tokio::test]
+    async fn trait_get_node_returns_not_found_for_default_request() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::GetNodeRequest::default());
+        let err = BrowseService::get_node(&svc, empty_ctx(), req)
+            .await
+            .expect_err("default empty kind/id must surface NotFound");
+        assert_eq!(err.code, ::connectrpc::ErrorCode::NotFound);
+    }
+
+    #[tokio::test]
+    async fn trait_get_impact_returns_ok() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::GetImpactRequest::default());
+        let _resp = BrowseService::get_impact(&svc, empty_ctx(), req)
+            .await
+            .expect("get_impact must succeed")
+            .body;
+    }
+
+    #[tokio::test]
+    async fn trait_trace_returns_not_found_for_default_request() {
+        let svc = svc_for(load_simple_ir());
+        let req = decoded_request(&pb::TraceRequest::default());
+        let err = BrowseService::trace(&svc, empty_ctx(), req)
+            .await
+            .expect_err("default empty id must surface NotFound");
+        assert_eq!(err.code, ::connectrpc::ErrorCode::NotFound);
+    }
+
+    // -----------------------------------------------------------------
+    // Static handlers + MIME table. Direct `.await + .into_response()`
+    // avoids spinning up axum's router; we only need to assert headers /
+    // status / body shape. These tests require `web/dist/index.html` to
+    // exist (produced by `just frontend` before `just test`).
+    // -----------------------------------------------------------------
+
+    #[tokio::test]
+    async fn serve_index_returns_html_content_type_and_non_empty_body() {
+        use axum::response::IntoResponse;
+        let resp = serve_index().await.into_response();
+        let ct = resp
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .expect("Content-Type header set")
+            .to_str()
+            .expect("Content-Type ASCII");
+        assert_eq!(ct, "text/html; charset=utf-8");
+        let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .expect("body collects");
+        assert!(!body.is_empty(), "index.html must have content");
+    }
+
+    #[tokio::test]
+    async fn serve_asset_returns_not_found_for_missing_asset() {
+        use axum::response::IntoResponse;
+        let resp = serve_asset(axum::extract::Path("nonexistent-asset.js".to_string()))
+            .await
+            .into_response();
+        assert_eq!(resp.status(), axum::http::StatusCode::NOT_FOUND);
+    }
+
+    // -----------------------------------------------------------------
+    // BrowseSvc helpers — ActionKind arms in `node_response` /
+    // `impact_response`. graph_response / repo_response /
+    // list_triggers_response are covered transitively by the trait_*
+    // tests above; this block targets the action-kind branches that
+    // require fixtures with non-Composite ActionKind variants.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn node_response_local_action_kind_label_docker() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/docker-action");
+        let action_id = ir
+            .actions
+            .first()
+            .expect("docker-action fixture defines an action")
+            .id
+            .0
+            .clone();
+        let svc = svc_for(ir);
+        let resp = svc
+            .node_response("local-action", &action_id)
+            .expect("local-action lookup must succeed");
+        assert!(
+            resp.summary.starts_with("docker;"),
+            "summary must start with docker; got {:?}",
+            resp.summary,
+        );
+    }
+
+    #[test]
+    fn node_response_local_action_kind_label_javascript() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/js-action-node24");
+        let action_id = ir
+            .actions
+            .first()
+            .expect("js-action-node24 fixture defines an action")
+            .id
+            .0
+            .clone();
+        let svc = svc_for(ir);
+        let resp = svc
+            .node_response("local-action", &action_id)
+            .expect("local-action lookup must succeed");
+        assert!(
+            resp.summary.starts_with("javascript;"),
+            "summary must start with javascript; got {:?}",
+            resp.summary,
+        );
+    }
+
+    /// Drives `impact_response`'s `result.actions` mapping closure
+    /// (mod.rs:1010-1018) by seeding on the leaf composite in
+    /// `composite-invokes-composite`. Reverse BFS yields the outer
+    /// composite (`setup-toolchain`) as a non-seed action, which hits
+    /// the `ActionKind::Composite` arm. The `JavaScript` / `Docker`
+    /// arms are unreachable in practice because leaf-kind actions
+    /// have no outgoing edges and therefore never propagate through
+    /// `uses_action_in_*`; they are dead code given the current
+    /// `impact_query::impact` design and are left uncovered.
+    #[test]
+    fn impact_response_returns_composite_actions_for_chained_composites() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/composite-invokes-composite");
+        let leaf_id = ir
+            .actions
+            .iter()
+            .find(|a| a.id.0.ends_with("fetch-deps"))
+            .expect("fetch-deps composite must exist")
+            .id
+            .0
+            .clone();
+        let svc = svc_for(ir);
+        let resp = svc.impact_response(&leaf_id);
+        assert!(
+            resp.actions
+                .iter()
+                .any(|a| a.kind == "composite" && a.id.ends_with("setup-toolchain")),
+            "expected setup-toolchain composite in impact result; got {:?}",
+            resp.actions,
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // GraphBuilder + collect_trace_node_ids — Docker/Cycle/Guarded
+    // arms that no existing fixture exercises.
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn graph_builder_add_edge_skips_unknown_target() {
+        let mut b = GraphBuilder::new();
+        b.add_edge("nope", "also-nope".to_string(), "uses-docker");
+        assert!(
+            b.edges.is_empty(),
+            "edges to unknown targets must be silently dropped",
+        );
+    }
+
+    /// Drives `GraphBuilder::visit`'s `UsesRef::Docker` arm (mod.rs:298)
+    /// plus `ensure_docker` (mod.rs:256-263) via a workflow that uses
+    /// `docker://...` directly as a step `uses:` reference. No existing
+    /// fixture had this shape, so `docker-uses-workflow` was added.
+    #[test]
+    fn build_graph_response_emits_docker_node_and_edge() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/docker-uses-workflow");
+        let resp = build_graph_response(&ir);
+        let has_docker_node = resp
+            .nodes
+            .iter()
+            .any(|n| n.data.as_option().is_some_and(|d| d.kind == "docker"));
+        assert!(
+            has_docker_node,
+            "expected a docker-kind node in graph; got {:?}",
+            resp.nodes,
+        );
+        let has_docker_edge = resp
+            .edges
+            .iter()
+            .any(|e| e.data.as_option().is_some_and(|d| d.kind == "uses-docker"));
+        assert!(
+            has_docker_edge,
+            "expected a uses-docker edge in graph; got {:?}",
+            resp.edges,
+        );
+    }
+
+    /// Drives `collect_trace_node_ids` Docker (657-659), Cycle (665),
+    /// Guarded (665) and Annotated (660-664) arms by constructing the
+    /// `trace_query::TraceNode` tree inline (not `TraceJsonNode` — that
+    /// is a different enum exercised by the existing
+    /// `trace_json_to_proto_*` tests).
+    #[test]
+    fn collect_trace_node_ids_covers_docker_cycle_guarded_annotated_arms() {
+        use crate::ir::{ActionId, AnnotationVerb, DockerRef, WorkflowId};
+        use crate::query::trace::{CycleTarget, TraceNode};
+
+        let node = TraceNode::Guarded {
+            if_expr: "github.event_name == 'push'".to_string(),
+            inner: Box::new(TraceNode::Annotated {
+                verb: AnnotationVerb::Triggers,
+                dangling: false,
+                label: "ci".to_string(),
+                children: vec![
+                    TraceNode::Docker(DockerRef {
+                        host: None,
+                        image: "alpine".to_string(),
+                        tag: Some("3".to_string()),
+                    }),
+                    TraceNode::Cycle(CycleTarget::Workflow(WorkflowId(
+                        ".github/workflows/loop.yml".to_string(),
+                    ))),
+                    TraceNode::Cycle(CycleTarget::Action(ActionId(
+                        ".github/actions/loop".to_string(),
+                    ))),
+                ],
+            }),
+        };
+
+        let mut out: HashSet<String> = HashSet::new();
+        collect_trace_node_ids(&node, &mut out);
+
+        assert!(
+            out.contains("dk:alpine:3"),
+            "Docker arm must insert dk:* id; got {out:?}",
+        );
+        // Cycle arm explicitly skips insertion (mod.rs:669 comment) so
+        // the loop.yml and loop ids must NOT appear — verifies the
+        // skip semantics, not just that the arm executed.
+        assert!(
+            !out.contains("wf:.github/workflows/loop.yml"),
+            "Cycle arm must NOT insert (preserves visit-once semantics); got {out:?}",
+        );
+        assert!(
+            !out.contains("la:.github/actions/loop"),
+            "Cycle arm must NOT insert (preserves visit-once semantics); got {out:?}",
+        );
+    }
+
+    #[test]
+    fn mime_for_extension_table() {
+        let cases: &[(&str, &str)] = &[
+            ("foo.js", "application/javascript; charset=utf-8"),
+            ("foo.mjs", "application/javascript; charset=utf-8"),
+            ("foo.css", "text/css; charset=utf-8"),
+            ("foo.map", "application/json; charset=utf-8"),
+            ("foo.json", "application/json; charset=utf-8"),
+            ("foo.svg", "image/svg+xml"),
+            ("foo.png", "image/png"),
+            ("foo.jpg", "image/jpeg"),
+            ("foo.jpeg", "image/jpeg"),
+            ("foo.gif", "image/gif"),
+            ("foo.webp", "image/webp"),
+            ("foo.ico", "image/x-icon"),
+            ("foo.woff", "font/woff"),
+            ("foo.woff2", "font/woff2"),
+            ("noext", "application/octet-stream"),
+            ("foo.unknownext", "application/octet-stream"),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(mime_for_extension(path), *expected, "for input {path}");
+        }
+    }
 }
