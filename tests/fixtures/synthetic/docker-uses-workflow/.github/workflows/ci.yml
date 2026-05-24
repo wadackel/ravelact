@@ -1,0 +1,12 @@
+name: CI
+on:
+  push:
+    branches: [main]
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker://alpine:3.20
+        with:
+          args: echo hi

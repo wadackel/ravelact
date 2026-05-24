@@ -1,0 +1,7 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+### Extract
+
+No extraction candidates found.

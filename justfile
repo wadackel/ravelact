@@ -111,18 +111,14 @@ coverage:
 # Mirrors the CI gate's intent so contributors can reproduce the verdict
 # locally before pushing. Strips the SF: prefix and the repo root so the
 # error output uses repo-relative paths.
-#
-# `src/cli/render/browse/mod.rs` has a soft 80% floor for the same
-# subprocess-coverage reason documented in .github/workflows/ci.yaml.
 coverage-gate: coverage
-    @awk -v root="$PWD/" 'BEGIN { th=90; subproc=80 } \
+    @awk -v root="$PWD/" 'BEGIN { th=90 } \
       /^SF:/ { p=substr($0,4); if (index(p,root)==1) p=substr(p,length(root)+1); sf=p } \
       /^LF:/ { lf=substr($0,4)+0 } \
       /^LH:/ { lh=substr($0,4)+0 } \
       /^end_of_record/ { \
         pct = lf>0 ? lh*100/lf : 100; \
-        floor = (sf == "src/cli/render/browse/mod.rs") ? subproc : th; \
-        if (pct + 0 < floor) { printf "%s: %.2f%% below %d%%\n", sf, pct, floor; failed=1 }; \
+        if (pct + 0 < th) { printf "%s: %.2f%% below %d%%\n", sf, pct, th; failed=1 }; \
         sf=""; lf=0; lh=0 \
       } \
       END { if (failed) exit 1 }' lcov.info
