@@ -326,15 +326,25 @@ async function waitForFadedNonEmpty(page: Page): Promise<void> {
   );
 }
 
+const BROWSE_SERVICE = "ravelact.browse.v1.BrowseService";
+type BrowseRpcMethod = "Trace" | "GetEventImpact" | "GetImpact" | "Search";
+
+// ConnectRPC unary routes are `/<service>/<method>`; Connect-GET appends `?…`.
+// Anchor on `?` or end-of-string so a future sibling method that shares a
+// prefix (hypothetical `TraceDeep`) cannot satisfy the matcher.
+function waitForRpc(page: Page, method: BrowseRpcMethod) {
+  const re = new RegExp(`/${BROWSE_SERVICE.replace(/\./g, "\\.")}/${method}(?:\\?|$)`);
+  return page.waitForResponse((r) => re.test(r.url()) && r.ok(), {
+    timeout: FETCH_TIMEOUT_MS,
+  });
+}
+
 async function captureHero(ctx: CaptureContext, outPath: string): Promise<string> {
   await ctx.page.goto(ctx.baseUrl);
   await settleGraph(ctx.page);
   const id = await tapFirstWorkflow(ctx.page);
   await ctx.page.waitForSelector('[role="tab"][data-tab="trace"]');
-  const tracePromise = ctx.page.waitForResponse(
-    (r) => /\/ravelact\.browse\.v1\.BrowseService\/Trace(\?|$)/.test(r.url()) && r.ok(),
-    { timeout: FETCH_TIMEOUT_MS },
-  );
+  const tracePromise = waitForRpc(ctx.page, "Trace");
   await ctx.page.click('[role="tab"][data-tab="trace"]');
   await tracePromise;
   await ctx.page.waitForSelector('[role="tab"][data-tab="trace"][aria-selected="true"]');
@@ -351,10 +361,7 @@ const OVERVIEW_EVENT = "push";
 async function captureOverview(ctx: CaptureContext, outPath: string): Promise<void> {
   await backgroundTap(ctx.page);
   await ctx.page.waitForSelector('aside[aria-label="Graph overview"]');
-  const eventImpactPromise = ctx.page.waitForResponse(
-    (r) => /\/ravelact\.browse\.v1\.BrowseService\/GetEventImpact(\?|$)/.test(r.url()) && r.ok(),
-    { timeout: FETCH_TIMEOUT_MS },
-  );
+  const eventImpactPromise = waitForRpc(ctx.page, "GetEventImpact");
   await ctx.page
     .locator('aside[aria-label="Graph overview"] button', { hasText: OVERVIEW_EVENT })
     .first()
@@ -372,10 +379,7 @@ async function captureNodeDetail(ctx: CaptureContext, outPath: string): Promise<
   // a top-level workflow whose Impact is empty.
   await tapFirstLocalAction(ctx.page);
   await ctx.page.waitForSelector('[role="tab"][data-tab="impact"]');
-  const impactPromise = ctx.page.waitForResponse(
-    (r) => /\/ravelact\.browse\.v1\.BrowseService\/GetImpact(\?|$)/.test(r.url()) && r.ok(),
-    { timeout: FETCH_TIMEOUT_MS },
-  );
+  const impactPromise = waitForRpc(ctx.page, "GetImpact");
   await ctx.page.click('[role="tab"][data-tab="impact"]');
   await impactPromise;
   await ctx.page.waitForSelector('[role="tab"][data-tab="impact"][aria-selected="true"]');
@@ -388,10 +392,7 @@ async function captureSearch(ctx: CaptureContext, outPath: string): Promise<void
   await ctx.page.waitForSelector('input[aria-label="Search nodes, files, and triggers"]');
   // Register the response listener BEFORE the fill so the
   // App.tsx:41 debounce (120ms) does not race ahead of us.
-  const searchPromise = ctx.page.waitForResponse(
-    (r) => /\/ravelact\.browse\.v1\.BrowseService\/Search(\?|$)/.test(r.url()) && r.ok(),
-    { timeout: FETCH_TIMEOUT_MS },
-  );
+  const searchPromise = waitForRpc(ctx.page, "Search");
   await ctx.page.fill('input[aria-label="Search nodes, files, and triggers"]', "ci");
   await searchPromise;
   await waitForFadedNonEmpty(ctx.page);
