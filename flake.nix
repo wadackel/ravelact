@@ -81,7 +81,7 @@
             zizmor
             cargo-llvm-cov
             nodejs_22
-            pnpm_9
+            pnpm_11
             oxipng
             buf
             protobuf

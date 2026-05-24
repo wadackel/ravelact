@@ -13,8 +13,8 @@
     "helpers:pinGitHubActionDigestsToSemver",
   ],
 
-  // Only manage Cargo and GitHub Actions dependencies
-  "enabledManagers": ["cargo", "github-actions"],
+  // Manage Cargo, GitHub Actions, and npm dependencies
+  "enabledManagers": ["cargo", "github-actions", "npm"],
 
   // Allow up to 10 concurrent PRs
   "prConcurrentLimit": 10,
@@ -56,6 +56,31 @@
       "labels": ["dependencies", "cargo", "major"],
     },
 
+    // npm dependencies: wait 7 days after release to reduce supply-chain risk,
+    // pin to exact versions (matches web/pnpm-workspace.yaml savePrefix + minimumReleaseAge)
+    {
+      "matchManagers": ["npm"],
+      "minimumReleaseAge": "7 days",
+      "rangeStrategy": "pin",
+      "prCreation": "not-pending",
+      "internalChecksFilter": "strict",
+    },
+
+    // npm dependencies: group patch & minor updates together
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupName": "npm dependencies (patch & minor)",
+      "labels": ["dependencies", "npm"],
+    },
+
+    // npm dependencies: separate major updates for careful review
+    {
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["major"],
+      "labels": ["dependencies", "npm", "major"],
+    },
+
     // GitHub Actions: group official actions (actions/*)
     {
       "matchManagers": ["github-actions"],
@@ -74,8 +99,8 @@
 
     // Security updates: high priority with immediate PR creation
     {
-      "matchManagers": ["cargo", "github-actions"],
-      "matchDatasources": ["crate", "github-tags"],
+      "matchManagers": ["cargo", "github-actions", "npm"],
+      "matchDatasources": ["crate", "github-tags", "npm"],
       "prPriority": 20,
       "minimumReleaseAge": "0 days",
       "addLabels": ["security"],

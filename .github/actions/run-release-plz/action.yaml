@@ -18,6 +18,11 @@ runs:
       with:
         client-id: ${{ inputs.app-id }}
         private-key: ${{ inputs.app-private-key }}
+        # release-plz needs contents:write (push branches/tags) and
+        # pull-requests:write (open release PRs). Scoping the token down
+        # avoids zizmor's github-app finding and follows least-privilege.
+        permission-contents: write
+        permission-pull-requests: write
     - name: Install Rust toolchain
       shell: bash
       run: |
