@@ -96,14 +96,5 @@
       "groupName": "github-actions (third-party)",
       "labels": ["dependencies", "ci", "third-party"],
     },
-
-    // Security updates: high priority with immediate PR creation
-    {
-      "matchManagers": ["cargo", "github-actions", "npm"],
-      "matchDatasources": ["crate", "github-tags", "npm"],
-      "prPriority": 20,
-      "minimumReleaseAge": "0 days",
-      "addLabels": ["security"],
-    },
   ],
 }
