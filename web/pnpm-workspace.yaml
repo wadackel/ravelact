@@ -1,0 +1,9 @@
+savePrefix: ""
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude:
+  - tsx
+  - vite-plus
+  - "@voidzero-dev/*"
+allowBuilds:
+  esbuild: true
+  "@tailwindcss/oxide": true

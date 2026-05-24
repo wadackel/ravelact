@@ -34,6 +34,10 @@ Build artifacts are cached at `${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
 
 Project workflow files use the `.yaml` extension (not `.yml`) — this was standardized in #38. Match that when adding new workflows.
 
+## Frontend tooling
+
+The pnpm version is managed solely by `flake.nix` (`pnpm_11`). `web/package.json` intentionally omits the `packageManager` field — Nix is the single source of truth for both Node and pnpm, and CI invokes pnpm exclusively via `nix develop --command pnpm ...`. Do not re-add `packageManager` or rely on Corepack. pnpm settings (exact-pin save prefix, minimum release age, allowed build scripts) live in `web/pnpm-workspace.yaml` because pnpm 10+ no longer reads them from `.npmrc`.
+
 ## GitHub Actions security
 
 Pin every action to a full commit SHA, not a version tag. Both `ci.yaml` and `release.yaml` follow this; new workflow steps must too.
