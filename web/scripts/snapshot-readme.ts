@@ -331,9 +331,10 @@ async function captureHero(ctx: CaptureContext, outPath: string): Promise<string
   await settleGraph(ctx.page);
   const id = await tapFirstWorkflow(ctx.page);
   await ctx.page.waitForSelector('[role="tab"][data-tab="trace"]');
-  const tracePromise = ctx.page.waitForResponse((r) => /\/api\/trace\?/.test(r.url()) && r.ok(), {
-    timeout: FETCH_TIMEOUT_MS,
-  });
+  const tracePromise = ctx.page.waitForResponse(
+    (r) => /\/ravelact\.browse\.v1\.BrowseService\/Trace(\?|$)/.test(r.url()) && r.ok(),
+    { timeout: FETCH_TIMEOUT_MS },
+  );
   await ctx.page.click('[role="tab"][data-tab="trace"]');
   await tracePromise;
   await ctx.page.waitForSelector('[role="tab"][data-tab="trace"][aria-selected="true"]');
@@ -351,7 +352,7 @@ async function captureOverview(ctx: CaptureContext, outPath: string): Promise<vo
   await backgroundTap(ctx.page);
   await ctx.page.waitForSelector('aside[aria-label="Graph overview"]');
   const eventImpactPromise = ctx.page.waitForResponse(
-    (r) => /\/api\/event-impact\?/.test(r.url()) && r.ok(),
+    (r) => /\/ravelact\.browse\.v1\.BrowseService\/GetEventImpact(\?|$)/.test(r.url()) && r.ok(),
     { timeout: FETCH_TIMEOUT_MS },
   );
   await ctx.page
@@ -371,9 +372,10 @@ async function captureNodeDetail(ctx: CaptureContext, outPath: string): Promise<
   // a top-level workflow whose Impact is empty.
   await tapFirstLocalAction(ctx.page);
   await ctx.page.waitForSelector('[role="tab"][data-tab="impact"]');
-  const impactPromise = ctx.page.waitForResponse((r) => /\/api\/impact\?/.test(r.url()) && r.ok(), {
-    timeout: FETCH_TIMEOUT_MS,
-  });
+  const impactPromise = ctx.page.waitForResponse(
+    (r) => /\/ravelact\.browse\.v1\.BrowseService\/GetImpact(\?|$)/.test(r.url()) && r.ok(),
+    { timeout: FETCH_TIMEOUT_MS },
+  );
   await ctx.page.click('[role="tab"][data-tab="impact"]');
   await impactPromise;
   await ctx.page.waitForSelector('[role="tab"][data-tab="impact"][aria-selected="true"]');
@@ -386,9 +388,10 @@ async function captureSearch(ctx: CaptureContext, outPath: string): Promise<void
   await ctx.page.waitForSelector('input[aria-label="Search nodes, files, and triggers"]');
   // Register the response listener BEFORE the fill so the
   // App.tsx:41 debounce (120ms) does not race ahead of us.
-  const searchPromise = ctx.page.waitForResponse((r) => /\/api\/search\?/.test(r.url()) && r.ok(), {
-    timeout: FETCH_TIMEOUT_MS,
-  });
+  const searchPromise = ctx.page.waitForResponse(
+    (r) => /\/ravelact\.browse\.v1\.BrowseService\/Search(\?|$)/.test(r.url()) && r.ok(),
+    { timeout: FETCH_TIMEOUT_MS },
+  );
   await ctx.page.fill('input[aria-label="Search nodes, files, and triggers"]', "ci");
   await searchPromise;
   await waitForFadedNonEmpty(ctx.page);
