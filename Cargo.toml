@@ -54,13 +54,13 @@ http-body = "1"
 async-trait = "0.1"
 
 [dev-dependencies]
-assert_cmd = "2"
-criterion = { version = "0.5", features = ["html_reports"] }
-insta = { version = "1", features = ["json"] }
-predicates = "3"
-serial_test = "3"
-tempfile = "3"
-tower = { version = "0.5", features = ["util"], default-features = false }
+assert_cmd = "=2.2.1"
+criterion = { version = "=0.5.1", features = ["html_reports"] }
+insta = { version = "=1.47.2", features = ["json"] }
+predicates = "=3.1.4"
+serial_test = "=3.4.0"
+tempfile = "=3.27.0"
+tower = { version = "=0.5.3", features = ["util"], default-features = false }
 
 [[bench]]
 name = "queries"
