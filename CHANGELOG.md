@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.8](https://github.com/wadackel/ravelact/compare/v0.0.7...v0.0.8) - 2026-05-25
+
+### Added
+
+- *(browse)* migrate to Protocol Buffers + ConnectRPC ([#45](https://github.com/wadackel/ravelact/pull/45))
+- *(browse,web)* surface `if:` conditions in Details tab ([#42](https://github.com/wadackel/ravelact/pull/42))
+- *(browse,web)* show file path relative to browse root and add Copy button ([#41](https://github.com/wadackel/ravelact/pull/41))
+- *(browse)* add "Powered by ravelact" credit overlay with build-time version ([#40](https://github.com/wadackel/ravelact/pull/40))
+- *(ci)* enforce per-file ≥90% line coverage across src/ ([#34](https://github.com/wadackel/ravelact/pull/34))
+
+### Fixed
+
+- *(browse)* broaden remote-URL parser and support GitHub Enterprise ([#24](https://github.com/wadackel/ravelact/pull/24))
+
+### Other
+
+- *(browse)* raise mod.rs coverage to >=90% and drop subprocess soft floor ([#53](https://github.com/wadackel/ravelact/pull/53))
+- *(readme)* add browse screenshots and full Browse section ([#37](https://github.com/wadackel/ravelact/pull/37))
+- *(ci)* integrate zizmor into lint-actions ([#35](https://github.com/wadackel/ravelact/pull/35))
+
 ## [0.0.7](https://github.com/wadackel/ravelact/compare/v0.0.6...v0.0.7) - 2026-05-22
 
 ### Fixed
