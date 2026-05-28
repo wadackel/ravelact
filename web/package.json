@@ -34,15 +34,15 @@
     "@testing-library/user-event": "14.6.1",
     "@types/dagre": "0.7.54",
     "@types/node": "22.19.19",
-    "@types/react": "19.2.14",
+    "@types/react": "19.2.15",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.2",
     "jsdom": "25.0.1",
     "tailwindcss": "4.3.0",
     "tsx": "4.22.3",
     "typescript": "5.9.3",
-    "vite": "8.0.13",
+    "vite": "8.0.14",
     "vite-plus": "0.1.22",
-    "vitest": "4.1.6"
+    "vitest": "4.1.7"
   }
 }
