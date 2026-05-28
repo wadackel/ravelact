@@ -1,8 +1,13 @@
-# ravelact
+<p align="center">
+  <img src="docs/images/banner.png" alt="ravelact logo">
+</p>
+<p align="center">
+  <a href="https://github.com/wadackel/ravelact/actions/workflows/ci.yaml?query=branch%3Amain"><img src="https://img.shields.io/github/actions/workflow/status/wadackel/ravelact/ci.yaml?branch=main&style=flat-square" alt="GitHub Actions Workflow Status"></a>
+  <a href="https://crates.io/crates/ravelact"><img src="https://img.shields.io/crates/v/ravelact?style=flat-square" alt="Crates.io Version"></a>
+  <a href="https://github.com/wadackel/ravelact/blob/main/LICENSE"><img src="https://img.shields.io/crates/l/ravelact?style=flat-square" alt="Crates.io License"></a>
+</p>
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/wadackel/ravelact/ci.yaml?branch=main&style=flat-square)](https://github.com/wadackel/ravelact/actions/workflows/ci.yaml?query=branch%3Amain)
-[![Crates.io Version](https://img.shields.io/crates/v/ravelact?style=flat-square)](https://crates.io/crates/ravelact)
-[![Crates.io License](https://img.shields.io/crates/l/ravelact?style=flat-square)](https://github.com/wadackel/ravelact/blob/main/LICENSE)
+# ravelact
 
 `ravelact` is a standalone GitHub Actions estate-analysis CLI for reading, tracing, and untangling complex workflow graphs. The name combines `ravel` (to follow and untangle a complicated structure) with `act` (the GitHub Actions domain).
 

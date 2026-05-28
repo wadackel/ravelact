@@ -1,6 +1,7 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useMemo, useRef } from "react";
 import type { TriggerSummary } from "../../lib/types.ts";
 import { Kbd } from "./ui/index.ts";
+import logoUrl from "../../assets/ravelact-logo.svg";
 
 export type HeaderProps = {
   nodeCount: number;
@@ -66,9 +67,19 @@ export function Header({
 
   return (
     <header className="h-12 bg-bg-elev border-b border-border flex items-center px-4 gap-4">
-      <h1 className="m-0 text-[13px] font-semibold tracking-[0.01em] text-fg">
-        ravelact <span className="text-fg-muted font-normal">/ browse</span>
-      </h1>
+      <div className="flex items-center gap-2">
+        <img
+          src={logoUrl}
+          alt=""
+          aria-hidden="true"
+          width={20}
+          height={20}
+          className="block shrink-0"
+        />
+        <h1 className="m-0 text-[13px] font-semibold tracking-[0.01em] text-fg">
+          ravelact <span className="text-fg-muted font-normal">/ browse</span>
+        </h1>
+      </div>
       <div
         id="stats"
         className="text-fg-muted font-sans text-xs whitespace-nowrap"
