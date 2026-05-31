@@ -1,0 +1,124 @@
+# TEMPORARY verification workflow — DELETE before/at merge.
+#
+# release.yaml's build pipeline only fires on tag push / workflow_dispatch, so
+# a PR's CI never exercises it. This file mirrors release.yaml's
+# `frontend-bundle` + `build` jobs verbatim (only the workflow name and trigger
+# differ) so the cross-compiled darwin-amd64 path can be proven green on a PR
+# before the real release runs. Once verified, this file is removed; it must
+# never reach the default branch.
+name: Verify Release Build (temporary)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: verify-release-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # --- copied verbatim from release.yaml (frontend-bundle) ---
+  frontend-bundle:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-release-frontend
+      - name: Build frontend bundle (web/dist via Nix shell)
+        run: nix develop --command just frontend
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-dist
+          path: web/dist
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  # --- copied verbatim from release.yaml (build) ---
+  build:
+    needs: frontend-bundle
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-latest
+            asset: linux-amd64
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-24.04-arm
+            asset: linux-arm64
+          - target: x86_64-apple-darwin
+            runner: macos-latest
+            asset: darwin-amd64
+          - target: aarch64-apple-darwin
+            runner: macos-latest
+            asset: darwin-arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Install Rust toolchain
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup target add ${{ matrix.target }}
+      - name: Restore frontend bundle (web/dist)
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: web-dist
+          path: web/dist
+      - name: cargo build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: stage binary
+        run: |
+          set -euo pipefail
+          mkdir -p staging
+          cp target/${{ matrix.target }}/release/ravelact staging/ravelact-${{ matrix.asset }}
+      - name: Validate staged binary
+        env:
+          RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
+        run: |
+          set -euo pipefail
+          bin="staging/ravelact-${RAVELACT_RELEASE_ASSET}"
+          file "$bin"
+
+          case "$RAVELACT_RELEASE_ASSET" in
+            linux-amd64) expect='x86-64' ;;
+            linux-arm64) expect='aarch64' ;;
+            darwin-amd64) expect='x86_64' ;;
+            darwin-arm64) expect='arm64' ;;
+            *)
+              echo "::error::unknown release asset ${RAVELACT_RELEASE_ASSET}"
+              exit 1
+              ;;
+          esac
+          if ! file "$bin" | grep -F "$expect" >/dev/null; then
+            echo "::error::${RAVELACT_RELEASE_ASSET} is not a ${expect} binary"
+            exit 1
+          fi
+
+          arch="$(uname -m)"
+          case "${RAVELACT_RELEASE_ASSET}:${arch}" in
+            linux-amd64:x86_64|linux-arm64:aarch64|darwin-amd64:x86_64|darwin-arm64:arm64)
+              "$bin" --version
+              ;;
+            *)
+              echo "skipping --version smoke test: ${RAVELACT_RELEASE_ASSET} not natively runnable on ${arch}"
+              ;;
+          esac
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ravelact-${{ matrix.asset }}
+          path: staging/ravelact-${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 1
