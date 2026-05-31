@@ -1,0 +1,274 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+{
+  "actions": [],
+  "findings": [
+    {
+      "attachment": {
+        "confidence": "exact",
+        "node": {
+          "id": ".github/workflows/ci.yml",
+          "node": "workflow"
+        },
+        "reason": "exact start-line match at line 11",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 0,
+          "job": "build"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/artipacked:.github/workflows/ci.yml:11:9",
+        "location": {
+          "end_column": 34,
+          "end_line": 12,
+          "path": ".github/workflows/ci.yml",
+          "start_column": 9,
+          "start_line": 11
+        },
+        "message": "credential persistence through GitHub Actions artifacts: does not set persist-credentials: false",
+        "rule_id": "zizmor/artipacked",
+        "severity": "medium",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "artipacked"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/ci.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "some-org/some-action@v1"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": false,
+          "write_scopes": [
+            "contents"
+          ]
+        },
+        "reachable_from": [
+          "push"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "sensitive_write_scope",
+          "scope": "contents"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/ci.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 13 for finding at line 14",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 1,
+          "job": "build"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/template-injection:.github/workflows/ci.yml:14:37",
+        "location": {
+          "end_column": 73,
+          "end_line": 14,
+          "path": ".github/workflows/ci.yml",
+          "start_column": 37,
+          "start_line": 14
+        },
+        "message": "code injection via template expansion: may expand into attacker-controllable code",
+        "rule_id": "zizmor/template-injection",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "template-injection"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/ci.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "some-org/some-action@v1"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": false,
+          "write_scopes": [
+            "contents"
+          ]
+        },
+        "reachable_from": [
+          "push"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "sensitive_write_scope",
+          "scope": "contents"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/ci.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 11 for finding at line 12",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 0,
+          "job": "build"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/unpinned-uses:.github/workflows/ci.yml:12:15",
+        "location": {
+          "end_column": 34,
+          "end_line": 12,
+          "path": ".github/workflows/ci.yml",
+          "start_column": 15,
+          "start_line": 12
+        },
+        "message": "unpinned action reference: action is not pinned to a hash (required by blanket policy)",
+        "rule_id": "zizmor/unpinned-uses",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "unpinned-uses"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/ci.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "some-org/some-action@v1"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": false,
+          "write_scopes": [
+            "contents"
+          ]
+        },
+        "reachable_from": [
+          "push"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "sensitive_write_scope",
+          "scope": "contents"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/ci.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 15 for finding at line 16",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 2,
+          "job": "build"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/unpinned-uses:.github/workflows/ci.yml:16:15",
+        "location": {
+          "end_column": 38,
+          "end_line": 16,
+          "path": ".github/workflows/ci.yml",
+          "start_column": 15,
+          "start_line": 16
+        },
+        "message": "unpinned action reference: action is not pinned to a hash (required by blanket policy)",
+        "rule_id": "zizmor/unpinned-uses",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "unpinned-uses"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/ci.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "some-org/some-action@v1"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": false,
+          "write_scopes": [
+            "contents"
+          ]
+        },
+        "reachable_from": [
+          "push"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "sensitive_write_scope",
+          "scope": "contents"
+        }
+      ]
+    }
+  ],
+  "workflows": []
+}

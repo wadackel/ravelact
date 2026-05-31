@@ -38,6 +38,10 @@ pub mod __buffa {
         reg.register_json_any(super::__CY_NODE_DATA_JSON_ANY);
         reg.register_json_any(super::__CY_EDGE_JSON_ANY);
         reg.register_json_any(super::__CY_EDGE_DATA_JSON_ANY);
+        reg.register_json_any(super::__FINDING_COUNTS_JSON_ANY);
+        reg.register_json_any(super::__GET_FINDINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__GET_FINDINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FINDING_JSON_ANY);
         reg.register_json_any(super::__GET_REPO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REPO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_TRIGGERS_REQUEST_JSON_ANY);
@@ -81,6 +85,14 @@ pub use self::__buffa::view::CyNodeDataView;
 pub use self::__buffa::view::CyEdgeView;
 #[doc(inline)]
 pub use self::__buffa::view::CyEdgeDataView;
+#[doc(inline)]
+pub use self::__buffa::view::FindingCountsView;
+#[doc(inline)]
+pub use self::__buffa::view::GetFindingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::GetFindingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::FindingView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRepoRequestView;
 #[doc(inline)]

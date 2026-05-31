@@ -11,8 +11,8 @@ use axum::http::Uri;
 use connectrpc::client::{ClientConfig, HttpClient};
 use ravelact::cli::render::browse::connect::ravelact::browse::v1::BrowseServiceClient;
 use ravelact::cli::render::browse::proto::ravelact::browse::v1::{
-    self as pb, GetEventImpactRequest, GetGraphRequest, GetImpactRequest, GetNodeRequest,
-    GetRepoRequest, ListTriggersRequest, SearchRequest, TraceRequest,
+    self as pb, GetEventImpactRequest, GetFindingsRequest, GetGraphRequest, GetImpactRequest,
+    GetNodeRequest, GetRepoRequest, ListTriggersRequest, SearchRequest, TraceRequest,
 };
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
@@ -615,6 +615,233 @@ mod tests {
             assert!(
                 has_fixture_node,
                 "--include-test-fixtures must surface fixture local-actions",
+            );
+        });
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    // ------------------------------------------------------------------
+    // Findings overlay (--findings): GetGraph counts/flags + GetFindings
+    // ------------------------------------------------------------------
+
+    /// Absolute path to a file under the committed zizmor-findings fixture.
+    fn zizmor_fixture(rel: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/synthetic/zizmor-findings")
+            .join(rel)
+    }
+
+    fn node_data<'a>(nodes: &'a [pb::CyNode], id: &str) -> Option<&'a pb::CyNodeData> {
+        nodes
+            .iter()
+            .filter_map(|n| n.data.as_option())
+            .find(|d| d.id == id)
+    }
+
+    #[test]
+    fn findings_overlay_injects_counts_and_context_flags() {
+        let fixture = zizmor_fixture("");
+        let sarif = zizmor_fixture("zizmor.sarif");
+        let (mut child, port) =
+            spawn_browse_server_with_args(&fixture, &["--findings", sarif.to_str().unwrap()]);
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let graph = client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200")
+                .into_owned();
+
+            // pr-target.yml: pull_request_target (risky) + write-all.
+            let prt = node_data(&graph.nodes, "wf:.github/workflows/pr-target.yml")
+                .expect("pr-target node present");
+            assert!(
+                prt.reachable_from_risky,
+                "pr-target is reachable from a risky trigger",
+            );
+            assert!(prt.has_write, "pr-target declares write-all");
+            assert_eq!(
+                prt.finding_sources,
+                vec!["zizmor".to_string()],
+                "finding_sources lists the producing tools",
+            );
+            let prt_counts = prt
+                .finding_counts
+                .as_option()
+                .expect("pr-target carries finding_counts");
+            assert!(prt_counts.total > 0, "pr-target has findings");
+            assert_eq!(
+                prt_counts.total,
+                prt_counts.error
+                    + prt_counts.high
+                    + prt_counts.medium
+                    + prt_counts.low
+                    + prt_counts.info,
+                "total equals the per-tier sum",
+            );
+
+            // ci.yml: push only (not risky) + contents: write (sensitive).
+            let ci =
+                node_data(&graph.nodes, "wf:.github/workflows/ci.yml").expect("ci node present");
+            assert!(!ci.reachable_from_risky, "ci push trigger is not risky");
+            assert!(ci.has_write, "ci declares contents: write");
+            assert!(
+                ci.finding_counts.as_option().unwrap().total > 0,
+                "ci has findings",
+            );
+
+            // GetFindings for the workflow returns its enriched findings,
+            // keeping source severity and graph priority distinct.
+            let resp = client
+                .get_findings(GetFindingsRequest {
+                    kind: "workflow".into(),
+                    id: ".github/workflows/pr-target.yml".into(),
+                    __buffa_unknown_fields: Default::default(),
+                })
+                .await
+                .expect("GetFindings 200")
+                .into_owned();
+            assert!(!resp.findings.is_empty(), "pr-target has findings");
+            for f in &resp.findings {
+                assert!(!f.source_severity.is_empty(), "source severity present");
+                assert!(!f.graph_priority.is_empty(), "graph priority present");
+                assert_eq!(
+                    f.file, ".github/workflows/pr-target.yml",
+                    "finding file is browse-root-relative",
+                );
+            }
+            // write-all + risky trigger promotes priority to high.
+            assert!(
+                resp.findings.iter().any(|f| f.graph_priority == "high"),
+                "pr-target findings promote to graph priority high",
+            );
+        });
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    #[test]
+    fn findings_absent_keeps_graph_defaults() {
+        let fixture = zizmor_fixture("");
+        let (mut child, port) = spawn_browse_server(&fixture);
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let graph = client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200")
+                .into_owned();
+            for n in &graph.nodes {
+                if let Some(d) = n.data.as_option() {
+                    assert!(
+                        d.finding_counts.as_option().is_none_or(|c| c.total == 0),
+                        "no --findings => zero finding counts",
+                    );
+                    assert!(!d.reachable_from_risky && !d.is_orphan && !d.has_write);
+                    assert!(d.finding_sources.is_empty(), "no --findings => no sources");
+                }
+            }
+            for e in &graph.edges {
+                if let Some(d) = e.data.as_option() {
+                    assert!(!d.on_dangerous_path, "no --findings => no dangerous edges");
+                }
+            }
+        });
+
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+
+    /// Minimal SARIF attaching one finding to `target_uri` (browse-root-rel).
+    fn write_minimal_sarif(path: &Path, target_uri: &str, line: u32) -> std::io::Result<()> {
+        let doc = format!(
+            r#"{{
+  "runs": [
+    {{
+      "tool": {{ "driver": {{ "name": "zizmor", "rules": [] }} }},
+      "results": [
+        {{
+          "ruleId": "zizmor/test-finding",
+          "level": "error",
+          "message": {{ "text": "synthetic finding" }},
+          "locations": [
+            {{ "physicalLocation": {{
+                "artifactLocation": {{ "uri": "{target_uri}" }},
+                "region": {{ "startLine": {line} }}
+            }} }}
+          ],
+          "properties": {{ "zizmor/severity": "High" }}
+        }}
+      ]
+    }}
+  ]
+}}"#
+        );
+        fs::write(path, doc)
+    }
+
+    #[test]
+    fn dangerous_path_edge_flagged_from_risky_entry_to_finding() {
+        let dir = tempdir().expect("tempdir");
+        let wf_dir = dir.path().join(".github/workflows");
+        fs::create_dir_all(&wf_dir).expect("create workflows dir");
+        // Risky entry (pull_request_target) that calls a local reusable workflow.
+        fs::write(
+            wf_dir.join("prt.yaml"),
+            "name: PRT\non:\n  pull_request_target:\njobs:\n  call:\n    uses: ./.github/workflows/reusable.yaml\n",
+        )
+        .expect("write prt");
+        // Reusable callee that carries the finding.
+        fs::write(
+            wf_dir.join("reusable.yaml"),
+            "name: Reusable\non:\n  workflow_call:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n",
+        )
+        .expect("write reusable");
+        let sarif = dir.path().join("findings.sarif");
+        write_minimal_sarif(&sarif, ".github/workflows/reusable.yaml", 2).expect("write sarif");
+
+        let (mut child, port) =
+            spawn_browse_server_with_args(dir.path(), &["--findings", sarif.to_str().unwrap()]);
+        let (rt, client) = connect_client(port);
+
+        rt.block_on(async {
+            let graph = client
+                .get_graph(GetGraphRequest::default())
+                .await
+                .expect("GetGraph 200")
+                .into_owned();
+
+            // The callee node must carry the finding.
+            let callee = node_data(&graph.nodes, "wf:.github/workflows/reusable.yaml")
+                .expect("reusable node present");
+            assert!(
+                callee.reachable_from_risky,
+                "reusable is reached by pull_request_target",
+            );
+            assert!(
+                callee.finding_counts.as_option().unwrap().total > 0,
+                "reusable has the synthetic finding",
+            );
+
+            // The prt -> reusable edge lies on the risky -> finding path.
+            let dangerous: Vec<(&str, &str)> = graph
+                .edges
+                .iter()
+                .filter_map(|e| e.data.as_option())
+                .filter(|d| d.on_dangerous_path)
+                .map(|d| (d.source.as_str(), d.target.as_str()))
+                .collect();
+            assert!(
+                dangerous.contains(&(
+                    "wf:.github/workflows/prt.yaml",
+                    "wf:.github/workflows/reusable.yaml",
+                )),
+                "prt -> reusable must be flagged on the dangerous path, got {dangerous:?}",
             );
         });
 

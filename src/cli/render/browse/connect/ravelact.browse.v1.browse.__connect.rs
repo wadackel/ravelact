@@ -94,6 +94,18 @@ pub type OwnedTraceResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<GetFindingsRequestView<'static>>`.
+pub type OwnedGetFindingsRequestView = ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<GetFindingsResponseView<'static>>`.
+pub type OwnedGetFindingsResponseView = ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<
     crate::cli::render::browse::proto::ravelact::browse::v1::GetGraphResponse,
 >
@@ -318,6 +330,34 @@ for ::buffa::view::OwnedView<
         ::connectrpc::__codegen::encode_view_body(&**self, codec)
     }
 }
+impl ::connectrpc::Encodable<
+    crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
+>
+for crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(&**self, codec)
+    }
+}
 /// Full service name for this service.
 pub const BROWSE_SERVICE_SERVICE_NAME: &str = "ravelact.browse.v1.BrowseService";
 /// Static [`Spec`](::connectrpc::Spec) for the server-side `GetGraph` RPC.
@@ -389,6 +429,15 @@ pub const BROWSE_SERVICE_GET_IMPACT_SPEC: ::connectrpc::Spec = ::connectrpc::Spe
 /// [`RequestContext::spec`](::connectrpc::RequestContext::spec).
 pub const BROWSE_SERVICE_TRACE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/ravelact.browse.v1.BrowseService/Trace",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the server-side `GetFindings` RPC.
+///
+/// The dispatcher surfaces this on
+/// [`RequestContext::spec`](::connectrpc::RequestContext::spec).
+pub const BROWSE_SERVICE_GET_FINDINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/ravelact.browse.v1.BrowseService/GetFindings",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -547,6 +596,22 @@ pub trait BrowseService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::cli::render::browse::proto::ravelact::browse::v1::TraceResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// External findings (e.g. zizmor SARIF) attached to a single node. Empty
+    /// when browse was started without `--findings` or the node carries none.
+    /// Lazily fetched by the SPA's Findings tab, mirroring GetNode/GetImpact.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    fn get_findings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: OwnedGetFindingsRequestView,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -723,6 +788,24 @@ impl<S: BrowseService> BrowseServiceExt for S {
                 },
             )
             .with_spec(BROWSE_SERVICE_TRACE_SPEC)
+            .route_view(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "GetFindings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |ctx, req, format| {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            svc.get_findings(ctx, req)
+                                .await?
+                                .encode::<
+                                    crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_GET_FINDINGS_SPEC)
     }
 }
 /// Monomorphic dispatcher for `BrowseService`.
@@ -814,6 +897,12 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(BROWSE_SERVICE_TRACE_SPEC),
+                )
+            }
+            "GetFindings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(BROWSE_SERVICE_GET_FINDINGS_SPEC),
                 )
             }
             _ => None,
@@ -932,6 +1021,19 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .await?
                         .encode::<
                             crate::cli::render::browse::proto::ravelact::browse::v1::TraceResponse,
+                        >(format)
+                })
+            }
+            "GetFindings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let req = ::connectrpc::dispatcher::codegen::decode_request_view::<
+                        crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsRequestView,
+                    >(request.encoded()?, format)?;
+                    svc.get_findings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
                         >(format)
                 })
             }
@@ -1398,6 +1500,51 @@ where
                 &self.config,
                 BROWSE_SERVICE_SERVICE_NAME,
                 "Trace",
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the GetFindings RPC. Sends a request to /ravelact.browse.v1.BrowseService/GetFindings.
+    pub async fn get_findings(
+        &self,
+        request: crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.get_findings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the GetFindings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn get_findings_with_options(
+        &self,
+        request: crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::GetFindingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_SERVICE_NAME,
+                "GetFindings",
                 request,
                 options,
             )

@@ -7,7 +7,7 @@ import GraphLayoutWorker from "./graph-layout.worker.ts?worker";
 // split (graph-layout-core.ts holds the dagre-running sync function;
 // this module wires the Worker around it).
 export { computeLayoutSync } from "./graph-layout-core.ts";
-export type { LayoutResult, WorkerResponse } from "./graph-layout-core.ts";
+export type { GraphEdgeData, LayoutResult, WorkerResponse } from "./graph-layout-core.ts";
 
 /**
  * Async wrapper. Three failure paths, all leading to a usable graph

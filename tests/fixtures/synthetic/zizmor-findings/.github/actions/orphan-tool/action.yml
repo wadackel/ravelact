@@ -1,0 +1,11 @@
+name: Orphan Tool
+description: A composite action that nothing references (orphan), yet still carries findings.
+runs:
+  using: composite
+  steps:
+    - name: Unpinned setup
+      uses: setup-org/setup-action@v3
+      shell: bash
+    - name: Echo input
+      run: echo "ref ${{ github.event.ref }}"
+      shell: bash

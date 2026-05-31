@@ -42,6 +42,11 @@ service BrowseService {
   // Trace tree rooted at a workflow's first entry trigger. Returns NotFound
   // when the workflow has no entry trigger (reusable-only workflows).
   rpc Trace(TraceRequest) returns (TraceResponse);
+
+  // External findings (e.g. zizmor SARIF) attached to a single node. Empty
+  // when browse was started without `--findings` or the node carries none.
+  // Lazily fetched by the SPA's Findings tab, mirroring GetNode/GetImpact.
+  rpc GetFindings(GetFindingsRequest) returns (GetFindingsResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +74,24 @@ message CyNodeData {
   // union and protobuf enums cannot express the open-string semantics of
   // legacy node ids.
   string kind = 3;
+  // Source-severity tally of findings attached to this node. All-zero when
+  // browse was started without `--findings` or the node carries none.
+  FindingCounts finding_counts = 4;
+  // Node-level aggregation of the attached findings' graph context (OR over
+  // findings). Used for the SPA's context filters; all false without findings.
+  // True when some finding here is reachable from a risky trigger
+  // (pull_request_target / workflow_run).
+  bool reachable_from_risky = 5;
+  // True when some finding here sits on an orphan (unreachable) node.
+  bool is_orphan = 6;
+  // True when some finding here has write-all or a sensitive write scope
+  // (contents / id-token). Always false for action nodes (no permission
+  // context).
+  bool has_write = 7;
+  // Distinct source tools that produced findings on this node (e.g.
+  // ["zizmor"]), sorted. Empty without findings. Backs the SPA's source
+  // filter facet.
+  repeated string finding_sources = 8;
 }
 
 message CyEdge {
@@ -82,6 +105,54 @@ message CyEdgeData {
   // One of: annotation / calls-workflow / uses-local-workflow /
   // uses-local-action / uses-external-action / uses-docker.
   string kind = 4;
+  // True when this edge lies on at least one path from a risky-trigger entry
+  // workflow to a finding-bearing node — i.e. it is in
+  // forward_closure(risky entries) ∩ backward_closure(finding nodes). False
+  // without `--findings`. Drives the SPA's dangerous-path edge highlight.
+  bool on_dangerous_path = 5;
+}
+
+// Source-severity tally for a node's findings. Mirrors the M2 CLI
+// `SeverityCounts` compact tally; `total` is the sum across tiers.
+message FindingCounts {
+  uint32 error = 1;
+  uint32 high = 2;
+  uint32 medium = 3;
+  uint32 low = 4;
+  uint32 info = 5;
+  uint32 total = 6;
+}
+
+// ---------------------------------------------------------------------------
+// GetFindings
+// ---------------------------------------------------------------------------
+
+message GetFindingsRequest {
+  // workflow / local-action / external-action.
+  string kind = 1;
+  string id = 2;
+}
+
+message GetFindingsResponse {
+  repeated Finding findings = 1;
+}
+
+// A single enriched finding. `source_severity` is the original tool severity
+// and `graph_priority` is ravelact's derived priority — kept as separate
+// lowercase strings (info/low/medium/high/error) so the SPA never conflates
+// them, matching the M1/M2 invariant.
+message Finding {
+  string rule_id = 1;
+  string message = 2;
+  string source_severity = 3;
+  string graph_priority = 4;
+  // Human-readable justifications for the derived priority (e.g.
+  // "reachable_from_risky_trigger:pull_request_target", "orphaned").
+  repeated string priority_reasons = 5;
+  // Browse-root-relative forward-slash path the finding anchored to.
+  string file = 6;
+  // 1-based source line; 0 when the finding carries no line.
+  uint32 line = 7;
 }
 
 // ---------------------------------------------------------------------------

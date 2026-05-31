@@ -8,6 +8,7 @@ vi.mock("../../lib/api.ts", () => ({
   fetchNode: vi.fn(),
   fetchImpact: vi.fn(),
   fetchTrace: vi.fn(),
+  fetchFindings: vi.fn(),
   // unused by Panel but kept to satisfy other imports in the same module
   fetchGraph: vi.fn(),
   fetchTriggers: vi.fn(),
@@ -36,6 +37,7 @@ function ControlledPanel(props: {
   repoInfo: RepoInfo | null;
   initialSelectedEvent?: string | null;
   onSelectEvent?: (event: string | null) => void;
+  hasFindings?: boolean;
 }) {
   const [tab, setTab] = useState<Tab>(props.initialTab ?? "details");
   const [selectedEvent, setSelectedEvent] = useState<string | null>(
@@ -57,6 +59,7 @@ function ControlledPanel(props: {
       onSelectEvent={handleSelectEvent}
       width={360}
       onWidthChange={() => {}}
+      hasFindings={props.hasFindings ?? false}
     />
   );
 }
@@ -480,6 +483,145 @@ describe("Panel — Copy button", () => {
       warn.mockRestore();
       err.mockRestore();
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Findings tab (conditional on hasFindings; lazy GetFindings)
+// ---------------------------------------------------------------------------
+
+function finding(overrides: Partial<Record<string, unknown>> = {}) {
+  return {
+    ruleId: "zizmor/unpinned-uses",
+    message: "unpinned action reference",
+    sourceSeverity: "high",
+    graphPriority: "high",
+    priorityReasons: ["reachable-from pull_request_target"],
+    file: ".github/workflows/x.yaml",
+    line: 12,
+    ...overrides,
+  };
+}
+
+describe("Panel — Findings tab", () => {
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValue(nodeResponse("wf:x"));
+  });
+
+  it("omits the Findings tab when hasFindings is false (non-regression: 4 tabs)", async () => {
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+      />,
+    );
+    await waitFor(() => expect(api.fetchNode).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByRole("tab")).toHaveLength(4);
+    expect(screen.queryByRole("tab", { name: "Findings" })).toBeNull();
+  });
+
+  it("shows the Findings tab when hasFindings is true and lazily fetches once + caches", async () => {
+    (api.fetchFindings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      findings: [finding(), finding({ sourceSeverity: "medium", ruleId: "zizmor/artipacked" })],
+    });
+    render(
+      <ControlledPanel
+        initialTab="details"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        hasFindings
+      />,
+    );
+    const findingsTab = await screen.findByRole("tab", { name: "Findings" });
+    expect(screen.getAllByRole("tab")).toHaveLength(5);
+
+    fireEvent.click(findingsTab);
+    await waitFor(() => expect(api.fetchFindings).toHaveBeenCalledTimes(1));
+    expect(api.fetchFindings).toHaveBeenCalledWith("workflow", "x");
+
+    // Switch away and back — cached, no second fetch.
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Findings" }));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(api.fetchFindings).toHaveBeenCalledTimes(1);
+  });
+
+  it("groups findings by source severity and shows graph priority + reasons separately", async () => {
+    (api.fetchFindings as ReturnType<typeof vi.fn>).mockResolvedValue({
+      findings: [
+        finding({ sourceSeverity: "medium", graphPriority: "high", ruleId: "zizmor/artipacked" }),
+        finding({ sourceSeverity: "high", graphPriority: "high", ruleId: "zizmor/unpinned-uses" }),
+      ],
+    });
+    render(
+      <ControlledPanel
+        initialTab="findings"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        hasFindings
+      />,
+    );
+    // Two severity groups appear, high before medium (severity order).
+    const groups = await screen.findAllByTestId("finding-group");
+    expect(groups.map((g) => g.getAttribute("data-severity"))).toEqual(["high", "medium"]);
+    // Source severity drives the heading; graph priority is shown per-row.
+    expect(screen.getByText("high (1)")).toBeVisible();
+    expect(screen.getByText("medium (1)")).toBeVisible();
+    const rows = screen.getAllByTestId("finding-row");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText("zizmor/unpinned-uses")).toBeVisible();
+    expect(within(rows[0]!).getByText("graph: high")).toBeVisible();
+    expect(within(rows[0]!).getByText("reachable-from pull_request_target")).toBeVisible();
+  });
+
+  it("renders an empty state when the node has no findings", async () => {
+    (api.fetchFindings as ReturnType<typeof vi.fn>).mockResolvedValue({ findings: [] });
+    render(
+      <ControlledPanel
+        initialTab="findings"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        hasFindings
+      />,
+    );
+    expect(await screen.findByText("No findings for this node")).toBeVisible();
+  });
+
+  it("clamps tab='findings' to details when hasFindings is false", async () => {
+    // App owns the lifted tab; if it is still "findings" after findings
+    // disappear, the Panel must fall back to a valid tab rather than render
+    // a tabpanel labelled by a non-existent button.
+    render(
+      <ControlledPanel
+        initialTab="findings"
+        openFor={{ id: "wf:x", kind: "workflow" }}
+        onClose={() => {}}
+        repoInfo={null}
+        // hasFindings defaults to false
+      />,
+    );
+    // (a) no Findings tab button; (b) details content renders.
+    expect(screen.queryByRole("tab", { name: "Findings" })).toBeNull();
+    await waitFor(() => expect(api.fetchNode).toHaveBeenCalledTimes(1));
+    await screen.findByText(".github/workflows/x.yaml");
+    // (b) findings was never fetched.
+    expect(api.fetchFindings).not.toHaveBeenCalled();
+    // (c) the tabpanel is labelled by the details tab.
+    expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "tab-details");
+    // (d) roving tabindex stays intact: Details is selected + focusable.
+    const detailsTab = screen.getByRole("tab", { name: "Details" });
+    expect(detailsTab).toHaveAttribute("aria-selected", "true");
+    expect(detailsTab).toHaveAttribute("tabindex", "0");
   });
 });
 

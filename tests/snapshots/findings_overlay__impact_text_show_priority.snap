@@ -1,0 +1,12 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+impact  no impacted targets
+
+FINDINGS ON IMPACTED PATHS
+  .github/workflows/ci.yml
+    - [zizmor/medium] artipacked (L11) — graph: high [write:contents]
+    - [zizmor/high] template-injection (L14) — graph: high [write:contents]
+    - [zizmor/high] unpinned-uses (L12) — graph: high [write:contents]
+    - [zizmor/high] unpinned-uses (L16) — graph: high [write:contents]

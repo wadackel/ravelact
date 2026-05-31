@@ -3,6 +3,7 @@ import { createConnectTransport } from "@connectrpc/connect-web";
 import { BrowseService } from "../proto/ravelact/browse/v1/browse_pb.ts";
 import type {
   GetEventImpactResponse,
+  GetFindingsResponse,
   GetGraphResponse,
   GetImpactResponse,
   GetNodeResponse,
@@ -92,6 +93,13 @@ export function fetchImpact(id: string): Promise<GetImpactResponse | null> {
 
 export function fetchTrace(id: string): Promise<TraceResponse | null> {
   return nullOnNotFound(client.trace({ id }));
+}
+
+// Per-node findings for the Findings tab. Never NotFound: the server
+// returns an empty `findings` list for unknown ids / kinds and for nodes
+// that carry none (and always-empty when browse ran without `--findings`).
+export function fetchFindings(kind: NodeKind, id: string): Promise<GetFindingsResponse> {
+  return client.getFindings({ kind, id });
 }
 
 // `signal` lets callers cancel a stale request when the user keeps

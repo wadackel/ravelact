@@ -10,7 +10,8 @@ use crate::ui::{self, Status, Ui};
 use anyhow::Result;
 use globset::GlobSet;
 
-use crate::cli::{build_or_load, stdin_input, ReportFormat};
+use crate::cli::render::findings_overlay::{self, NodeKey};
+use crate::cli::{build_or_load, stdin_input, FindingsArgs, ReportFormat};
 
 const TABLE_HEADERS: [&str; 3] = ["kind", "location", "detail"];
 
@@ -20,6 +21,7 @@ pub(in crate::cli) fn run(
     excludes: &GlobSet,
     targets: &[String],
     format: &ReportFormat,
+    findings: &FindingsArgs,
     ui: &Ui,
 ) -> Result<()> {
     let inputs = stdin_input::collect(targets)?;
@@ -31,6 +33,20 @@ pub(in crate::cli) fn run(
             (t, hits)
         })
         .collect();
+
+    // External-finding overlay: blast radius = each queried target plus its
+    // caller nodes. Empty when `--findings` is absent.
+    let enriched = if findings.findings.is_empty() {
+        Vec::new()
+    } else {
+        findings_overlay::load_enriched(&ir, &findings.findings)?
+    };
+    let grouped = findings_overlay::group_by_node(&enriched);
+    let combined_scope: Vec<(NodeKey, String)> = per_target
+        .iter()
+        .flat_map(|(target, hits)| callers_scope(target, hits))
+        .collect();
+
     match format {
         ReportFormat::Markdown => {
             println!("### Callers");
@@ -67,16 +83,46 @@ pub(in crate::cli) fn run(
                     }
                 }
             }
+            if findings.show_findings {
+                let body = findings_overlay::render_scoped_findings(
+                    &grouped,
+                    &combined_scope,
+                    findings.show_priority,
+                );
+                if !body.is_empty() {
+                    println!();
+                    println!("#### Findings (blast radius)");
+                    println!();
+                    print!("{body}");
+                }
+            }
         }
         ReportFormat::Json => {
             let payload: Vec<serde_json::Value> = per_target
                 .iter()
-                .map(|(t, hits)| serde_json::json!({ "target": t, "hits": hits }))
-                .collect();
+                .map(|(t, hits)| {
+                    let mut obj = serde_json::json!({ "target": t, "hits": hits });
+                    if !findings.findings.is_empty() {
+                        let scope = callers_scope(t, hits);
+                        let scoped = findings_overlay::scoped_findings(&grouped, &scope);
+                        obj["findings"] = findings_overlay::findings_json(&scoped)?;
+                    }
+                    Ok::<serde_json::Value, anyhow::Error>(obj)
+                })
+                .collect::<Result<Vec<_>>>()?;
             println!("{}", serde_json::to_string_pretty(&payload)?);
         }
         ReportFormat::Text => {
             let total_hits: usize = per_target.iter().map(|(_, h)| h.len()).sum();
+            let findings_body = if findings.show_findings {
+                findings_overlay::render_scoped_findings(
+                    &grouped,
+                    &combined_scope,
+                    findings.show_priority,
+                )
+            } else {
+                String::new()
+            };
             if total_hits == 0 {
                 println!(
                     "{}",
@@ -87,9 +133,7 @@ pub(in crate::cli) fn run(
                         &[format!("{} targets", per_target.len())],
                     )
                 );
-                return Ok(());
-            }
-            if per_target.len() == 1 {
+            } else if per_target.len() == 1 {
                 let (input, hits) = &per_target[0];
                 println!(
                     "{}",
@@ -134,9 +178,44 @@ pub(in crate::cli) fn run(
                     print!("{}", ui.table(&TABLE_HEADERS, &rows));
                 }
             }
+            if !findings_body.is_empty() {
+                println!();
+                println!("{}", ui.section("Findings (blast radius)"));
+                print!("{findings_body}");
+            }
         }
     }
     Ok(())
+}
+
+/// Finding-overlay node scope for one `callers` target: the queried target node
+/// plus every caller hit's node (the blast radius).
+fn callers_scope(target: &str, hits: &[CallerHit]) -> Vec<(NodeKey, String)> {
+    let mut scope: Vec<(NodeKey, String)> = Vec::new();
+    match Target::from_user_input(target) {
+        Target::Workflow(id) => {
+            let display = id.0.clone();
+            scope.push((NodeKey::Workflow(id), display));
+        }
+        Target::Action(id) => {
+            let display = id.0.clone();
+            scope.push((NodeKey::Action(id), display));
+        }
+    }
+    for hit in hits {
+        match hit {
+            CallerHit::JobCall { workflow, .. }
+            | CallerHit::Step { workflow, .. }
+            | CallerHit::Annotated { workflow, .. } => {
+                scope.push((NodeKey::Workflow(workflow.clone()), workflow.0.clone()));
+            }
+            CallerHit::CompositeStep { action, .. }
+            | CallerHit::AnnotatedComposite { action, .. } => {
+                scope.push((NodeKey::Action(action.clone()), action.0.clone()));
+            }
+        }
+    }
+    scope
 }
 
 fn format_caller_row(hit: &CallerHit, ir: &Ir) -> Vec<String> {

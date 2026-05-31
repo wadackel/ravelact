@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchEventImpact, fetchGraph, fetchRepo, fetchSearch, fetchTriggers } from "./lib/api.ts";
 import { getRavelactRf } from "./lib/dev-globals.ts";
+import type { FindingFacets } from "./lib/graph-filter.ts";
 import { NODE_KINDS } from "./lib/kind-format.ts";
 import { readPersistedWidth, writePersistedWidth } from "./lib/panel-width.ts";
 import { useDebounced } from "./ui/hooks/useDebounced.ts";
 import type { GraphPayload, NodeKind, RepoInfo, TriggerSummary } from "./lib/types.ts";
 import { ErrorBanner } from "./ui/components/ErrorBanner.tsx";
+import { FindingsFilter } from "./ui/components/FindingsFilter.tsx";
 import { Graph } from "./ui/components/Graph.tsx";
 import { Header } from "./ui/components/Header.tsx";
 import { OverviewPane } from "./ui/components/OverviewPane.tsx";
 import { Panel, type Tab } from "./ui/components/Panel.tsx";
 import { PoweredBy } from "./ui/components/PoweredBy.tsx";
+
+const NO_FACETS: FindingFacets = { severities: null, sources: null, contexts: null };
 
 function isNodeKind(k: string): k is NodeKind {
   return (NODE_KINDS as ReadonlyArray<string>).includes(k);
@@ -58,6 +62,25 @@ export function App() {
     setPanelWidth(next);
     writePersistedWidth(next);
   }, []);
+
+  // Findings overlay facets (severity / source / context). Inactive by
+  // default; only meaningful when the graph carries findings.
+  const [findingFacets, setFindingFacets] = useState<FindingFacets>(NO_FACETS);
+
+  // Whether the graph carries any findings (browse ran with `--findings`)
+  // plus the distinct sources present. Drives the Findings tab + filter UI.
+  // A findings-free session yields { hasFindings: false, sources: [] }, so
+  // every findings affordance stays hidden and the UI is unchanged.
+  const findingsMeta = useMemo(() => {
+    let hasFindings = false;
+    const sources = new Set<string>();
+    for (const n of payload?.nodes ?? []) {
+      const fc = n.data?.findingCounts;
+      if (fc && fc.total > 0) hasFindings = true;
+      for (const s of n.data?.findingSources ?? []) sources.add(s);
+    }
+    return { hasFindings, sources: [...sources].sort() };
+  }, [payload]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +213,17 @@ export function App() {
               selectedId={selected?.id ?? null}
               matchedIds={matchedIds}
               analysisIds={analysisIds}
+              findingFacets={findingFacets}
             />
+          )}
+          {findingsMeta.hasFindings && (
+            <div className="absolute top-3 left-3 z-10 w-[280px] max-w-[calc(100%-24px)]">
+              <FindingsFilter
+                facets={findingFacets}
+                onChange={setFindingFacets}
+                availableSources={findingsMeta.sources}
+              />
+            </div>
           )}
           <ErrorBanner message={error} />
           <PoweredBy />
@@ -207,6 +240,7 @@ export function App() {
             onSelectEvent={setSelectedEvent}
             width={panelWidth}
             onWidthChange={handlePanelWidthChange}
+            hasFindings={findingsMeta.hasFindings}
           />
         ) : (
           <OverviewPane

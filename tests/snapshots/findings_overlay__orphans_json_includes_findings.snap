@@ -1,0 +1,111 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+{
+  "actions": [
+    {
+      "id": ".github/actions/orphan-tool",
+      "kind": "composite"
+    }
+  ],
+  "findings": [
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/actions/orphan-tool",
+          "node": "action"
+        },
+        "reason": "nearest preceding anchor at line 9 for finding at line 10",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 1
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/template-injection:.github/actions/orphan-tool/action.yml:10:26",
+        "location": {
+          "end_column": 42,
+          "end_line": 10,
+          "path": ".github/actions/orphan-tool/action.yml",
+          "start_column": 26,
+          "start_line": 10
+        },
+        "message": "code injection via template expansion: may expand into attacker-controllable code",
+        "rule_id": "zizmor/template-injection",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "template-injection"
+      },
+      "graph_context": {
+        "affected_entrypoints": [],
+        "callees": [
+          "setup-org/setup-action@v3"
+        ],
+        "callers": [],
+        "is_orphan": true,
+        "reachable_from": []
+      },
+      "graph_priority": "low",
+      "priority_reasons": [
+        {
+          "reason": "orphaned"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/actions/orphan-tool",
+          "node": "action"
+        },
+        "reason": "nearest preceding anchor at line 6 for finding at line 7",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 0
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/unpinned-uses:.github/actions/orphan-tool/action.yml:7:13",
+        "location": {
+          "end_column": 38,
+          "end_line": 7,
+          "path": ".github/actions/orphan-tool/action.yml",
+          "start_column": 13,
+          "start_line": 7
+        },
+        "message": "unpinned action reference: action is not pinned to a hash (required by blanket policy)",
+        "rule_id": "zizmor/unpinned-uses",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "unpinned-uses"
+      },
+      "graph_context": {
+        "affected_entrypoints": [],
+        "callees": [
+          "setup-org/setup-action@v3"
+        ],
+        "callers": [],
+        "is_orphan": true,
+        "reachable_from": []
+      },
+      "graph_priority": "low",
+      "priority_reasons": [
+        {
+          "reason": "orphaned"
+        }
+      ]
+    }
+  ],
+  "unreferenced_inputs": [],
+  "unused_outputs": [],
+  "workflows": []
+}

@@ -1,0 +1,16 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+trace pull_request_target  1 entry workflow
+
++- pull_request_target   (filters=none)
+\-> .github/workflows/pr-target.yml  [wf]
+    |- types: opened, synchronize
+    |- ! [zizmor/medium] artipacked (L10) — graph: high [reachable-from pull_request_target, write-all]
+    |- ! [zizmor/high] dangerous-triggers (L2) — graph: high [reachable-from pull_request_target, write-all]
+    |- ! [zizmor/high] template-injection (L15) — graph: high [reachable-from pull_request_target, write-all]
+    |- ! [zizmor/high] unpinned-uses (L11) — graph: high [reachable-from pull_request_target, write-all]
+    |- ! [zizmor/high] unpinned-uses (L17) — graph: high [reachable-from pull_request_target, write-all]
+    |-> actions/checkout  [ext-ac]  @v4
+    \-> deploy-org/deploy-action  [ext-ac]  @v2

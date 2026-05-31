@@ -1,0 +1,373 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+{
+  "findings": [
+    {
+      "attachment": {
+        "confidence": "exact",
+        "node": {
+          "id": ".github/workflows/pr-target.yml",
+          "node": "workflow"
+        },
+        "reason": "exact start-line match at line 10",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 0,
+          "job": "inspect"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/artipacked:.github/workflows/pr-target.yml:10:9",
+        "location": {
+          "end_column": 57,
+          "end_line": 13,
+          "path": ".github/workflows/pr-target.yml",
+          "start_column": 9,
+          "start_line": 10
+        },
+        "message": "credential persistence through GitHub Actions artifacts: does not set persist-credentials: false",
+        "rule_id": "zizmor/artipacked",
+        "severity": "medium",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "artipacked"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/pr-target.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "deploy-org/deploy-action@v2"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": true,
+          "write_scopes": []
+        },
+        "reachable_from": [
+          "pull_request_target"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "reachable_from_risky_trigger",
+          "trigger": "pull_request_target"
+        },
+        {
+          "reason": "write_all_available"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "exact",
+        "node": {
+          "id": ".github/workflows/pr-target.yml",
+          "node": "workflow"
+        },
+        "reason": "file/header level (line 2 precedes all jobs and steps)",
+        "sub_anchor": {
+          "anchor": "workflow_file"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/dangerous-triggers:.github/workflows/pr-target.yml:2:1",
+        "location": {
+          "end_column": 33,
+          "end_line": 4,
+          "path": ".github/workflows/pr-target.yml",
+          "start_column": 1,
+          "start_line": 2
+        },
+        "message": "use of fundamentally insecure workflow trigger: pull_request_target is almost always used insecurely",
+        "rule_id": "zizmor/dangerous-triggers",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "dangerous-triggers"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/pr-target.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "deploy-org/deploy-action@v2"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": true,
+          "write_scopes": []
+        },
+        "reachable_from": [
+          "pull_request_target"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "reachable_from_risky_trigger",
+          "trigger": "pull_request_target"
+        },
+        {
+          "reason": "write_all_available"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/pr-target.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 14 for finding at line 15",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 1,
+          "job": "inspect"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/template-injection:.github/workflows/pr-target.yml:15:33",
+        "location": {
+          "end_column": 64,
+          "end_line": 15,
+          "path": ".github/workflows/pr-target.yml",
+          "start_column": 33,
+          "start_line": 15
+        },
+        "message": "code injection via template expansion: may expand into attacker-controllable code",
+        "rule_id": "zizmor/template-injection",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "template-injection"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/pr-target.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "deploy-org/deploy-action@v2"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": true,
+          "write_scopes": []
+        },
+        "reachable_from": [
+          "pull_request_target"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "reachable_from_risky_trigger",
+          "trigger": "pull_request_target"
+        },
+        {
+          "reason": "write_all_available"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/pr-target.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 10 for finding at line 11",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 0,
+          "job": "inspect"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/unpinned-uses:.github/workflows/pr-target.yml:11:15",
+        "location": {
+          "end_column": 34,
+          "end_line": 11,
+          "path": ".github/workflows/pr-target.yml",
+          "start_column": 15,
+          "start_line": 11
+        },
+        "message": "unpinned action reference: action is not pinned to a hash (required by blanket policy)",
+        "rule_id": "zizmor/unpinned-uses",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "unpinned-uses"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/pr-target.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "deploy-org/deploy-action@v2"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": true,
+          "write_scopes": []
+        },
+        "reachable_from": [
+          "pull_request_target"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "reachable_from_risky_trigger",
+          "trigger": "pull_request_target"
+        },
+        {
+          "reason": "write_all_available"
+        }
+      ]
+    },
+    {
+      "attachment": {
+        "confidence": "heuristic",
+        "node": {
+          "id": ".github/workflows/pr-target.yml",
+          "node": "workflow"
+        },
+        "reason": "nearest preceding anchor at line 16 for finding at line 17",
+        "sub_anchor": {
+          "anchor": "step",
+          "index": 2,
+          "job": "inspect"
+        }
+      },
+      "finding": {
+        "id": "zizmor:zizmor/unpinned-uses:.github/workflows/pr-target.yml:17:15",
+        "location": {
+          "end_column": 42,
+          "end_line": 17,
+          "path": ".github/workflows/pr-target.yml",
+          "start_column": 15,
+          "start_line": 17
+        },
+        "message": "unpinned action reference: action is not pinned to a hash (required by blanket policy)",
+        "rule_id": "zizmor/unpinned-uses",
+        "severity": "high",
+        "source": "zizmor",
+        "tags": [
+          "security"
+        ],
+        "title": "unpinned-uses"
+      },
+      "graph_context": {
+        "affected_entrypoints": [
+          ".github/workflows/pr-target.yml"
+        ],
+        "callees": [
+          "actions/checkout@v4",
+          "deploy-org/deploy-action@v2"
+        ],
+        "callers": [],
+        "is_orphan": false,
+        "permission_context": {
+          "source": "workflow",
+          "write_all": true,
+          "write_scopes": []
+        },
+        "reachable_from": [
+          "pull_request_target"
+        ],
+        "secret_context": {
+          "inherits_secrets": false,
+          "passes_secrets": false,
+          "requires_secrets": false
+        }
+      },
+      "graph_priority": "high",
+      "priority_reasons": [
+        {
+          "reason": "reachable_from_risky_trigger",
+          "trigger": "pull_request_target"
+        },
+        {
+          "reason": "write_all_available"
+        }
+      ]
+    }
+  ],
+  "trace": [
+    {
+      "root": {
+        "children": [
+          {
+            "gitref": "v4",
+            "kind": "external-action",
+            "owner": "actions",
+            "repo": "checkout"
+          },
+          {
+            "gitref": "v2",
+            "kind": "external-action",
+            "owner": "deploy-org",
+            "repo": "deploy-action"
+          }
+        ],
+        "id": ".github/workflows/pr-target.yml",
+        "kind": "workflow"
+      },
+      "trigger": {
+        "event": "pull_request_target",
+        "types": {
+          "kind": "explicit",
+          "values": [
+            "opened",
+            "synchronize"
+          ]
+        }
+      }
+    }
+  ]
+}

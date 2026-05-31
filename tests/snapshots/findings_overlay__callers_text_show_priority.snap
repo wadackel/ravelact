@@ -1,0 +1,10 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+callers  no callers found  (1 targets)
+
+FINDINGS (BLAST RADIUS)
+  .github/actions/orphan-tool
+    - [zizmor/high] template-injection (L10) — graph: low [orphaned]
+    - [zizmor/high] unpinned-uses (L7) — graph: low [orphaned]

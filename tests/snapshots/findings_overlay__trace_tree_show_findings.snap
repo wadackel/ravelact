@@ -1,0 +1,16 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+trace pull_request_target  1 entry workflow
+
++- pull_request_target   (filters=none)
+\-> .github/workflows/pr-target.yml  [wf]
+    |- types: opened, synchronize
+    |- ! [zizmor/medium] artipacked (L10)
+    |- ! [zizmor/high] dangerous-triggers (L2)
+    |- ! [zizmor/high] template-injection (L15)
+    |- ! [zizmor/high] unpinned-uses (L11)
+    |- ! [zizmor/high] unpinned-uses (L17)
+    |-> actions/checkout  [ext-ac]  @v4
+    \-> deploy-org/deploy-action  [ext-ac]  @v2

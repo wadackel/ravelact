@@ -1,0 +1,15 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+### Impact
+
+No impacted targets found.
+
+#### Findings on impacted paths
+
+  .github/workflows/ci.yml
+    - [zizmor/medium] artipacked (L11)
+    - [zizmor/high] template-injection (L14)
+    - [zizmor/high] unpinned-uses (L12)
+    - [zizmor/high] unpinned-uses (L16)

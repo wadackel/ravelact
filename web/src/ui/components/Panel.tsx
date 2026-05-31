@@ -6,10 +6,12 @@ import {
   useRef,
   useState,
 } from "react";
-import { fetchImpact, fetchNode, fetchTrace } from "../../lib/api.ts";
+import { fetchFindings, fetchImpact, fetchNode, fetchTrace } from "../../lib/api.ts";
 import { githubUrlFor } from "../../lib/github-url.ts";
 import { renderTraceTree } from "../../lib/trace-render.ts";
 import type {
+  Finding,
+  FindingsResponse,
   IfCondition,
   ImpactResponse,
   NodeKind,
@@ -20,8 +22,15 @@ import type {
 import { ResizableRightPane } from "./ResizableRightPane.tsx";
 import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "./ui/index.ts";
 
-export type Tab = "details" | "triggers" | "impact" | "trace";
-const TABS: ReadonlyArray<Tab> = ["details", "triggers", "impact", "trace"];
+export type Tab = "details" | "triggers" | "impact" | "trace" | "findings";
+// Base tabs, always present. The "findings" tab is appended only when the
+// graph carries findings (see `tabsFor`) so a findings-free browse session
+// keeps the original four-tab surface unchanged.
+const BASE_TABS: ReadonlyArray<Tab> = ["details", "triggers", "impact", "trace"];
+
+function tabsFor(hasFindings: boolean): ReadonlyArray<Tab> {
+  return hasFindings ? [...BASE_TABS, "findings"] : BASE_TABS;
+}
 
 type State = {
   // `undefined` means "not fetched yet"; `null` means "fetched but 404".
@@ -31,6 +40,9 @@ type State = {
   impactError: string | null;
   trace: TraceResponse | null | undefined;
   traceError: string | null;
+  // Findings are never 404 (empty list instead), so no `null` state.
+  findings: FindingsResponse | undefined;
+  findingsError: string | null;
 };
 
 type Action =
@@ -40,7 +52,9 @@ type Action =
   | { type: "impact"; data: ImpactResponse | null }
   | { type: "impact-error"; message: string }
   | { type: "trace"; data: TraceResponse | null }
-  | { type: "trace-error"; message: string };
+  | { type: "trace-error"; message: string }
+  | { type: "findings"; data: FindingsResponse }
+  | { type: "findings-error"; message: string };
 
 const initialState: State = {
   details: undefined,
@@ -49,6 +63,8 @@ const initialState: State = {
   impactError: null,
   trace: undefined,
   traceError: null,
+  findings: undefined,
+  findingsError: null,
 };
 
 function reducer(state: State, action: Action): State {
@@ -67,6 +83,10 @@ function reducer(state: State, action: Action): State {
       return { ...state, trace: action.data, traceError: null };
     case "trace-error":
       return { ...state, traceError: action.message };
+    case "findings":
+      return { ...state, findings: action.data, findingsError: null };
+    case "findings-error":
+      return { ...state, findingsError: action.message };
   }
 }
 
@@ -80,6 +100,10 @@ export type PanelProps = {
   onSelectEvent: (event: string | null) => void;
   width: number;
   onWidthChange: (next: number) => void;
+  // True when the graph carries any findings (browse ran with `--findings`).
+  // Drives presence of the Findings tab. Optional + defaults false so a
+  // findings-free session (and pre-wiring callers) is byte-identical to before.
+  hasFindings?: boolean;
 };
 
 export function Panel({
@@ -92,8 +116,17 @@ export function Panel({
   onSelectEvent,
   width,
   onWidthChange,
+  hasFindings = false,
 }: PanelProps) {
   const [state, dispatch] = useReducer(reducer, initialState);
+  const tabs = tabsFor(hasFindings);
+  // Clamp the (App-owned, lifted) `tab` to one that exists in the current
+  // tab set: if `hasFindings` is false but `tab` is still "findings", fall
+  // back to "details" so the body, fetch effect, and ARIA wiring never point
+  // at a tab with no button. Every "current tab" read below uses `activeTab`;
+  // `onTabChange` still receives the real selection and `tabs.map` enumerates
+  // the real buttons.
+  const activeTab: Tab = tabs.includes(tab) ? tab : "details";
 
   // Fetch on demand. The effect reads `state.{details,impact,trace}`
   // from the deps array so the early-return correctly skips re-fetching
@@ -107,7 +140,7 @@ export function Panel({
     if (!openFor) return;
     const innerId = openFor.id.replace(/^(?:wf|la|ea|ew|dk):/, "");
     let cancelled = false;
-    if ((tab === "details" || tab === "triggers") && state.details === undefined) {
+    if ((activeTab === "details" || activeTab === "triggers") && state.details === undefined) {
       fetchNode(openFor.kind, innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "details", data });
@@ -120,7 +153,7 @@ export function Panel({
             });
           }
         });
-    } else if (tab === "impact" && state.impact === undefined) {
+    } else if (activeTab === "impact" && state.impact === undefined) {
       fetchImpact(innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "impact", data });
@@ -133,7 +166,7 @@ export function Panel({
             });
           }
         });
-    } else if (tab === "trace" && state.trace === undefined) {
+    } else if (activeTab === "trace" && state.trace === undefined) {
       fetchTrace(innerId)
         .then((data) => {
           if (!cancelled) dispatch({ type: "trace", data });
@@ -146,11 +179,24 @@ export function Panel({
             });
           }
         });
+    } else if (activeTab === "findings" && state.findings === undefined) {
+      fetchFindings(openFor.kind, innerId)
+        .then((data) => {
+          if (!cancelled) dispatch({ type: "findings", data });
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) {
+            dispatch({
+              type: "findings-error",
+              message: e instanceof Error ? e.message : String(e),
+            });
+          }
+        });
     }
     return () => {
       cancelled = true;
     };
-  }, [openFor, tab, state.details, state.impact, state.trace]);
+  }, [openFor, activeTab, state.details, state.impact, state.trace, state.findings]);
 
   // Escape closes the panel.
   useEffect(() => {
@@ -163,16 +209,16 @@ export function Panel({
   }, [openFor, onClose]);
 
   function onTabKeyDown(e: ReactKeyboardEvent<HTMLElement>) {
-    const idx = TABS.indexOf(tab);
+    const idx = tabs.indexOf(activeTab);
     let next: Tab | null = null;
     if (e.key === "ArrowRight") {
-      next = TABS[(idx + 1) % TABS.length] ?? tab;
+      next = tabs[(idx + 1) % tabs.length] ?? activeTab;
     } else if (e.key === "ArrowLeft") {
-      next = TABS[(idx - 1 + TABS.length) % TABS.length] ?? tab;
+      next = tabs[(idx - 1 + tabs.length) % tabs.length] ?? activeTab;
     } else if (e.key === "Home") {
-      next = TABS[0] ?? tab;
+      next = tabs[0] ?? activeTab;
     } else if (e.key === "End") {
-      next = TABS[TABS.length - 1] ?? tab;
+      next = tabs[tabs.length - 1] ?? activeTab;
     }
     if (next) {
       e.preventDefault();
@@ -212,16 +258,16 @@ export function Panel({
           aria-label="Detail views"
           onKeyDown={onTabKeyDown}
         >
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <button
               key={t}
               id={`tab-${t}`}
               role="tab"
               type="button"
               data-tab={t}
-              aria-selected={tab === t}
+              aria-selected={activeTab === t}
               aria-controls="panel-body"
-              tabIndex={tab === t ? 0 : -1}
+              tabIndex={activeTab === t ? 0 : -1}
               onClick={() => onTabChange(t)}
               className="bg-transparent border-0 text-fg-muted py-3 px-0.5 cursor-pointer text-[12.5px] border-b-2 border-b-transparent -mb-px hover:text-fg aria-selected:text-fg aria-selected:border-b-fg aria-selected:font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2"
             >
@@ -233,13 +279,14 @@ export function Panel({
           id="panel-body"
           className="flex-1 overflow-y-auto p-4 text-[12.5px]"
           role="tabpanel"
-          aria-labelledby={`tab-${tab}`}
+          aria-labelledby={`tab-${activeTab}`}
           tabIndex={0}
         >
-          {tab === "details" && renderDetails(state, githubUrl)}
-          {tab === "triggers" && renderTriggers(state, selectedEvent, onSelectEvent)}
-          {tab === "impact" && renderImpact(state)}
-          {tab === "trace" && renderTrace(state, selectedEvent, onSelectEvent)}
+          {activeTab === "details" && renderDetails(state, githubUrl)}
+          {activeTab === "triggers" && renderTriggers(state, selectedEvent, onSelectEvent)}
+          {activeTab === "impact" && renderImpact(state)}
+          {activeTab === "trace" && renderTrace(state, selectedEvent, onSelectEvent)}
+          {activeTab === "findings" && renderFindings(state)}
         </section>
       </aside>
     </ResizableRightPane>
@@ -587,5 +634,81 @@ function renderTrace(
         )}
       </Field>
     </>
+  );
+}
+
+// Source-severity tiers, most → least severe. Findings group under these
+// headings; the per-finding graph priority is shown separately so the two
+// severity axes are never conflated (matching the M1/M2 invariant).
+const SEVERITY_ORDER = ["error", "high", "medium", "low", "info"] as const;
+
+function renderFindings(state: State) {
+  if (state.findingsError) {
+    return <Status type="error">Error: {state.findingsError}</Status>;
+  }
+  if (state.findings === undefined) {
+    return <Status type="loading" />;
+  }
+  const findings = state.findings.findings;
+  if (findings.length === 0) {
+    return <Status type="empty">No findings for this node</Status>;
+  }
+  const groups = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const key = f.sourceSeverity || "info";
+    const bucket = groups.get(key);
+    if (bucket) {
+      bucket.push(f);
+    } else {
+      groups.set(key, [f]);
+    }
+  }
+  // Keep SEVERITY_ORDER (most → least severe) and drop empty tiers, while
+  // carrying `rows` through so the render needs no non-null assertion.
+  const ordered = SEVERITY_ORDER.flatMap((sev) => {
+    const rows = groups.get(sev);
+    return rows && rows.length > 0 ? [{ sev, rows }] : [];
+  });
+  return (
+    <>
+      {ordered.map(({ sev, rows }) => (
+        <Field key={sev} label={`${sev} (${rows.length})`}>
+          <div data-testid="finding-group" data-severity={sev}>
+            <FieldRows>
+              {rows.map((f, i) => (
+                <FindingRow key={`${f.ruleId}:${f.file}:${f.line}:${i}`} finding={f} />
+              ))}
+            </FieldRows>
+          </div>
+        </Field>
+      ))}
+    </>
+  );
+}
+
+function FindingRow({ finding }: { finding: Finding }) {
+  return (
+    <div data-testid="finding-row" className="py-1 text-fg">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="font-mono text-[11px] break-all">{finding.ruleId}</span>
+        <Chip>graph: {finding.graphPriority}</Chip>
+      </div>
+      {finding.message && (
+        <div className="text-fg-muted text-[11px] mt-0.5 break-words">{finding.message}</div>
+      )}
+      <div className="text-fg-muted text-[11px] mt-0.5 font-mono break-all">
+        {finding.file}
+        {finding.line > 0 ? `:${finding.line}` : ""}
+      </div>
+      {finding.priorityReasons.length > 0 && (
+        <div className="mt-0.5">
+          <ChipList>
+            {finding.priorityReasons.map((r, i) => (
+              <Chip key={`${r}:${i}`}>{r}</Chip>
+            ))}
+          </ChipList>
+        </div>
+      )}
+    </div>
   );
 }

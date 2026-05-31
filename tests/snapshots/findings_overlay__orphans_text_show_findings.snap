@@ -1,0 +1,14 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+orphans  1 unused declaration  (1 actions)
+
+ACTIONS
+kind       target
+composite  .github/actions/orphan-tool
+
+FINDINGS ON ORPHANS (PREFER DELETION)
+  .github/actions/orphan-tool
+    - [zizmor/high] template-injection (L10)
+    - [zizmor/high] unpinned-uses (L7)

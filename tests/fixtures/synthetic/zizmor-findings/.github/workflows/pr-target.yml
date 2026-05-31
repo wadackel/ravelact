@@ -1,0 +1,17 @@
+name: PR Target
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+permissions: write-all
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Echo PR title
+        run: echo "Title is ${{ github.event.pull_request.title }}"
+      - name: Deploy via third-party
+        uses: deploy-org/deploy-action@v2

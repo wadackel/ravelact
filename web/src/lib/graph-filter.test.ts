@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { type EdgeRef, isVisible, reachableSet } from "./graph-filter.ts";
+import {
+  type EdgeRef,
+  type FindingFacets,
+  findingsActive,
+  findingsVisibleSet,
+  isVisible,
+  type NodeFindingMeta,
+  reachableSet,
+} from "./graph-filter.ts";
 
 describe("reachableSet", () => {
   it("includes successors from a linear chain", () => {
@@ -100,5 +108,89 @@ describe("isVisible — 3-filter OR composition", () => {
     const f = { ...allNull, matchedIds: new Set<string>() };
     expect(isVisible("a", f)).toBe(false);
     expect(isVisible("b", f)).toBe(false);
+  });
+});
+
+describe("findingsVisibleSet — AND facets (severity / source / context)", () => {
+  const noFacets: FindingFacets = { severities: null, sources: null, contexts: null };
+
+  function meta(over: Partial<NodeFindingMeta> = {}): NodeFindingMeta {
+    return {
+      counts: { error: 0, high: 0, medium: 0, low: 0, info: 0 },
+      sources: ["zizmor"],
+      reachableFromRisky: false,
+      isOrphan: false,
+      hasWrite: false,
+      ...over,
+    };
+  }
+
+  const nodes = [
+    {
+      id: "wf:a",
+      findings: meta({
+        counts: { error: 0, high: 1, medium: 0, low: 0, info: 0 },
+        reachableFromRisky: true,
+      }),
+    },
+    {
+      id: "wf:b",
+      findings: meta({
+        counts: { error: 0, high: 0, medium: 1, low: 0, info: 0 },
+        isOrphan: true,
+      }),
+    },
+    // No findings → can never pass an active facet.
+    { id: "wf:c" },
+  ];
+
+  it("findingsActive reflects whether any facet is set", () => {
+    expect(findingsActive(noFacets)).toBe(false);
+    expect(findingsActive({ ...noFacets, severities: new Set(["high"]) })).toBe(true);
+  });
+
+  it("returns null when no facet is active (caller leaves isVisible alone)", () => {
+    expect(findingsVisibleSet(nodes, noFacets)).toBeNull();
+  });
+
+  it("severity facet keeps only finding nodes with that tier", () => {
+    const set = findingsVisibleSet(nodes, { ...noFacets, severities: new Set(["high"]) });
+    expect(set).toEqual(new Set(["wf:a"]));
+  });
+
+  it("context facet keeps only nodes with that flag", () => {
+    const set = findingsVisibleSet(nodes, { ...noFacets, contexts: new Set(["orphan"]) });
+    expect(set).toEqual(new Set(["wf:b"]));
+  });
+
+  it("source facet keeps finding nodes from the selected source", () => {
+    const set = findingsVisibleSet(nodes, { ...noFacets, sources: new Set(["zizmor"]) });
+    expect(set).toEqual(new Set(["wf:a", "wf:b"]));
+    // A source nobody has → empty set (everything narrowed out).
+    const none = findingsVisibleSet(nodes, { ...noFacets, sources: new Set(["actionlint"]) });
+    expect(none).toEqual(new Set());
+  });
+
+  it("facets AND together: severity=high AND context=orphan matches neither node", () => {
+    const set = findingsVisibleSet(nodes, {
+      ...noFacets,
+      severities: new Set(["high"]),
+      contexts: new Set(["orphan"]),
+    });
+    // wf:a is high but not orphan; wf:b is orphan but medium → empty.
+    expect(set).toEqual(new Set());
+  });
+
+  it("within a facet the match is OR (high OR medium)", () => {
+    const set = findingsVisibleSet(nodes, {
+      ...noFacets,
+      severities: new Set(["high", "medium"]),
+    });
+    expect(set).toEqual(new Set(["wf:a", "wf:b"]));
+  });
+
+  it("nodes without findings never pass an active facet", () => {
+    const set = findingsVisibleSet(nodes, { ...noFacets, severities: new Set(["high"]) });
+    expect(set?.has("wf:c")).toBe(false);
   });
 });
