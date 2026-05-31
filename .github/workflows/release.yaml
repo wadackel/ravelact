@@ -10,7 +10,44 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Build the SPA bundle once, on Linux, inside the Nix dev shell (the SSOT
+  # for the project's Node/pnpm pair). The resulting web/dist/ is Rust-target
+  # independent — rust-embed in src/cli/render/browse/mod.rs reads it at
+  # compile time regardless of the binary's architecture — so every build
+  # matrix entry can reuse this single artifact. Keeping Nix confined to this
+  # job lets the per-target builds run on plain rustup, which is required:
+  # the Determinate Nix Installer no longer supports Intel macOS hosts.
+  frontend-bundle:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup-nix-devshell
+        with:
+          cache-key-prefix: nix-release-frontend
+      - name: Build frontend bundle (web/dist via Nix shell)
+        # rust-embed in src/cli/render/browse/mod.rs embeds web/dist/ at build
+        # time; without this the released binary serves an empty bundle.
+        # Frontend tooling (pnpm + Node) is pinned via flake.lock — the SSOT
+        # for the project's Node/pnpm version pair.
+        run: nix develop --command just frontend
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: web-dist
+          path: web/dist
+          # web/dist/.gitkeep is the rust-embed folder-existence placeholder
+          # (see justfile `frontend`); without this flag upload-artifact skips
+          # the dotfile and the folder can come back empty on download.
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
   build:
+    needs: frontend-bundle
     permissions:
       contents: read
     strategy:
@@ -23,8 +60,16 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             runner: ubuntu-24.04-arm
             asset: linux-arm64
+          # darwin-amd64 is cross-compiled from an Apple Silicon runner:
+          # GitHub-hosted Intel macOS runners can no longer install Nix
+          # (Determinate dropped Intel host support), and x86_64 macOS
+          # runners are slated for removal by GitHub in 2027-08. The host
+          # toolchain only needs `rustup target add x86_64-apple-darwin`.
+          # This cross-build needs no extra linker config only because the
+          # dependency tree is pure Rust (no `*-sys` / ring / openssl, no
+          # build.rs). Re-evaluate this job if a C-linking crate is added.
           - target: x86_64-apple-darwin
-            runner: macos-26-intel
+            runner: macos-latest
             asset: darwin-amd64
           - target: aarch64-apple-darwin
             runner: macos-latest
@@ -36,72 +81,72 @@ jobs:
         with:
           persist-credentials: false
       - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal
-      - uses: ./.github/actions/setup-nix-devshell
+        # `stable` matches rust-toolchain.toml's channel. That file also lists
+        # rustfmt/clippy/llvm-tools-preview components, which rustup auto-fetches
+        # on the first cargo invocation below — none are needed to build, so we
+        # install the minimal profile and let the (small) component fetch happen
+        # lazily rather than widening the profile here.
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --profile minimal
+          rustup target add ${{ matrix.target }}
+      - name: Restore frontend bundle (web/dist)
+        # rust-embed embeds web/dist/ at compile time; download the bundle
+        # produced once by the frontend-bundle job instead of rebuilding it
+        # per target. The binary itself is built with the host rustup
+        # toolchain (no Nix), so it does not link against /nix/store paths.
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          cache-key-prefix: nix-release-${{ matrix.target }}
-      - name: Build frontend bundle (web/dist via Nix shell)
-        # rust-embed in src/cli/render/browse.rs embeds web/dist/ at build
-        # time; without this step the released binary serves an empty bundle.
-        # Frontend tooling (pnpm + Node) is pinned via flake.lock — the SSOT
-        # for the project's Node/pnpm version pair.
-        run: nix develop --command just frontend
-      - name: Validate runner architecture
-        env:
-          RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
-        run: |
-          set -euo pipefail
-          rustc -vV
-          uname -a
-          arch="$(uname -m)"
-          case "${RAVELACT_RELEASE_ASSET}:${arch}" in
-            linux-amd64:x86_64|linux-arm64:aarch64|darwin-amd64:x86_64|darwin-arm64:arm64)
-              ;;
-            *)
-              echo "::error::runner architecture ${arch} does not match release asset ${RAVELACT_RELEASE_ASSET}"
-              exit 1
-              ;;
-          esac
-      - name: Assert host cargo (not Nix shadow)
-        # Guard against PATH ordering surprises: cargo build MUST run with the
-        # host rustup toolchain so the released binary does not link against
-        # /nix/store paths (later checked by readelf -l + ldd).
-        run: |
-          set -euo pipefail
-          cargo_path="$(command -v cargo)"
-          echo "cargo: $cargo_path"
-          if printf '%s' "$cargo_path" | grep -F '/nix/store' >/dev/null; then
-            echo "::error::cargo is shadowed by Nix (resolved to $cargo_path); host rustup expected"
-            exit 1
-          fi
+          name: web-dist
+          path: web/dist
       - name: cargo build release
-        run: cargo build --release --locked
+        run: cargo build --release --locked --target ${{ matrix.target }}
       - name: stage binary
         run: |
           set -euo pipefail
           mkdir -p staging
-          cp target/release/ravelact staging/ravelact-${{ matrix.asset }}
+          cp target/${{ matrix.target }}/release/ravelact staging/ravelact-${{ matrix.asset }}
       - name: Validate staged binary
         env:
           RAVELACT_RELEASE_ASSET: ${{ matrix.asset }}
         run: |
           set -euo pipefail
           bin="staging/ravelact-${RAVELACT_RELEASE_ASSET}"
-          "$bin" --version
+          file "$bin"
 
-          if [[ "$RAVELACT_RELEASE_ASSET" == linux-* ]]; then
-            file "$bin"
-            readelf -l "$bin" | tee staging/readelf.txt
-            if grep -F '/nix/store' staging/readelf.txt; then
-              echo "::error::Linux release asset references /nix/store in ELF program headers"
+          # Assert the produced binary's architecture matches the asset name.
+          # This is the cross-build safety net: darwin-amd64 is built on an
+          # arm64 runner, so `file` (not `uname -m`) is the source of truth.
+          # The expected token tracks the `file` flavour per OS: GNU file on
+          # Linux prints `x86-64` (hyphen); BSD file on macOS prints `x86_64`
+          # (underscore). Do not "normalize" these — the grep depends on them.
+          case "$RAVELACT_RELEASE_ASSET" in
+            linux-amd64) expect='x86-64' ;;
+            linux-arm64) expect='aarch64' ;;
+            darwin-amd64) expect='x86_64' ;;
+            darwin-arm64) expect='arm64' ;;
+            *)
+              echo "::error::unknown release asset ${RAVELACT_RELEASE_ASSET}"
               exit 1
-            fi
-            ldd "$bin" | tee staging/ldd.txt
-            if grep -F '/nix/store' staging/ldd.txt; then
-              echo "::error::Linux release asset references /nix/store in dynamic dependencies"
-              exit 1
-            fi
+              ;;
+          esac
+          if ! file "$bin" | grep -F "$expect" >/dev/null; then
+            echo "::error::${RAVELACT_RELEASE_ASSET} is not a ${expect} binary"
+            exit 1
           fi
+
+          # Smoke-test --version only when the runner can execute the binary
+          # natively. The cross-built darwin-amd64 asset runs on an arm64
+          # runner, so skip its execution to avoid depending on Rosetta.
+          arch="$(uname -m)"
+          case "${RAVELACT_RELEASE_ASSET}:${arch}" in
+            linux-amd64:x86_64|linux-arm64:aarch64|darwin-amd64:x86_64|darwin-arm64:arm64)
+              "$bin" --version
+              ;;
+            *)
+              echo "skipping --version smoke test: ${RAVELACT_RELEASE_ASSET} not natively runnable on ${arch}"
+              ;;
+          esac
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ravelact-${{ matrix.asset }}
