@@ -590,4 +590,80 @@ mod tests {
         assert!(!write_all);
         assert_eq!(scopes, vec!["contents".to_string(), "id-token".to_string()]);
     }
+
+    // ---- build_context against a real IR ---------------------------------
+
+    use crate::findings::attach::{Attachment, Confidence, NodeRef, SubAnchor};
+    use crate::findings::model::{Finding, FindingId, FindingSource, Location};
+
+    fn simple_ir() -> Ir {
+        crate::ir::build::build_ir(
+            std::path::Path::new("tests/fixtures/simple"),
+            &globset::GlobSet::empty(),
+        )
+        .expect("simple fixture should build")
+    }
+
+    fn finding_at(path: &str) -> Finding {
+        Finding {
+            id: FindingId("x".into()),
+            source: FindingSource::Zizmor,
+            rule_id: "zizmor/x".into(),
+            title: "t".into(),
+            message: "m".into(),
+            severity: Severity::Medium,
+            location: Location {
+                path: path.into(),
+                start_line: Some(1),
+                start_column: None,
+                end_line: None,
+                end_column: None,
+            },
+            tags: vec![],
+        }
+    }
+
+    #[test]
+    fn build_context_job_anchor_reads_job_perms_and_workflow_secrets() {
+        // simple/ci.yml: job `test` has job-level permissions, and job
+        // `call-build` uses a reusable workflow with `secrets: inherit`.
+        let ir = simple_ir();
+        let attachment = Attachment {
+            node: NodeRef::Workflow {
+                id: WorkflowId(".github/workflows/ci.yml".into()),
+            },
+            sub_anchor: SubAnchor::Job {
+                job: JobId("test".into()),
+            },
+            confidence: Confidence::Exact,
+            reason: "r".into(),
+        };
+        let enriched = enrich(&ir, finding_at(".github/workflows/ci.yml"), attachment);
+        let ctx = &enriched.graph_context;
+        let pc = ctx
+            .permission_context
+            .as_ref()
+            .expect("workflow node carries permission context");
+        assert_eq!(pc.source, "job:test", "job-level permissions are read");
+        let sc = ctx
+            .secret_context
+            .as_ref()
+            .expect("workflow node carries secret context");
+        assert!(sc.inherits_secrets, "call-build uses secrets: inherit");
+    }
+
+    #[test]
+    fn build_context_unresolved_node_is_default() {
+        let ir = simple_ir();
+        let attachment = Attachment {
+            node: NodeRef::Unresolved {
+                path: "nope.yml".into(),
+            },
+            sub_anchor: SubAnchor::WorkflowFile,
+            confidence: Confidence::FileOnly,
+            reason: "r".into(),
+        };
+        let enriched = enrich(&ir, finding_at("nope.yml"), attachment);
+        assert_eq!(enriched.graph_context, GraphContext::default());
+    }
 }

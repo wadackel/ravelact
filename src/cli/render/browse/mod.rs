@@ -2951,4 +2951,129 @@ mod tests {
             assert_eq!(mime_for_extension(path), *expected, "for input {path}");
         }
     }
+
+    // ------------------------------------------------------------------
+    // Findings overlay (in-process; the e2e suite drives the same paths
+    // through a spawned binary, which llvm-cov does not instrument).
+    // ------------------------------------------------------------------
+
+    fn zizmor_sarif() -> PathBuf {
+        PathBuf::from("tests/fixtures/synthetic/zizmor-findings/zizmor.sarif")
+    }
+
+    fn zizmor_findings_ir_and_map() -> (Arc<Ir>, FindingsByNode) {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/zizmor-findings");
+        let map = load_findings_by_node(&ir, std::slice::from_ref(&zizmor_sarif()))
+            .expect("load findings");
+        (ir, map)
+    }
+
+    #[test]
+    fn load_findings_by_node_empty_without_paths() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/zizmor-findings");
+        assert!(load_findings_by_node(&ir, &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn build_graph_response_injects_finding_counts_flags_and_sources() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        assert!(!findings.is_empty());
+        let resp = build_graph_response(&ir, &findings);
+
+        let prt = resp
+            .nodes
+            .iter()
+            .filter_map(|n| n.data.as_option())
+            .find(|d| d.id == "wf:.github/workflows/pr-target.yml")
+            .expect("pr-target node present");
+        assert!(prt.reachable_from_risky, "pr-target reached by pull_request_target");
+        assert!(prt.has_write, "pr-target declares write-all");
+        assert_eq!(prt.finding_sources, vec!["zizmor".to_string()]);
+        assert!(prt.finding_counts.as_option().expect("counts").total > 0);
+
+        // ci.yml: push (not risky) + contents: write (sensitive).
+        let ci = resp
+            .nodes
+            .iter()
+            .filter_map(|n| n.data.as_option())
+            .find(|d| d.id == "wf:.github/workflows/ci.yml")
+            .expect("ci node present");
+        assert!(!ci.reachable_from_risky);
+        assert!(ci.has_write);
+
+        // This fixture has no risky-entry -> local-callee chain, so no edge is
+        // on a dangerous path (every edge target is an external action).
+        assert!(
+            resp.edges
+                .iter()
+                .filter_map(|e| e.data.as_option())
+                .all(|d| !d.on_dangerous_path),
+            "no dangerous edges expected for external-only callees",
+        );
+    }
+
+    #[test]
+    fn findings_response_maps_kinds_and_projects_fields() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+
+        let resp = svc.findings_response("workflow", ".github/workflows/pr-target.yml");
+        assert!(!resp.findings.is_empty());
+        for f in &resp.findings {
+            assert!(!f.source_severity.is_empty(), "source severity present");
+            assert!(!f.graph_priority.is_empty(), "graph priority present");
+            assert_eq!(f.file, ".github/workflows/pr-target.yml");
+        }
+        // write-all + risky trigger promotes priority to high.
+        assert!(resp.findings.iter().any(|f| f.graph_priority == "high"));
+
+        // local-action kind resolves; unknown kind / id yield empty (never error).
+        assert!(svc
+            .findings_response("local-action", ".github/actions/orphan-tool")
+            .findings
+            .iter()
+            .count()
+            > 0);
+        assert!(svc.findings_response("external-action", "x").findings.is_empty());
+        assert!(svc.findings_response("workflow", "nope.yml").findings.is_empty());
+    }
+
+    #[tokio::test]
+    async fn trait_get_findings_returns_node_findings() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+        let req = decoded_request(&pb::GetFindingsRequest {
+            kind: "workflow".into(),
+            id: ".github/workflows/pr-target.yml".into(),
+            __buffa_unknown_fields: Default::default(),
+        });
+        let resp = BrowseService::get_findings(&svc, empty_ctx(), req)
+            .await
+            .expect("get_findings must succeed")
+            .body;
+        assert!(!resp.findings.is_empty(), "pr-target has findings");
+    }
+
+    #[test]
+    fn closure_walks_forward_and_backward() {
+        // a -> b -> c, plus a sibling edge a -> d.
+        let edges = vec![
+            ("a".to_string(), "b".to_string()),
+            ("b".to_string(), "c".to_string()),
+            ("a".to_string(), "d".to_string()),
+        ];
+        let seeds: HashSet<String> = ["a".to_string()].into_iter().collect();
+        let fwd = closure(&edges, &seeds, Direction::Forward);
+        assert_eq!(
+            fwd,
+            ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect()
+        );
+        let leaf: HashSet<String> = ["c".to_string()].into_iter().collect();
+        let back = closure(&edges, &leaf, Direction::Backward);
+        // c can be reached from a and b; d is not on a path to c.
+        assert_eq!(
+            back,
+            ["a", "b", "c"].iter().map(|s| s.to_string()).collect()
+        );
+    }
 }

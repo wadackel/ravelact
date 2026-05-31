@@ -117,3 +117,33 @@ pub struct Finding {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tags: Vec<FindingTag>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn finding_source_from_driver_name_is_case_insensitive() {
+        assert_eq!(FindingSource::from_driver_name("ZiZmOr"), FindingSource::Zizmor);
+        assert_eq!(
+            FindingSource::from_driver_name("ActionLint"),
+            FindingSource::Actionlint
+        );
+        assert_eq!(
+            FindingSource::from_driver_name("ravelact"),
+            FindingSource::Ravelact
+        );
+        match FindingSource::from_driver_name("trivy") {
+            FindingSource::External(name) => assert_eq!(name, "trivy"),
+            other => panic!("expected External, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn finding_source_label_covers_every_variant() {
+        assert_eq!(FindingSource::Ravelact.label(), "ravelact");
+        assert_eq!(FindingSource::Actionlint.label(), "actionlint");
+        assert_eq!(FindingSource::Zizmor.label(), "zizmor");
+        assert_eq!(FindingSource::External("trivy".to_string()).label(), "trivy");
+    }
+}
