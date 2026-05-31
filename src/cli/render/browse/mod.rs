@@ -2986,7 +2986,10 @@ mod tests {
             .filter_map(|n| n.data.as_option())
             .find(|d| d.id == "wf:.github/workflows/pr-target.yml")
             .expect("pr-target node present");
-        assert!(prt.reachable_from_risky, "pr-target reached by pull_request_target");
+        assert!(
+            prt.reachable_from_risky,
+            "pr-target reached by pull_request_target"
+        );
         assert!(prt.has_write, "pr-target declares write-all");
         assert_eq!(prt.finding_sources, vec!["zizmor".to_string()]);
         assert!(prt.finding_counts.as_option().expect("counts").total > 0);
@@ -3028,14 +3031,18 @@ mod tests {
         assert!(resp.findings.iter().any(|f| f.graph_priority == "high"));
 
         // local-action kind resolves; unknown kind / id yield empty (never error).
-        assert!(svc
+        assert!(!svc
             .findings_response("local-action", ".github/actions/orphan-tool")
             .findings
-            .iter()
-            .count()
-            > 0);
-        assert!(svc.findings_response("external-action", "x").findings.is_empty());
-        assert!(svc.findings_response("workflow", "nope.yml").findings.is_empty());
+            .is_empty());
+        assert!(svc
+            .findings_response("external-action", "x")
+            .findings
+            .is_empty());
+        assert!(svc
+            .findings_response("workflow", "nope.yml")
+            .findings
+            .is_empty());
     }
 
     #[tokio::test]

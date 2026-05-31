@@ -124,7 +124,10 @@ mod tests {
 
     #[test]
     fn finding_source_from_driver_name_is_case_insensitive() {
-        assert_eq!(FindingSource::from_driver_name("ZiZmOr"), FindingSource::Zizmor);
+        assert_eq!(
+            FindingSource::from_driver_name("ZiZmOr"),
+            FindingSource::Zizmor
+        );
         assert_eq!(
             FindingSource::from_driver_name("ActionLint"),
             FindingSource::Actionlint
@@ -144,6 +147,9 @@ mod tests {
         assert_eq!(FindingSource::Ravelact.label(), "ravelact");
         assert_eq!(FindingSource::Actionlint.label(), "actionlint");
         assert_eq!(FindingSource::Zizmor.label(), "zizmor");
-        assert_eq!(FindingSource::External("trivy".to_string()).label(), "trivy");
+        assert_eq!(
+            FindingSource::External("trivy".to_string()).label(),
+            "trivy"
+        );
     }
 }
