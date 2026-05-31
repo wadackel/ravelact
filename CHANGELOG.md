@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.9](https://github.com/wadackel/ravelact/compare/v0.0.8...v0.0.9) - 2026-05-31
+
+### Added
+
+- add ravelact logo to browse and README branding ([#56](https://github.com/wadackel/ravelact/pull/56))
+
+### Other
+
+- drop PoC framing for browse in README and CLI help ([#59](https://github.com/wadackel/ravelact/pull/59))
+- *(deps)* pin dependencies ([#55](https://github.com/wadackel/ravelact/pull/55))
+
 ## [0.0.8](https://github.com/wadackel/ravelact/compare/v0.0.7...v0.0.8) - 2026-05-25
 
 ### Added
