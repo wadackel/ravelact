@@ -1,6 +1,7 @@
 use crate::cache;
 use crate::ir::{
-    ActionKind, DanglingLocalUsesKind, EventKind, Ir, ParseDiagnostic, WiringFinding, WiringKind,
+    ActionId, ActionKind, DanglingLocalUsesKind, EventKind, Ir, ParseDiagnostic, WiringFinding,
+    WiringKind, WorkflowId,
 };
 use crate::markdown;
 use crate::query::{self, impact::ImpactResult, trace_render::TreeStyle};
@@ -145,6 +146,8 @@ pub enum Command {
         /// controlled by `NO_COLOR` and TTY detection.
         #[arg(long, default_value_t = false)]
         ascii: bool,
+        #[command(flatten)]
+        findings: FindingsArgs,
     },
 
     /// Summarize trigger events declared across workflows.
@@ -172,6 +175,8 @@ pub enum Command {
         /// preserving order; empty hits are not filtered).
         #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
         format: ReportFormat,
+        #[command(flatten)]
+        findings: FindingsArgs,
     },
 
     /// Reverse impact analysis: given a list of changed files, list the
@@ -192,6 +197,8 @@ pub enum Command {
         /// list; `json` emits a machine-readable object suitable for jq.
         #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
         format: ReportFormat,
+        #[command(flatten)]
+        findings: FindingsArgs,
     },
 
     /// Report declared-but-unused items across the workflow estate. Emits four
@@ -207,6 +214,8 @@ pub enum Command {
         /// `unreferenced_inputs`, `unused_outputs`.
         #[arg(long, value_enum, default_value_t = ReportFormat::Text)]
         format: ReportFormat,
+        #[command(flatten)]
+        findings: FindingsArgs,
     },
 
     /// Verify that declared dependency edges resolve and that observable
@@ -304,6 +313,22 @@ pub enum Command {
         /// block for inline embedding in PR comments / GitHub Job Summaries.
         #[arg(long, value_enum, default_value_t = GraphFormat::Text)]
         format: GraphFormat,
+
+        /// Path to an external findings file (SARIF). Repeatable; multiple
+        /// files are concatenated. Used with `--highlight findings`.
+        #[arg(long, value_name = "PATH")]
+        findings: Vec<PathBuf>,
+
+        /// Overlay external findings onto the graph. `none` (default) leaves
+        /// the Mermaid unchanged; `findings` annotates node labels with finding
+        /// counts and styles nodes by severity.
+        #[arg(long, value_enum, default_value_t = Highlight::None)]
+        highlight: Highlight,
+
+        /// Base the `--highlight findings` counts on the ravelact graph
+        /// priority instead of the source severity.
+        #[arg(long, default_value_t = false)]
+        show_priority: bool,
     },
 
     /// Generate shell completion setup snippet for bash / zsh / fish.
@@ -333,6 +358,13 @@ pub enum Command {
         /// dogfood view focused on production workflows.
         #[arg(long, default_value_t = false)]
         include_test_fixtures: bool,
+        /// Path to an external findings file (SARIF; e.g.
+        /// `zizmor --format=sarif`). Repeatable; multiple files are
+        /// concatenated. Findings are overlaid onto the graph (node badges,
+        /// severity colors, Findings tab, context filters, dangerous-path
+        /// edges) without changing behavior when omitted.
+        #[arg(long, value_name = "PATH")]
+        findings: Vec<PathBuf>,
     },
 }
 
@@ -358,6 +390,39 @@ pub enum GraphFormat {
     #[default]
     Text,
     Markdown,
+}
+
+/// Shared external-finding overlay options, flattened into the commands that
+/// render a finding overlay over their output (`impact` / `trace` / `callers`
+/// / `orphans`). `graph` does not use this struct because `--show-findings`
+/// has no meaning there; it exposes `--highlight` instead.
+#[derive(clap::Args, Clone, Debug, Default)]
+pub struct FindingsArgs {
+    /// Path to an external findings file (SARIF; e.g. `zizmor --format=sarif`).
+    /// Repeatable; multiple files are concatenated. Findings are overlaid onto
+    /// this command's output without changing its exit code.
+    #[arg(long, value_name = "PATH")]
+    pub findings: Vec<PathBuf>,
+
+    /// Co-display the loaded findings in text / markdown output (off by
+    /// default). JSON always includes findings whenever `--findings` is given.
+    #[arg(long, default_value_t = false)]
+    pub show_findings: bool,
+
+    /// Also show the ravelact-derived graph priority (and its reasons)
+    /// alongside each finding's source severity.
+    #[arg(long, default_value_t = false)]
+    pub show_priority: bool,
+}
+
+/// `graph --highlight` mode. `none` (default) leaves the Mermaid output
+/// unchanged; `findings` annotates node labels with finding counts and styles
+/// nodes by severity.
+#[derive(ValueEnum, Clone, Debug, Default, PartialEq, Eq)]
+pub enum Highlight {
+    #[default]
+    None,
+    Findings,
 }
 
 #[derive(ValueEnum, Clone, Debug, Default)]
@@ -405,10 +470,11 @@ impl Cli {
                 paths,
                 format,
                 ascii,
+                findings,
             } => match event {
                 Some(event) => cmd_trace(
                     root, cache_mode, &excludes, event, types, branches, tags, paths, format,
-                    *ascii, &ui,
+                    *ascii, findings, &ui,
                 )
                 .map(|_| 0),
                 None => Err(anyhow::anyhow!(
@@ -418,14 +484,19 @@ impl Cli {
             Command::Triggers { format } => {
                 cmd_triggers(root, cache_mode, &excludes, format, &ui).map(|_| 0)
             }
-            Command::Callers { targets, format } => {
-                render::callers::run(root, cache_mode, &excludes, targets, format, &ui).map(|_| 0)
-            }
-            Command::Impact { files, format } => {
-                cmd_impact(root, cache_mode, &excludes, files, format, &ui).map(|_| 0)
-            }
-            Command::Orphans { format } => {
-                render::orphans::run(root, cache_mode, &excludes, format, &ui).map(|_| 0)
+            Command::Callers {
+                targets,
+                format,
+                findings,
+            } => render::callers::run(root, cache_mode, &excludes, targets, format, findings, &ui)
+                .map(|_| 0),
+            Command::Impact {
+                files,
+                format,
+                findings,
+            } => cmd_impact(root, cache_mode, &excludes, files, format, findings, &ui).map(|_| 0),
+            Command::Orphans { format, findings } => {
+                render::orphans::run(root, cache_mode, &excludes, format, findings, &ui).map(|_| 0)
             }
             Command::Wiring { format } => cmd_wiring(root, cache_mode, &excludes, format, &ui),
             Command::Permissions { format } => {
@@ -452,14 +523,29 @@ impl Cli {
                 render::dedup::run(root, cache_mode, &excludes, *threshold, format, &ui).map(|_| 0)
             }
             Command::Dump => cmd_dump(root, cache_mode, &excludes).map(|_| 0),
-            Command::Graph { event, format } => {
-                cmd_graph(root, cache_mode, &excludes, event.as_deref(), format).map(|_| 0)
-            }
+            Command::Graph {
+                event,
+                format,
+                findings,
+                highlight,
+                show_priority,
+            } => cmd_graph(
+                root,
+                cache_mode,
+                &excludes,
+                event.as_deref(),
+                format,
+                findings,
+                highlight,
+                *show_priority,
+            )
+            .map(|_| 0),
             Command::Completion { shell } => cmd_completion(shell).map(|_| 0),
             Command::Browse {
                 port,
                 no_open,
                 include_test_fixtures,
+                findings,
             } => {
                 let browse_excludes = if *include_test_fixtures {
                     excludes.clone()
@@ -468,7 +554,8 @@ impl Cli {
                     patterns.insert(0, "tests/fixtures/**".to_string());
                     build_exclude_set(&patterns)?
                 };
-                render::browse::run(root, cache_mode, &browse_excludes, *port, *no_open).map(|_| 0)
+                render::browse::run(root, cache_mode, &browse_excludes, *port, *no_open, findings)
+                    .map(|_| 0)
             }
         }
     }
@@ -753,17 +840,40 @@ fn cmd_dump(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_graph(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     event: Option<&str>,
     format: &GraphFormat,
+    findings: &[PathBuf],
+    highlight: &Highlight,
+    show_priority: bool,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
+
+    // `--highlight findings` overlays finding count badges + severity styling
+    // onto node labels. Without it (or without `--findings`), the Mermaid is
+    // byte-identical to the un-overlaid output.
+    let overlay = if *highlight == Highlight::Findings && !findings.is_empty() {
+        let enriched = render::findings_overlay::load_enriched(&ir, findings)?;
+        let grouped = render::findings_overlay::group_by_node(&enriched);
+        Some(render::findings_overlay::graph_overlay(
+            &grouped,
+            show_priority,
+        ))
+    } else {
+        None
+    };
+    let mermaid = match &overlay {
+        Some(o) => query::mermaid::render_with_findings(&ir, event, o),
+        None => query::mermaid::render(&ir, event),
+    };
+
     match format {
         GraphFormat::Text => {
-            print!("{}", query::mermaid::render(&ir, event));
+            print!("{mermaid}");
         }
         GraphFormat::Markdown => {
             println!("### Graph");
@@ -772,7 +882,7 @@ fn cmd_graph(
             // `query::mermaid::render` always returns a string ending in a
             // single `\n`, so `print!` keeps the body and the closing fence
             // separated by exactly one newline.
-            print!("{}", query::mermaid::render(&ir, event));
+            print!("{mermaid}");
             println!("```");
         }
     }
@@ -905,6 +1015,7 @@ fn cmd_trace(
     paths: &[String],
     format: &TraceFormat,
     ascii: bool,
+    findings: &FindingsArgs,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
@@ -913,12 +1024,33 @@ fn cmd_trace(
     let metadata = trace_filter_metadata(types, branches, tags, paths);
     let command = format!("trace {event}");
     let unicode = !ascii;
+
+    // External-finding overlay: marks (tree `!` sub-lines + table note fold) are
+    // applied only with --show-findings; JSON includes findings whenever
+    // --findings is given (scoped to the trace's reachable nodes).
+    let enriched = if findings.findings.is_empty() {
+        Vec::new()
+    } else {
+        render::findings_overlay::load_enriched(&ir, &findings.findings)?
+    };
+    let grouped = render::findings_overlay::group_by_node(&enriched);
+    let marks = render::findings_overlay::trace_marks(&grouped, findings.show_priority);
+    let overlay = findings.show_findings && !findings.findings.is_empty();
+
     match format {
         TraceFormat::Json => {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&query::trace::trace_json_entries(&entries))?
-            );
+            let trace_json = query::trace::trace_json_entries(&entries);
+            if findings.findings.is_empty() {
+                println!("{}", serde_json::to_string_pretty(&trace_json)?);
+            } else {
+                let scope = render::findings_overlay::trace_node_scope(&entries);
+                let scoped = render::findings_overlay::scoped_findings(&grouped, &scope);
+                let payload = serde_json::json!({
+                    "trace": trace_json,
+                    "findings": render::findings_overlay::findings_json(&scoped)?,
+                });
+                println!("{}", serde_json::to_string_pretty(&payload)?);
+            }
         }
         TraceFormat::Markdown => {
             println!("### Trace");
@@ -931,7 +1063,14 @@ fn cmd_trace(
                     ui::plural(entries.len(), "entry workflow", "entry workflows")
                 );
                 println!();
-                print!("{}", query::trace_render::render_markdown_table(&entries));
+                if overlay {
+                    print!(
+                        "{}",
+                        query::trace_render::render_markdown_table_with_findings(&entries, &marks)
+                    );
+                } else {
+                    print!("{}", query::trace_render::render_markdown_table(&entries));
+                }
             }
         }
         TraceFormat::Tree | TraceFormat::Table if entries.is_empty() => {
@@ -954,10 +1093,23 @@ fn cmd_trace(
                 event,
                 summary: &metadata,
             };
-            print!(
-                "{}",
-                query::trace_render::render_tree(&entries, Some(event_meta), &style, ui)
-            );
+            if overlay {
+                print!(
+                    "{}",
+                    query::trace_render::render_tree_with_findings(
+                        &entries,
+                        Some(event_meta),
+                        &style,
+                        ui,
+                        &marks
+                    )
+                );
+            } else {
+                print!(
+                    "{}",
+                    query::trace_render::render_tree(&entries, Some(event_meta), &style, ui)
+                );
+            }
         }
         TraceFormat::Table => {
             // Table mode keeps filter metadata in the status header — the
@@ -968,7 +1120,14 @@ fn cmd_trace(
                 ui.status_header(&command, Status::Found, entry_count, &metadata)
             );
             println!();
-            print!("{}", query::trace_render::render_table(&entries, unicode));
+            if overlay {
+                print!(
+                    "{}",
+                    query::trace_render::render_table_with_findings(&entries, unicode, &marks)
+                );
+            } else {
+                print!("{}", query::trace_render::render_table(&entries, unicode));
+            }
         }
     }
     Ok(())
@@ -1005,6 +1164,7 @@ fn cmd_impact(
     excludes: &GlobSet,
     files: &[String],
     format: &ReportFormat,
+    findings: &FindingsArgs,
     ui: &Ui,
 ) -> Result<()> {
     let inputs = stdin_input::collect(files)?;
@@ -1014,6 +1174,17 @@ fn cmd_impact(
     for u in &unknowns {
         eprintln!("warn: {u}: not mapped to any IR node, skipping");
     }
+
+    // External-finding overlay: scope = impacted workflows + actions + the
+    // changed seed nodes themselves. Empty when `--findings` is absent.
+    let enriched = if findings.findings.is_empty() {
+        Vec::new()
+    } else {
+        render::findings_overlay::load_enriched(&ir, &findings.findings)?
+    };
+    let grouped = render::findings_overlay::group_by_node(&enriched);
+    let scope = impact_finding_scope(&ir, &inputs, &workflows, &actions);
+    let scoped = render::findings_overlay::scoped_findings(&grouped, &scope);
 
     match format {
         ReportFormat::Markdown => {
@@ -1039,6 +1210,19 @@ fn cmd_impact(
                     println!("| local-action-{} | `{}` |", action_kind_label(kind), id.0);
                 }
             }
+            if findings.show_findings && !scoped.is_empty() {
+                println!();
+                println!("#### Findings on impacted paths");
+                println!();
+                print!(
+                    "{}",
+                    render::findings_overlay::render_scoped_findings(
+                        &grouped,
+                        &scope,
+                        findings.show_priority
+                    )
+                );
+            }
         }
         ReportFormat::Json => {
             let actions_json: Vec<serde_json::Value> = actions
@@ -1050,18 +1234,34 @@ fn cmd_impact(
                     })
                 })
                 .collect();
-            let payload = serde_json::json!({
+            let mut payload = serde_json::json!({
                 "workflows": workflows.iter().map(|w| &w.0).collect::<Vec<_>>(),
                 "actions": actions_json,
             });
+            if !findings.findings.is_empty() {
+                payload["findings"] = render::findings_overlay::findings_json(&scoped)?;
+            }
             println!("{}", serde_json::to_string_pretty(&payload)?);
         }
         ReportFormat::Text => {
+            let show_section = findings.show_findings && !scoped.is_empty();
             if workflows.is_empty() && actions.is_empty() {
                 println!(
                     "{}",
                     ui.status_header("impact", Status::Clean, "no impacted targets", &[])
                 );
+                if show_section {
+                    println!();
+                    println!("{}", ui.section("Findings on impacted paths"));
+                    print!(
+                        "{}",
+                        render::findings_overlay::render_scoped_findings(
+                            &grouped,
+                            &scope,
+                            findings.show_priority
+                        )
+                    );
+                }
                 return Ok(());
             }
             let total = workflows.len() + actions.len();
@@ -1102,9 +1302,56 @@ fn cmd_impact(
                     .collect();
                 print!("{}", ui.table(&["kind", "target"], &rows));
             }
+            if show_section {
+                println!();
+                println!("{}", ui.section("Findings on impacted paths"));
+                print!(
+                    "{}",
+                    render::findings_overlay::render_scoped_findings(
+                        &grouped,
+                        &scope,
+                        findings.show_priority
+                    )
+                );
+            }
         }
     }
     Ok(())
+}
+
+/// Build the finding-overlay node scope for `impact`: the changed seed nodes
+/// plus the impacted workflows and actions. Order seeds first so a changed
+/// file's own findings lead. Dedup is handled by the overlay renderer.
+fn impact_finding_scope(
+    ir: &Ir,
+    inputs: &[String],
+    workflows: &[WorkflowId],
+    actions: &[(ActionId, ActionKind)],
+) -> Vec<(render::findings_overlay::NodeKey, String)> {
+    use query::impact::{classify_input, InputClassification};
+    use render::findings_overlay::NodeKey;
+
+    let mut scope: Vec<(NodeKey, String)> = Vec::new();
+    for input in inputs {
+        match classify_input(ir, input) {
+            InputClassification::Workflow(id) => {
+                let display = id.0.clone();
+                scope.push((NodeKey::Workflow(id), display));
+            }
+            InputClassification::Action(id) => {
+                let display = id.0.clone();
+                scope.push((NodeKey::Action(id), display));
+            }
+            InputClassification::Unknown(_) => {}
+        }
+    }
+    for wf in workflows {
+        scope.push((NodeKey::Workflow(wf.clone()), wf.0.clone()));
+    }
+    for (id, _) in actions {
+        scope.push((NodeKey::Action(id.clone()), id.0.clone()));
+    }
+    scope
 }
 
 fn cmd_wiring(
@@ -1280,7 +1527,7 @@ mod tests {
         assert_eq!(cli.exclude, vec!["tests/fixtures/**"]);
         assert!(matches!(cli.color, ColorChoice::Never));
         match cli.command {
-            Command::Orphans { format } => assert!(matches!(format, ReportFormat::Json)),
+            Command::Orphans { format, .. } => assert!(matches!(format, ReportFormat::Json)),
             other => panic!("expected orphans command, got {other:?}"),
         }
     }
@@ -1314,6 +1561,7 @@ mod tests {
                 paths,
                 format,
                 ascii,
+                ..
             } => {
                 assert_eq!(event.as_deref(), Some("pull_request"));
                 assert_eq!(types, vec!["opened"]);
@@ -1336,6 +1584,7 @@ mod tests {
                 port,
                 no_open,
                 include_test_fixtures,
+                findings,
             } => {
                 assert_eq!(port, Some(8765));
                 assert!(no_open);
@@ -1343,21 +1592,36 @@ mod tests {
                     !include_test_fixtures,
                     "--include-test-fixtures defaults to false",
                 );
+                assert!(findings.is_empty(), "--findings defaults to empty");
             }
             other => panic!("expected browse command, got {other:?}"),
         }
 
-        let cli = Cli::try_parse_from(["ravelact", "browse", "--include-test-fixtures"])
-            .expect("valid browse invocation with --include-test-fixtures");
+        let cli = Cli::try_parse_from([
+            "ravelact",
+            "browse",
+            "--include-test-fixtures",
+            "--findings",
+            "a.sarif",
+            "--findings",
+            "b.sarif",
+        ])
+        .expect("valid browse invocation with --include-test-fixtures");
         match cli.command {
             Command::Browse {
                 port,
                 no_open,
                 include_test_fixtures,
+                findings,
             } => {
                 assert_eq!(port, None);
                 assert!(!no_open);
                 assert!(include_test_fixtures, "--include-test-fixtures sets true");
+                assert_eq!(
+                    findings,
+                    vec![PathBuf::from("a.sarif"), PathBuf::from("b.sarif")],
+                    "--findings is repeatable and ordered",
+                );
             }
             other => panic!("expected browse command, got {other:?}"),
         }

@@ -1,0 +1,77 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [
+    {
+      "id": ".github/actions/orphan-tool",
+      "kind": "composite"
+    }
+  ],
+  "externals": [
+    {
+      "gitref": "v4",
+      "owner": "actions",
+      "repo": "checkout",
+      "subpath": null
+    },
+    {
+      "gitref": "v2",
+      "owner": "deploy-org",
+      "repo": "deploy-action",
+      "subpath": null
+    },
+    {
+      "gitref": "v3",
+      "owner": "setup-org",
+      "repo": "setup-action",
+      "subpath": null
+    },
+    {
+      "gitref": "v1",
+      "owner": "some-org",
+      "repo": "some-action",
+      "subpath": null
+    }
+  ],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/ci.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "CI",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/pr-target.yml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "inspect",
+          "step_uses_kinds": [
+            "external",
+            "external"
+          ]
+        }
+      ],
+      "name": "PR Target",
+      "triggers": [
+        "pull_request_target"
+      ]
+    }
+  ]
+}

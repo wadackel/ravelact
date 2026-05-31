@@ -5,22 +5,65 @@ use anyhow::Result;
 use globset::GlobSet;
 use std::fmt::Write as _;
 
-use crate::cli::{action_kind_label, build_or_load, ReportFormat};
+use crate::cli::render::findings_overlay::{self, NodeKey};
+use crate::cli::{action_kind_label, build_or_load, FindingsArgs, ReportFormat};
 
 pub(in crate::cli) fn run(
     root: &std::path::Path,
     cache_mode: cache::CacheMode,
     excludes: &GlobSet,
     format: &ReportFormat,
+    findings: &FindingsArgs,
     ui: &Ui,
 ) -> Result<()> {
     let ir = build_or_load(root, cache_mode, excludes)?;
     let result = query::orphans::orphans(&ir);
-    print!("{}", render_result(result, format, ui)?);
+
+    // External-finding overlay: scope = the orphan nodes themselves. Findings
+    // on an unused node argue for deletion over remediation.
+    let enriched = if findings.findings.is_empty() {
+        Vec::new()
+    } else {
+        findings_overlay::load_enriched(&ir, &findings.findings)?
+    };
+    let grouped = findings_overlay::group_by_node(&enriched);
+    let scope: Vec<(NodeKey, String)> = result
+        .unused_workflows
+        .iter()
+        .map(|w| (NodeKey::Workflow(w.clone()), w.0.clone()))
+        .chain(
+            result
+                .unused_actions
+                .iter()
+                .map(|(id, _)| (NodeKey::Action(id.clone()), id.0.clone())),
+        )
+        .collect();
+    let findings_body = if findings.show_findings {
+        findings_overlay::render_scoped_findings(&grouped, &scope, findings.show_priority)
+    } else {
+        String::new()
+    };
+    let findings_json = if findings.findings.is_empty() {
+        None
+    } else {
+        let scoped = findings_overlay::scoped_findings(&grouped, &scope);
+        Some(findings_overlay::findings_json(&scoped)?)
+    };
+
+    print!(
+        "{}",
+        render_result(result, format, &findings_body, findings_json, ui)?
+    );
     Ok(())
 }
 
-fn render_result(result: OrphanResult, format: &ReportFormat, ui: &Ui) -> Result<String> {
+fn render_result(
+    result: OrphanResult,
+    format: &ReportFormat,
+    findings_body: &str,
+    findings_json: Option<serde_json::Value>,
+    ui: &Ui,
+) -> Result<String> {
     let OrphanResult {
         unused_workflows,
         unused_actions,
@@ -73,6 +116,12 @@ fn render_result(result: OrphanResult, format: &ReportFormat, ui: &Ui) -> Result
                     writeln!(out, "| output | `{target}` | `{name}` |")?;
                 }
             }
+            if !findings_body.is_empty() {
+                writeln!(out)?;
+                writeln!(out, "#### Findings on orphans (prefer deletion)")?;
+                writeln!(out)?;
+                write!(out, "{findings_body}")?;
+            }
         }
         ReportFormat::Json => {
             // shape: {"workflows": [...],
@@ -89,12 +138,15 @@ fn render_result(result: OrphanResult, format: &ReportFormat, ui: &Ui) -> Result
                     })
                 })
                 .collect();
-            let payload = serde_json::json!({
+            let mut payload = serde_json::json!({
                 "workflows": unused_workflows.iter().map(|w| &w.0).collect::<Vec<_>>(),
                 "actions": actions_json,
                 "unreferenced_inputs": &unreferenced_inputs,
                 "unused_outputs": &unused_outputs,
             });
+            if let Some(fj) = findings_json {
+                payload["findings"] = fj;
+            }
             writeln!(out, "{}", serde_json::to_string_pretty(&payload)?)?;
         }
         ReportFormat::Text => {
@@ -168,6 +220,15 @@ fn render_result(result: OrphanResult, format: &ReportFormat, ui: &Ui) -> Result
                     .collect();
                 write!(out, "{}", ui.table(&["target", "output"], &rows))?;
             }
+            if !findings_body.is_empty() {
+                writeln!(out)?;
+                writeln!(
+                    out,
+                    "{}",
+                    ui.section("Findings on orphans (prefer deletion)")
+                )?;
+                write!(out, "{findings_body}")?;
+            }
         }
     }
     Ok(out)
@@ -221,16 +282,16 @@ mod tests {
 
     #[test]
     fn markdown_empty_result_renders_no_findings_message() {
-        let out =
-            render_result(empty_result(), &ReportFormat::Markdown, &ui()).expect("render markdown");
+        let out = render_result(empty_result(), &ReportFormat::Markdown, "", None, &ui())
+            .expect("render markdown");
 
         assert_eq!(out, "### Orphans\n\nNo unused declarations found.\n");
     }
 
     #[test]
     fn markdown_non_empty_result_renders_summary_and_all_kinds() {
-        let out =
-            render_result(full_result(), &ReportFormat::Markdown, &ui()).expect("render markdown");
+        let out = render_result(full_result(), &ReportFormat::Markdown, "", None, &ui())
+            .expect("render markdown");
 
         assert_eq!(
             out,
@@ -252,7 +313,8 @@ mod tests {
 
     #[test]
     fn json_empty_result_emits_all_four_arrays() {
-        let out = render_result(empty_result(), &ReportFormat::Json, &ui()).expect("render json");
+        let out = render_result(empty_result(), &ReportFormat::Json, "", None, &ui())
+            .expect("render json");
 
         assert_eq!(
             out,
@@ -269,7 +331,8 @@ mod tests {
 
     #[test]
     fn json_non_empty_result_emits_all_four_arrays() {
-        let out = render_result(full_result(), &ReportFormat::Json, &ui()).expect("render json");
+        let out = render_result(full_result(), &ReportFormat::Json, "", None, &ui())
+            .expect("render json");
 
         assert_eq!(
             out,
@@ -307,14 +370,16 @@ mod tests {
 
     #[test]
     fn text_empty_result_renders_clean_status() {
-        let out = render_result(empty_result(), &ReportFormat::Text, &ui()).expect("render text");
+        let out = render_result(empty_result(), &ReportFormat::Text, "", None, &ui())
+            .expect("render text");
 
         assert_eq!(out, "orphans  no unused declarations\n");
     }
 
     #[test]
     fn text_non_empty_result_renders_each_optional_section() {
-        let out = render_result(full_result(), &ReportFormat::Text, &ui()).expect("render text");
+        let out = render_result(full_result(), &ReportFormat::Text, "", None, &ui())
+            .expect("render text");
 
         assert_eq!(
             out,

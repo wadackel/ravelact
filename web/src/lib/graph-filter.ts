@@ -70,3 +70,83 @@ export function isVisible(id: string, filters: VisibilityFilters): boolean {
   if (reachable !== null && reachable.has(id)) return true;
   return false;
 }
+
+// ---------------------------------------------------------------------------
+// Findings facets (separate AND dimension layered on top of `isVisible`).
+//
+// Unlike the OR-composed `isVisible` filters, the findings facets NARROW the
+// visible set: a node must pass EVERY active facet (severity AND source AND
+// context). `Graph.tsx` composes the two — a node is visible iff
+// `isVisible(id) && (findingsSet === null || findingsSet.has(id))`. Keeping
+// the OR model untouched means existing search / analysis behavior is
+// unchanged; findings filtering is purely additive.
+// ---------------------------------------------------------------------------
+
+export type FindingContext = "reachable" | "orphan" | "write";
+
+// Per-node finding metadata the facets test against. Structural subset of
+// `GraphNodeData["findings"]` so this module stays renderer-agnostic.
+export type NodeFindingMeta = {
+  counts: { error: number; high: number; medium: number; low: number; info: number };
+  sources: readonly string[];
+  reachableFromRisky: boolean;
+  isOrphan: boolean;
+  hasWrite: boolean;
+};
+
+// Each facet is `null` when inactive (no constraint) or a Set of selected
+// values. Within a facet the match is OR (any selected value); facets AND
+// together.
+export type FindingFacets = {
+  severities: ReadonlySet<string> | null;
+  sources: ReadonlySet<string> | null;
+  contexts: ReadonlySet<FindingContext> | null;
+};
+
+export function findingsActive(f: FindingFacets): boolean {
+  return f.severities !== null || f.sources !== null || f.contexts !== null;
+}
+
+function hasAnySeverity(c: NodeFindingMeta["counts"], sevs: ReadonlySet<string>): boolean {
+  return (
+    (sevs.has("error") && c.error > 0) ||
+    (sevs.has("high") && c.high > 0) ||
+    (sevs.has("medium") && c.medium > 0) ||
+    (sevs.has("low") && c.low > 0) ||
+    (sevs.has("info") && c.info > 0)
+  );
+}
+
+function matchesContext(m: NodeFindingMeta, ctx: ReadonlySet<FindingContext>): boolean {
+  return (
+    (ctx.has("reachable") && m.reachableFromRisky) ||
+    (ctx.has("orphan") && m.isOrphan) ||
+    (ctx.has("write") && m.hasWrite)
+  );
+}
+
+/**
+ * Set of node ids that pass every active findings facet, or `null` when no
+ * facet is active (so the caller skips the AND and leaves `isVisible` alone).
+ * Only finding-bearing nodes can pass; a node with no findings is excluded
+ * whenever any facet is active.
+ */
+export function findingsVisibleSet(
+  nodes: ReadonlyArray<{ id: string; findings?: NodeFindingMeta }>,
+  facets: FindingFacets,
+): Set<string> | null {
+  if (!findingsActive(facets)) return null;
+  // Capture into locals so the per-facet checks keep their narrowing inside
+  // the loop / closure without a non-null assertion.
+  const { severities, sources, contexts } = facets;
+  const out = new Set<string>();
+  for (const n of nodes) {
+    const m = n.findings;
+    if (!m) continue;
+    if (severities && !hasAnySeverity(m.counts, severities)) continue;
+    if (sources && !m.sources.some((s) => sources.has(s))) continue;
+    if (contexts && !matchesContext(m, contexts)) continue;
+    out.add(n.id);
+  }
+  return out;
+}

@@ -15,7 +15,10 @@ export type {
   CyEdgeData,
   CyNode,
   CyNodeData,
+  Finding,
+  FindingCounts,
   GetEventImpactResponse,
+  GetFindingsResponse,
   GetGraphResponse,
   GetImpactResponse,
   GetNodeResponse,
@@ -45,6 +48,7 @@ export type {
 // (`fetchGraph(): Promise<GraphPayload>`, `RepoInfo`, etc.) compiling
 // against the renamed proto messages without churning every consumer.
 import type {
+  GetFindingsResponse as _GetFindingsResponse,
   GetGraphResponse as _GetGraphResponse,
   GetImpactResponse as _GetImpactResponse,
   GetNodeResponse as _GetNodeResponse,
@@ -56,6 +60,7 @@ export type ImpactResponse = _GetImpactResponse;
 export type NodeResponse = _GetNodeResponse;
 export type RepoInfo = _GetRepoResponse;
 export type TriggersResponse = _ListTriggersResponse;
+export type FindingsResponse = _GetFindingsResponse;
 
 // The Rust producer emits one of five `kind` literals on `CyNodeData`;
 // the proto's `string kind` field stays open-shape, so we narrow here.

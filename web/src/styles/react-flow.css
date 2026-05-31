@@ -22,3 +22,18 @@
 .react-flow__edge.faded .react-flow__arrowhead {
   opacity: 0.2;
 }
+
+/*
+ * Dangerous-path edges: those the backend flagged as lying on a path from a
+ * risky-trigger entry workflow to a finding-bearing node (CyEdgeData
+ * .on_dangerous_path). Override the default blue stroke set inline by the
+ * layout with a red, thicker stroke. `!important` is required because the
+ * stroke color is an inline style on the path element.
+ */
+.react-flow__edge.dangerous .react-flow__edge-path {
+  stroke: #dc3545 !important;
+  stroke-width: 2.5 !important;
+  /* Dashed pattern is a non-color cue so dangerous edges remain
+   * distinguishable without relying on the red stroke alone (WCAG 1.4.1). */
+  stroke-dasharray: 6 3 !important;
+}

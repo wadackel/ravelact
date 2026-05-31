@@ -1,8 +1,47 @@
+use std::collections::HashMap;
+
 use crate::ir::{AnnotationVerb, ExternalActionRef};
 use crate::markdown;
 use crate::query::trace::{CycleTarget, TraceEntry, TraceNode};
 use crate::ui::{KindTag, Ui};
 use unicode_width::UnicodeWidthStr;
+
+/// External-finding overlay data for the trace renderers, keyed by node id.
+///
+/// Built by `cmd_trace` from the M1 pipeline. The renderer consumes only plain
+/// strings (pre-rendered labels + a compact count) so the query layer stays
+/// decoupled from the CLI overlay types. Nodes absent from the maps render
+/// exactly as before.
+#[derive(Debug, Default)]
+pub struct FindingMarks {
+    pub workflows: HashMap<String, NodeMarks>,
+    pub actions: HashMap<String, NodeMarks>,
+}
+
+/// Per-node overlay strings: `lines` are tree marker labels (each rendered as a
+/// `! …` sub-line under the node); `note` is the compact severity count
+/// (`H:2 M:1`) folded into the table's note column.
+#[derive(Debug, Default, Clone)]
+pub struct NodeMarks {
+    pub lines: Vec<String>,
+    pub note: String,
+}
+
+impl FindingMarks {
+    fn marks_for(&self, node: &TraceNode) -> Option<&NodeMarks> {
+        match node {
+            TraceNode::Workflow { id, .. } => self.workflows.get(&id.0),
+            TraceNode::Action { id, .. } => self.actions.get(&id.0),
+            _ => None,
+        }
+    }
+
+    fn lines_for(&self, node: &TraceNode) -> &[String] {
+        self.marks_for(node)
+            .map(|m| m.lines.as_slice())
+            .unwrap_or(&[])
+    }
+}
 
 /// Style flags for `render_tree`.
 #[derive(Debug, Clone)]
@@ -43,6 +82,28 @@ pub fn render_tree(
     style: &TreeStyle,
     ui: &Ui,
 ) -> String {
+    render_tree_impl(entries, event_meta, style, ui, None)
+}
+
+/// `render_tree` with an external-finding overlay: each workflow / action node
+/// gains `! …` finding sub-lines from `marks`.
+pub fn render_tree_with_findings(
+    entries: &[TraceEntry],
+    event_meta: Option<EventMeta<'_>>,
+    style: &TreeStyle,
+    ui: &Ui,
+    marks: &FindingMarks,
+) -> String {
+    render_tree_impl(entries, event_meta, style, ui, Some(marks))
+}
+
+fn render_tree_impl(
+    entries: &[TraceEntry],
+    event_meta: Option<EventMeta<'_>>,
+    style: &TreeStyle,
+    ui: &Ui,
+    marks: Option<&FindingMarks>,
+) -> String {
     let mut out = String::new();
     let mut chain: Vec<bool> = Vec::new();
 
@@ -69,7 +130,7 @@ pub fn render_tree(
                 out.push('\n');
             }
             chain.push(i == n - 1);
-            render_entry_tree(entry, &mut chain, style, ui, &mut out);
+            render_entry_tree(entry, &mut chain, style, ui, &mut out, marks);
             chain.pop();
         }
     } else {
@@ -77,7 +138,7 @@ pub fn render_tree(
             if i > 0 {
                 out.push('\n');
             }
-            render_entry_tree(entry, &mut chain, style, ui, &mut out);
+            render_entry_tree(entry, &mut chain, style, ui, &mut out, marks);
         }
     }
 
@@ -97,6 +158,7 @@ fn render_entry_tree(
     style: &TreeStyle,
     ui: &Ui,
     out: &mut String,
+    marks: Option<&FindingMarks>,
 ) {
     let depth = is_last_chain.len();
     let actual = &entry.root;
@@ -119,23 +181,35 @@ fn render_entry_tree(
     out.push_str(&label_for(actual, ui));
     out.push('\n');
 
-    // Trigger sub-line (first pseudo-child) + real children.
+    // Pseudo-children order: trigger sub-line, then finding `!` markers, then
+    // real children. All share one position counter so `is_last` (and thus the
+    // box-drawing connectors) stay correct.
     let trigger_text = entry.trigger.sub_line_text();
+    let marker_lines = marks.map(|m| m.lines_for(actual)).unwrap_or(&[]);
     let children = node_children(actual);
     let trigger_count = if trigger_text.is_some() { 1 } else { 0 };
-    let total = children.len() + trigger_count;
+    let total = children.len() + trigger_count + marker_lines.len();
+    let mut pos = 0;
 
     if let Some(text) = &trigger_text {
-        is_last_chain.push(total == 1);
+        is_last_chain.push(pos == total - 1);
         render_sub_line(text, is_last_chain, style, ui, out);
         is_last_chain.pop();
+        pos += 1;
     }
 
-    for (i, child) in children.iter().enumerate() {
-        let pos = i + trigger_count;
+    for line in marker_lines {
         is_last_chain.push(pos == total - 1);
-        render_node_tree(child, is_last_chain, style, ui, out);
+        render_marker_line(line, is_last_chain, style, ui, out);
         is_last_chain.pop();
+        pos += 1;
+    }
+
+    for child in children {
+        is_last_chain.push(pos == total - 1);
+        render_node_tree(child, is_last_chain, style, ui, out, marks);
+        is_last_chain.pop();
+        pos += 1;
     }
 }
 
@@ -166,12 +240,40 @@ fn render_sub_line(
     out.push('\n');
 }
 
+/// Render an external-finding marker sub-line (`! [zizmor/high] rule (Lx)`)
+/// under the current node. Same connector mechanics as [`render_sub_line`];
+/// the `! ` lead is emphasized so findings stand out from muted metadata.
+fn render_marker_line(
+    text: &str,
+    is_last_chain: &[bool],
+    style: &TreeStyle,
+    ui: &Ui,
+    out: &mut String,
+) {
+    let depth = is_last_chain.len();
+    debug_assert!(depth >= 1, "marker line must have at least depth 1");
+
+    push_guide_prefix(out, &is_last_chain[..depth - 1], style, ui);
+    let is_last = is_last_chain[depth - 1];
+    let connector = match (is_last, style.unicode) {
+        (true, true) => "╰─ ",
+        (false, true) => "├─ ",
+        (true, false) => "\\- ",
+        (false, false) => "|- ",
+    };
+    out.push_str(&ui.muted(connector));
+    out.push_str(&ui.strong("! "));
+    out.push_str(text);
+    out.push('\n');
+}
+
 fn render_node_tree(
     node: &TraceNode,
     is_last_chain: &mut Vec<bool>,
     style: &TreeStyle,
     ui: &Ui,
     out: &mut String,
+    marks: Option<&FindingMarks>,
 ) {
     let depth = is_last_chain.len();
 
@@ -202,15 +304,26 @@ fn render_node_tree(
     out.push_str(&label_for(actual, ui));
     out.push('\n');
 
-    // Real children + optional synthetic if-line as the final child.
+    // Pseudo-children: finding `!` markers, then real children, then the
+    // optional synthetic if-line — all sharing one position counter so the
+    // box-drawing connectors stay correct.
+    let marker_lines = marks.map(|m| m.lines_for(actual)).unwrap_or(&[]);
     let children = node_children(actual);
-    let real_count = children.len();
-    let total_count = real_count + if_expr.map(|_| 1).unwrap_or(0);
+    let total_count = marker_lines.len() + children.len() + if_expr.map(|_| 1).unwrap_or(0);
+    let mut pos = 0;
 
-    for (i, child) in children.iter().enumerate() {
-        is_last_chain.push(i == total_count - 1);
-        render_node_tree(child, is_last_chain, style, ui, out);
+    for line in marker_lines {
+        is_last_chain.push(pos == total_count - 1);
+        render_marker_line(line, is_last_chain, style, ui, out);
         is_last_chain.pop();
+        pos += 1;
+    }
+
+    for child in children {
+        is_last_chain.push(pos == total_count - 1);
+        render_node_tree(child, is_last_chain, style, ui, out, marks);
+        is_last_chain.pop();
+        pos += 1;
     }
 
     if let Some(expr) = if_expr {
@@ -408,12 +521,31 @@ fn verb_str(v: AnnotationVerb) -> &'static str {
 /// lowercase hyphenated identifiers (`wf` / `ac` / `ext-ac` / `ext-wf` /
 /// `docker` / `ann` / `cyc`) matching the bracket tags used in the tree view.
 pub fn render_table(entries: &[TraceEntry], _unicode: bool) -> String {
-    let rows = table_rows(entries);
+    let rows = table_rows(entries, None);
+    render_rows(&["dep", "kind", "edge", "target", "note"], &rows)
+}
+
+/// `render_table` with the finding count folded into the `note` column.
+pub fn render_table_with_findings(
+    entries: &[TraceEntry],
+    _unicode: bool,
+    marks: &FindingMarks,
+) -> String {
+    let rows = table_rows(entries, Some(marks));
     render_rows(&["dep", "kind", "edge", "target", "note"], &rows)
 }
 
 pub fn render_markdown_table(entries: &[TraceEntry]) -> String {
-    let rows = table_rows(entries);
+    render_markdown_table_inner(entries, None)
+}
+
+/// `render_markdown_table` with the finding count folded into the Note column.
+pub fn render_markdown_table_with_findings(entries: &[TraceEntry], marks: &FindingMarks) -> String {
+    render_markdown_table_inner(entries, Some(marks))
+}
+
+fn render_markdown_table_inner(entries: &[TraceEntry], marks: Option<&FindingMarks>) -> String {
+    let rows = table_rows(entries, marks);
     let headers = ["Dep", "Kind", "Edge", "Target", "Note"];
     let mut out = String::new();
     out.push_str("| Dep | Kind | Edge | Target | Note |\n");
@@ -431,7 +563,7 @@ pub fn render_markdown_table(entries: &[TraceEntry]) -> String {
     out
 }
 
-fn table_rows(entries: &[TraceEntry]) -> Vec<Vec<String>> {
+fn table_rows(entries: &[TraceEntry], marks: Option<&FindingMarks>) -> Vec<Vec<String>> {
     let mut rows = Vec::new();
     for entry in entries {
         let entry_row_idx = rows.len();
@@ -443,6 +575,30 @@ fn table_rows(entries: &[TraceEntry]) -> Vec<Vec<String>> {
             if let Some(row) = rows.get_mut(entry_row_idx) {
                 if row.len() == 5 {
                     row[4] = format!("entry, {text}");
+                }
+            }
+        }
+    }
+    // Fold the per-node finding count into the note column (kept within the
+    // existing 5-column contract — never adds a column). Matched by the row's
+    // kind tag + target id.
+    if let Some(marks) = marks {
+        let wf_tag = KindTag::Workflow.as_str();
+        let ac_tag = KindTag::Action.as_str();
+        for row in &mut rows {
+            if row.len() != 5 {
+                continue;
+            }
+            let note = if row[1] == wf_tag {
+                marks.workflows.get(&row[3]).map(|m| m.note.as_str())
+            } else if row[1] == ac_tag {
+                marks.actions.get(&row[3]).map(|m| m.note.as_str())
+            } else {
+                None
+            };
+            if let Some(note) = note {
+                if !note.is_empty() {
+                    row[4] = format!("{} [{note}]", row[4]);
                 }
             }
         }

@@ -2,6 +2,7 @@ pub mod cache;
 pub(crate) mod check_permissions;
 pub(crate) mod check_secrets;
 pub mod cli;
+pub mod findings;
 pub mod ir;
 pub(crate) mod markdown;
 pub(crate) mod parser;

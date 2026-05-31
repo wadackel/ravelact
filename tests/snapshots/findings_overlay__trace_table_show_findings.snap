@@ -1,0 +1,10 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+trace pull_request_target  1 entry workflow  (filters=none)
+
+dep  kind    edge   target                           note
+0    wf      entry  .github/workflows/pr-target.yml  entry, types: opened, synchronize [H:4 M:1]
+1    ext-ac  uses   actions/checkout@v4              -
+1    ext-ac  uses   deploy-org/deploy-action@v2      -

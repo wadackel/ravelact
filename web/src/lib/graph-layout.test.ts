@@ -23,6 +23,26 @@ const DANGLING_PAYLOAD = {
   edges: [{ data: { id: "ex", source: "wf:a", target: "wf:missing", kind: "calls-workflow" } }],
 } as unknown as GraphPayload;
 
+// One edge flagged on_dangerous_path, one not — exercises both markerEnd
+// color branches (TINY_PAYLOAD edges carry no flag → blue branch only).
+const DANGER_PAYLOAD = {
+  nodes: [
+    { data: { id: "wf:a", label: "A", kind: "workflow" } },
+    { data: { id: "wf:b", label: "B", kind: "workflow" } },
+  ],
+  edges: [
+    {
+      data: {
+        id: "e-danger",
+        source: "wf:a",
+        target: "wf:b",
+        kind: "calls-workflow",
+        onDangerousPath: true,
+      },
+    },
+  ],
+} as unknown as GraphPayload;
+
 describe("computeLayoutSync", () => {
   it("returns a node + edge graph with positions assigned by dagre", () => {
     const result = computeLayoutSync(TINY_PAYLOAD);
@@ -53,6 +73,23 @@ describe("computeLayoutSync", () => {
       expect(e.type).toBe("default");
       expect(e.markerEnd).toMatchObject({ type: "arrowclosed" });
     }
+  });
+
+  it("colors the arrow marker blue for normal edges", () => {
+    const result = computeLayoutSync(TINY_PAYLOAD);
+    for (const e of result.edges) {
+      expect(e.markerEnd).toMatchObject({ type: "arrowclosed", color: "#3b82f6" });
+    }
+  });
+
+  it("colors the arrow marker red for dangerous-path edges", () => {
+    const result = computeLayoutSync(DANGER_PAYLOAD);
+    expect(result.edges).toHaveLength(1);
+    expect(result.edges[0]!.markerEnd).toMatchObject({
+      type: "arrowclosed",
+      color: "#dc3545",
+    });
+    expect(result.edges[0]!.data?.onDangerousPath).toBe(true);
   });
 
   it("throws when an edge references a non-existent node id", () => {

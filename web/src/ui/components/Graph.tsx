@@ -12,8 +12,13 @@ import {
   useStore,
 } from "@xyflow/react";
 import type { GraphPayload, NodeKind } from "../../lib/types.ts";
-import { isVisible, reachableSet } from "../../lib/graph-filter.ts";
-import { computeLayout, type LayoutResult } from "../../lib/graph-layout.ts";
+import {
+  type FindingFacets,
+  findingsVisibleSet,
+  isVisible,
+  reachableSet,
+} from "../../lib/graph-filter.ts";
+import { computeLayout, type GraphEdgeData, type LayoutResult } from "../../lib/graph-layout.ts";
 import { isPerfHarnessEnabled, setRavelactRf } from "../../lib/dev-globals.ts";
 import { GraphNode, type GraphNodeData } from "./GraphNode.tsx";
 
@@ -44,7 +49,13 @@ export type GraphProps = {
   // `null` = no active event-impact analysis. An empty Set means the
   // selected event has no entry workflows → everything fades.
   analysisIds: Set<string> | null;
+  // Findings facets (severity / source / context). Narrows the visible set
+  // via AND on top of the OR-composed filters above. Optional + defaults to
+  // all-inactive so a findings-free session is byte-identical to before.
+  findingFacets?: FindingFacets;
 };
+
+const INACTIVE_FACETS: FindingFacets = { severities: null, sources: null, contexts: null };
 
 function GraphInner({
   payload,
@@ -54,12 +65,13 @@ function GraphInner({
   selectedId,
   matchedIds,
   analysisIds,
+  findingFacets = INACTIVE_FACETS,
 }: GraphProps) {
   const [layout, setLayout] = useState<LayoutResult | null>(null);
   const [spinnerVisible, setSpinnerVisible] = useState<boolean>(false);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<GraphNodeData>>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<GraphEdgeData>>([]);
 
   // Compute the dagre layout off the main thread (Worker) and feed the
   // result into the ReactFlow store. A 50ms timer gates the overlay so
@@ -130,7 +142,14 @@ function GraphInner({
     const reachable = selectedId ? reachableSet(adjacencyEdges, selectedId) : null;
 
     const filters = { matchedIds, analysisIds, reachable };
-    const visible = (id: string) => isVisible(id, filters);
+    // Findings facets narrow via AND: when active, a node must also be in the
+    // findings set. `null` means no facet active → no extra constraint.
+    const findingsSet = findingsVisibleSet(
+      layout.nodes.map((n) => ({ id: n.id, findings: n.data.findings })),
+      findingFacets,
+    );
+    const visible = (id: string) =>
+      isVisible(id, filters) && (findingsSet === null || findingsSet.has(id));
 
     setNodes((curr) =>
       curr.map((n) => {
@@ -141,11 +160,25 @@ function GraphInner({
     setEdges((curr) =>
       curr.map((e) => {
         const faded = !(visible(e.source) && visible(e.target));
-        const className = faded ? "faded" : "";
+        // Combine the dynamic fade class with the static dangerous-path class
+        // so dangerous edges stay highlighted across filter recomputes.
+        const dangerous = e.data?.onDangerousPath;
+        const className = [faded ? "faded" : "", dangerous ? "dangerous" : ""]
+          .filter(Boolean)
+          .join(" ");
         return e.className === className ? e : { ...e, className };
       }),
     );
-  }, [layout, selectedId, matchedIds, analysisIds, adjacencyEdges, setNodes, setEdges]);
+  }, [
+    layout,
+    selectedId,
+    matchedIds,
+    analysisIds,
+    findingFacets,
+    adjacencyEdges,
+    setNodes,
+    setEdges,
+  ]);
 
   // Perf probe: mark after the commit that contains the new faded
   // state. `nodes` identity changes per setNodes call.

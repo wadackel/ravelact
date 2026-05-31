@@ -16,6 +16,7 @@ pub mod browse;
 pub(super) mod callers;
 pub(super) mod dedup;
 pub(super) mod extract;
+pub(super) mod findings_overlay;
 pub(super) mod orphans;
 pub(super) mod permissions;
 pub(super) mod secrets;

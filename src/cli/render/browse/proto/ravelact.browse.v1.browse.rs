@@ -469,6 +469,63 @@ pub struct CyNodeData {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub kind: ::buffa::alloc::string::String,
+    /// Source-severity tally of findings attached to this node. All-zero when
+    /// browse was started without `--findings` or the node carries none.
+    ///
+    /// Field 4: `finding_counts`
+    #[serde(
+        rename = "findingCounts",
+        alias = "finding_counts",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_unset_message_field"
+    )]
+    pub finding_counts: ::buffa::MessageField<FindingCounts>,
+    /// Node-level aggregation of the attached findings' graph context (OR over
+    /// findings). Used for the SPA's context filters; all false without findings.
+    /// True when some finding here is reachable from a risky trigger
+    /// (pull_request_target / workflow_run).
+    ///
+    /// Field 5: `reachable_from_risky`
+    #[serde(
+        rename = "reachableFromRisky",
+        alias = "reachable_from_risky",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub reachable_from_risky: bool,
+    /// True when some finding here sits on an orphan (unreachable) node.
+    ///
+    /// Field 6: `is_orphan`
+    #[serde(
+        rename = "isOrphan",
+        alias = "is_orphan",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub is_orphan: bool,
+    /// True when some finding here has write-all or a sensitive write scope
+    /// (contents / id-token). Always false for action nodes (no permission
+    /// context).
+    ///
+    /// Field 7: `has_write`
+    #[serde(
+        rename = "hasWrite",
+        alias = "has_write",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub has_write: bool,
+    /// Distinct source tools that produced findings on this node (e.g.
+    /// \["zizmor"\]), sorted. Empty without findings. Backs the SPA's source
+    /// filter facet.
+    ///
+    /// Field 8: `finding_sources`
+    #[serde(
+        rename = "findingSources",
+        alias = "finding_sources",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub finding_sources: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -479,6 +536,11 @@ impl ::core::fmt::Debug for CyNodeData {
             .field("id", &self.id)
             .field("label", &self.label)
             .field("kind", &self.kind)
+            .field("finding_counts", &self.finding_counts)
+            .field("reachable_from_risky", &self.reachable_from_risky)
+            .field("is_orphan", &self.is_orphan)
+            .field("has_write", &self.has_write)
+            .field("finding_sources", &self.finding_sources)
             .finish()
     }
 }
@@ -508,7 +570,7 @@ impl ::buffa::Message for CyNodeData {
     /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
     /// compliant message will never overflow this type.
     #[allow(clippy::let_and_return)]
-    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
         #[allow(unused_imports)]
         use ::buffa::Enumeration as _;
         let mut size = 0u32;
@@ -521,12 +583,32 @@ impl ::buffa::Message for CyNodeData {
         if !self.kind.is_empty() {
             size += 1u32 + ::buffa::types::string_encoded_len(&self.kind) as u32;
         }
+        if self.finding_counts.is_set() {
+            let __slot = __cache.reserve();
+            let inner_size = self.finding_counts.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        if self.reachable_from_risky {
+            size += 1u32 + ::buffa::types::BOOL_ENCODED_LEN as u32;
+        }
+        if self.is_orphan {
+            size += 1u32 + ::buffa::types::BOOL_ENCODED_LEN as u32;
+        }
+        if self.has_write {
+            size += 1u32 + ::buffa::types::BOOL_ENCODED_LEN as u32;
+        }
+        for v in &self.finding_sources {
+            size += 1u32 + ::buffa::types::string_encoded_len(v) as u32;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
     fn write_to(
         &self,
-        _cache: &mut ::buffa::SizeCache,
+        __cache: &mut ::buffa::SizeCache,
         buf: &mut impl ::buffa::bytes::BufMut,
     ) {
         #[allow(unused_imports)]
@@ -554,6 +636,38 @@ impl ::buffa::Message for CyNodeData {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(&self.kind, buf);
+        }
+        if self.finding_counts.is_set() {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            self.finding_counts.write_to(__cache, buf);
+        }
+        if self.reachable_from_risky {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_bool(self.reachable_from_risky, buf);
+        }
+        if self.is_orphan {
+            ::buffa::encoding::Tag::new(6u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_bool(self.is_orphan, buf);
+        }
+        if self.has_write {
+            ::buffa::encoding::Tag::new(7u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_bool(self.has_write, buf);
+        }
+        for v in &self.finding_sources {
+            ::buffa::encoding::Tag::new(
+                    8u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(v, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -598,6 +712,60 @@ impl ::buffa::Message for CyNodeData {
                 }
                 ::buffa::types::merge_string(&mut self.kind, buf)?;
             }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::Message::merge_length_delimited(
+                    self.finding_counts.get_or_insert_default(),
+                    buf,
+                    depth,
+                )?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.reachable_from_risky = ::buffa::types::decode_bool(buf)?;
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.is_orphan = ::buffa::types::decode_bool(buf)?;
+            }
+            7u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 7u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.has_write = ::buffa::types::decode_bool(buf)?;
+            }
+            8u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 8u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.finding_sources.push(::buffa::types::decode_string(buf)?);
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -609,6 +777,11 @@ impl ::buffa::Message for CyNodeData {
         self.id.clear();
         self.label.clear();
         self.kind.clear();
+        self.finding_counts = ::buffa::MessageField::none();
+        self.reachable_from_risky = false;
+        self.is_orphan = false;
+        self.has_write = false;
+        self.finding_sources.clear();
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -820,6 +993,19 @@ pub struct CyEdgeData {
         skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
     )]
     pub kind: ::buffa::alloc::string::String,
+    /// True when this edge lies on at least one path from a risky-trigger entry
+    /// workflow to a finding-bearing node — i.e. it is in
+    /// forward_closure(risky entries) ∩ backward_closure(finding nodes). False
+    /// without `--findings`. Drives the SPA's dangerous-path edge highlight.
+    ///
+    /// Field 5: `on_dangerous_path`
+    #[serde(
+        rename = "onDangerousPath",
+        alias = "on_dangerous_path",
+        with = "::buffa::json_helpers::proto_bool",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_false"
+    )]
+    pub on_dangerous_path: bool,
     #[serde(skip)]
     #[doc(hidden)]
     pub __buffa_unknown_fields: ::buffa::UnknownFields,
@@ -831,6 +1017,7 @@ impl ::core::fmt::Debug for CyEdgeData {
             .field("source", &self.source)
             .field("target", &self.target)
             .field("kind", &self.kind)
+            .field("on_dangerous_path", &self.on_dangerous_path)
             .finish()
     }
 }
@@ -876,6 +1063,9 @@ impl ::buffa::Message for CyEdgeData {
         if !self.kind.is_empty() {
             size += 1u32 + ::buffa::types::string_encoded_len(&self.kind) as u32;
         }
+        if self.on_dangerous_path {
+            size += 1u32 + ::buffa::types::BOOL_ENCODED_LEN as u32;
+        }
         size += self.__buffa_unknown_fields.encoded_len() as u32;
         size
     }
@@ -917,6 +1107,11 @@ impl ::buffa::Message for CyEdgeData {
                 )
                 .encode(buf);
             ::buffa::types::encode_string(&self.kind, buf);
+        }
+        if self.on_dangerous_path {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_bool(self.on_dangerous_path, buf);
         }
         self.__buffa_unknown_fields.write_to(buf);
     }
@@ -971,6 +1166,16 @@ impl ::buffa::Message for CyEdgeData {
                 }
                 ::buffa::types::merge_string(&mut self.kind, buf)?;
             }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.on_dangerous_path = ::buffa::types::decode_bool(buf)?;
+            }
             _ => {
                 self.__buffa_unknown_fields
                     .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
@@ -983,6 +1188,7 @@ impl ::buffa::Message for CyEdgeData {
         self.source.clear();
         self.target.clear();
         self.kind.clear();
+        self.on_dangerous_path = false;
         self.__buffa_unknown_fields.clear();
     }
 }
@@ -1013,6 +1219,925 @@ pub const __CY_EDGE_DATA_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buff
     type_url: "type.googleapis.com/ravelact.browse.v1.CyEdgeData",
     to_json: ::buffa::type_registry::any_to_json::<CyEdgeData>,
     from_json: ::buffa::type_registry::any_from_json::<CyEdgeData>,
+    is_wkt: false,
+};
+/// Source-severity tally for a node's findings. Mirrors the M2 CLI
+/// `SeverityCounts` compact tally; `total` is the sum across tiers.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct FindingCounts {
+    /// Field 1: `error`
+    #[serde(
+        rename = "error",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub error: u32,
+    /// Field 2: `high`
+    #[serde(
+        rename = "high",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub high: u32,
+    /// Field 3: `medium`
+    #[serde(
+        rename = "medium",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub medium: u32,
+    /// Field 4: `low`
+    #[serde(
+        rename = "low",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub low: u32,
+    /// Field 5: `info`
+    #[serde(
+        rename = "info",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub info: u32,
+    /// Field 6: `total`
+    #[serde(
+        rename = "total",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub total: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for FindingCounts {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("FindingCounts")
+            .field("error", &self.error)
+            .field("high", &self.high)
+            .field("medium", &self.medium)
+            .field("low", &self.low)
+            .field("info", &self.info)
+            .field("total", &self.total)
+            .finish()
+    }
+}
+impl FindingCounts {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.FindingCounts";
+}
+impl ::buffa::DefaultInstance for FindingCounts {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<FindingCounts> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for FindingCounts {
+    const PACKAGE: &'static str = "ravelact.browse.v1";
+    const NAME: &'static str = "FindingCounts";
+    const FULL_NAME: &'static str = "ravelact.browse.v1.FindingCounts";
+    const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.FindingCounts";
+}
+impl ::buffa::Message for FindingCounts {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if self.error != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.error) as u32;
+        }
+        if self.high != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.high) as u32;
+        }
+        if self.medium != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.medium) as u32;
+        }
+        if self.low != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.low) as u32;
+        }
+        if self.info != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.info) as u32;
+        }
+        if self.total != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.total) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if self.error != 0u32 {
+            ::buffa::encoding::Tag::new(1u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.error, buf);
+        }
+        if self.high != 0u32 {
+            ::buffa::encoding::Tag::new(2u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.high, buf);
+        }
+        if self.medium != 0u32 {
+            ::buffa::encoding::Tag::new(3u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.medium, buf);
+        }
+        if self.low != 0u32 {
+            ::buffa::encoding::Tag::new(4u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.low, buf);
+        }
+        if self.info != 0u32 {
+            ::buffa::encoding::Tag::new(5u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.info, buf);
+        }
+        if self.total != 0u32 {
+            ::buffa::encoding::Tag::new(6u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.total, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.error = ::buffa::types::decode_uint32(buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.high = ::buffa::types::decode_uint32(buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.medium = ::buffa::types::decode_uint32(buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.low = ::buffa::types::decode_uint32(buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.info = ::buffa::types::decode_uint32(buf)?;
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.total = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.error = 0u32;
+        self.high = 0u32;
+        self.medium = 0u32;
+        self.low = 0u32;
+        self.info = 0u32;
+        self.total = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for FindingCounts {
+    const PROTO_FQN: &'static str = "ravelact.browse.v1.FindingCounts";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for FindingCounts {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FINDING_COUNTS_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/ravelact.browse.v1.FindingCounts",
+    to_json: ::buffa::type_registry::any_to_json::<FindingCounts>,
+    from_json: ::buffa::type_registry::any_from_json::<FindingCounts>,
+    is_wkt: false,
+};
+/// ---------------------------------------------------------------------------
+/// GetFindings
+/// ---------------------------------------------------------------------------
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetFindingsRequest {
+    /// workflow / local-action / external-action.
+    ///
+    /// Field 1: `kind`
+    #[serde(
+        rename = "kind",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub kind: ::buffa::alloc::string::String,
+    /// Field 2: `id`
+    #[serde(
+        rename = "id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub id: ::buffa::alloc::string::String,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetFindingsRequest {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetFindingsRequest")
+            .field("kind", &self.kind)
+            .field("id", &self.id)
+            .finish()
+    }
+}
+impl GetFindingsRequest {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.GetFindingsRequest";
+}
+impl ::buffa::DefaultInstance for GetFindingsRequest {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<GetFindingsRequest> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for GetFindingsRequest {
+    const PACKAGE: &'static str = "ravelact.browse.v1";
+    const NAME: &'static str = "GetFindingsRequest";
+    const FULL_NAME: &'static str = "ravelact.browse.v1.GetFindingsRequest";
+    const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.GetFindingsRequest";
+}
+impl ::buffa::Message for GetFindingsRequest {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.kind.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.kind) as u32;
+        }
+        if !self.id.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.id) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.kind.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.kind, buf);
+        }
+        if !self.id.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.id, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.kind, buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.id, buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.kind.clear();
+        self.id.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetFindingsRequest {
+    const PROTO_FQN: &'static str = "ravelact.browse.v1.GetFindingsRequest";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetFindingsRequest {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_FINDINGS_REQUEST_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/ravelact.browse.v1.GetFindingsRequest",
+    to_json: ::buffa::type_registry::any_to_json::<GetFindingsRequest>,
+    from_json: ::buffa::type_registry::any_from_json::<GetFindingsRequest>,
+    is_wkt: false,
+};
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct GetFindingsResponse {
+    /// Field 1: `findings`
+    #[serde(
+        rename = "findings",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub findings: ::buffa::alloc::vec::Vec<Finding>,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for GetFindingsResponse {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("GetFindingsResponse").field("findings", &self.findings).finish()
+    }
+}
+impl GetFindingsResponse {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.GetFindingsResponse";
+}
+impl ::buffa::DefaultInstance for GetFindingsResponse {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<GetFindingsResponse> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for GetFindingsResponse {
+    const PACKAGE: &'static str = "ravelact.browse.v1";
+    const NAME: &'static str = "GetFindingsResponse";
+    const FULL_NAME: &'static str = "ravelact.browse.v1.GetFindingsResponse";
+    const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.GetFindingsResponse";
+}
+impl ::buffa::Message for GetFindingsResponse {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, __cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        for v in &self.findings {
+            let __slot = __cache.reserve();
+            let inner_size = v.compute_size(__cache);
+            __cache.set(__slot, inner_size);
+            size
+                += 1u32 + ::buffa::encoding::varint_len(inner_size as u64) as u32
+                    + inner_size;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        __cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        for v in &self.findings {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::encoding::encode_varint(__cache.consume_next() as u64, buf);
+            v.write_to(__cache, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                let mut elem = ::core::default::Default::default();
+                ::buffa::Message::merge_length_delimited(&mut elem, buf, depth)?;
+                self.findings.push(elem);
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.findings.clear();
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for GetFindingsResponse {
+    const PROTO_FQN: &'static str = "ravelact.browse.v1.GetFindingsResponse";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for GetFindingsResponse {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __GET_FINDINGS_RESPONSE_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/ravelact.browse.v1.GetFindingsResponse",
+    to_json: ::buffa::type_registry::any_to_json::<GetFindingsResponse>,
+    from_json: ::buffa::type_registry::any_from_json::<GetFindingsResponse>,
+    is_wkt: false,
+};
+/// A single enriched finding. `source_severity` is the original tool severity
+/// and `graph_priority` is ravelact's derived priority — kept as separate
+/// lowercase strings (info/low/medium/high/error) so the SPA never conflates
+/// them, matching the M1/M2 invariant.
+#[derive(Clone, PartialEq, Default)]
+#[derive(::serde::Serialize, ::serde::Deserialize)]
+#[serde(default)]
+pub struct Finding {
+    /// Field 1: `rule_id`
+    #[serde(
+        rename = "ruleId",
+        alias = "rule_id",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub rule_id: ::buffa::alloc::string::String,
+    /// Field 2: `message`
+    #[serde(
+        rename = "message",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub message: ::buffa::alloc::string::String,
+    /// Field 3: `source_severity`
+    #[serde(
+        rename = "sourceSeverity",
+        alias = "source_severity",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub source_severity: ::buffa::alloc::string::String,
+    /// Field 4: `graph_priority`
+    #[serde(
+        rename = "graphPriority",
+        alias = "graph_priority",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub graph_priority: ::buffa::alloc::string::String,
+    /// Human-readable justifications for the derived priority (e.g.
+    /// "reachable_from_risky_trigger:pull_request_target", "orphaned").
+    ///
+    /// Field 5: `priority_reasons`
+    #[serde(
+        rename = "priorityReasons",
+        alias = "priority_reasons",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_vec",
+        deserialize_with = "::buffa::json_helpers::null_as_default"
+    )]
+    pub priority_reasons: ::buffa::alloc::vec::Vec<::buffa::alloc::string::String>,
+    /// Browse-root-relative forward-slash path the finding anchored to.
+    ///
+    /// Field 6: `file`
+    #[serde(
+        rename = "file",
+        with = "::buffa::json_helpers::proto_string",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_empty_str"
+    )]
+    pub file: ::buffa::alloc::string::String,
+    /// 1-based source line; 0 when the finding carries no line.
+    ///
+    /// Field 7: `line`
+    #[serde(
+        rename = "line",
+        with = "::buffa::json_helpers::uint32",
+        skip_serializing_if = "::buffa::json_helpers::skip_if::is_zero_u32"
+    )]
+    pub line: u32,
+    #[serde(skip)]
+    #[doc(hidden)]
+    pub __buffa_unknown_fields: ::buffa::UnknownFields,
+}
+impl ::core::fmt::Debug for Finding {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+        f.debug_struct("Finding")
+            .field("rule_id", &self.rule_id)
+            .field("message", &self.message)
+            .field("source_severity", &self.source_severity)
+            .field("graph_priority", &self.graph_priority)
+            .field("priority_reasons", &self.priority_reasons)
+            .field("file", &self.file)
+            .field("line", &self.line)
+            .finish()
+    }
+}
+impl Finding {
+    /// Protobuf type URL for this message, for use with `Any::pack` and
+    /// `Any::unpack_if`.
+    ///
+    /// Format: `type.googleapis.com/<fully.qualified.TypeName>`
+    pub const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.Finding";
+}
+impl ::buffa::DefaultInstance for Finding {
+    fn default_instance() -> &'static Self {
+        static VALUE: ::buffa::__private::OnceBox<Finding> = ::buffa::__private::OnceBox::new();
+        VALUE.get_or_init(|| ::buffa::alloc::boxed::Box::new(Self::default()))
+    }
+}
+impl ::buffa::MessageName for Finding {
+    const PACKAGE: &'static str = "ravelact.browse.v1";
+    const NAME: &'static str = "Finding";
+    const FULL_NAME: &'static str = "ravelact.browse.v1.Finding";
+    const TYPE_URL: &'static str = "type.googleapis.com/ravelact.browse.v1.Finding";
+}
+impl ::buffa::Message for Finding {
+    /// Returns the total encoded size in bytes.
+    ///
+    /// The result is a `u32`; the protobuf specification requires all
+    /// messages to fit within 2 GiB (2,147,483,647 bytes), so a
+    /// compliant message will never overflow this type.
+    #[allow(clippy::let_and_return)]
+    fn compute_size(&self, _cache: &mut ::buffa::SizeCache) -> u32 {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        let mut size = 0u32;
+        if !self.rule_id.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.rule_id) as u32;
+        }
+        if !self.message.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.message) as u32;
+        }
+        if !self.source_severity.is_empty() {
+            size
+                += 1u32
+                    + ::buffa::types::string_encoded_len(&self.source_severity) as u32;
+        }
+        if !self.graph_priority.is_empty() {
+            size
+                += 1u32
+                    + ::buffa::types::string_encoded_len(&self.graph_priority) as u32;
+        }
+        for v in &self.priority_reasons {
+            size += 1u32 + ::buffa::types::string_encoded_len(v) as u32;
+        }
+        if !self.file.is_empty() {
+            size += 1u32 + ::buffa::types::string_encoded_len(&self.file) as u32;
+        }
+        if self.line != 0u32 {
+            size += 1u32 + ::buffa::types::uint32_encoded_len(self.line) as u32;
+        }
+        size += self.__buffa_unknown_fields.encoded_len() as u32;
+        size
+    }
+    fn write_to(
+        &self,
+        _cache: &mut ::buffa::SizeCache,
+        buf: &mut impl ::buffa::bytes::BufMut,
+    ) {
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        if !self.rule_id.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    1u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.rule_id, buf);
+        }
+        if !self.message.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    2u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.message, buf);
+        }
+        if !self.source_severity.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    3u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.source_severity, buf);
+        }
+        if !self.graph_priority.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    4u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.graph_priority, buf);
+        }
+        for v in &self.priority_reasons {
+            ::buffa::encoding::Tag::new(
+                    5u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(v, buf);
+        }
+        if !self.file.is_empty() {
+            ::buffa::encoding::Tag::new(
+                    6u32,
+                    ::buffa::encoding::WireType::LengthDelimited,
+                )
+                .encode(buf);
+            ::buffa::types::encode_string(&self.file, buf);
+        }
+        if self.line != 0u32 {
+            ::buffa::encoding::Tag::new(7u32, ::buffa::encoding::WireType::Varint)
+                .encode(buf);
+            ::buffa::types::encode_uint32(self.line, buf);
+        }
+        self.__buffa_unknown_fields.write_to(buf);
+    }
+    fn merge_field(
+        &mut self,
+        tag: ::buffa::encoding::Tag,
+        buf: &mut impl ::buffa::bytes::Buf,
+        depth: u32,
+    ) -> ::core::result::Result<(), ::buffa::DecodeError> {
+        #[allow(unused_imports)]
+        use ::buffa::bytes::Buf as _;
+        #[allow(unused_imports)]
+        use ::buffa::Enumeration as _;
+        match tag.field_number() {
+            1u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 1u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.rule_id, buf)?;
+            }
+            2u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 2u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.message, buf)?;
+            }
+            3u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 3u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.source_severity, buf)?;
+            }
+            4u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 4u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.graph_priority, buf)?;
+            }
+            5u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 5u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.priority_reasons.push(::buffa::types::decode_string(buf)?);
+            }
+            6u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::LengthDelimited {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 6u32,
+                        expected: 2u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                ::buffa::types::merge_string(&mut self.file, buf)?;
+            }
+            7u32 => {
+                if tag.wire_type() != ::buffa::encoding::WireType::Varint {
+                    return ::core::result::Result::Err(::buffa::DecodeError::WireTypeMismatch {
+                        field_number: 7u32,
+                        expected: 0u8,
+                        actual: tag.wire_type() as u8,
+                    });
+                }
+                self.line = ::buffa::types::decode_uint32(buf)?;
+            }
+            _ => {
+                self.__buffa_unknown_fields
+                    .push(::buffa::encoding::decode_unknown_field(tag, buf, depth)?);
+            }
+        }
+        ::core::result::Result::Ok(())
+    }
+    fn clear(&mut self) {
+        self.rule_id.clear();
+        self.message.clear();
+        self.source_severity.clear();
+        self.graph_priority.clear();
+        self.priority_reasons.clear();
+        self.file.clear();
+        self.line = 0u32;
+        self.__buffa_unknown_fields.clear();
+    }
+}
+impl ::buffa::ExtensionSet for Finding {
+    const PROTO_FQN: &'static str = "ravelact.browse.v1.Finding";
+    fn unknown_fields(&self) -> &::buffa::UnknownFields {
+        &self.__buffa_unknown_fields
+    }
+    fn unknown_fields_mut(&mut self) -> &mut ::buffa::UnknownFields {
+        &mut self.__buffa_unknown_fields
+    }
+}
+impl ::buffa::json_helpers::ProtoElemJson for Finding {
+    fn serialize_proto_json<S: ::serde::Serializer>(
+        v: &Self,
+        s: S,
+    ) -> ::core::result::Result<S::Ok, S::Error> {
+        ::serde::Serialize::serialize(v, s)
+    }
+    fn deserialize_proto_json<'de, D: ::serde::Deserializer<'de>>(
+        d: D,
+    ) -> ::core::result::Result<Self, D::Error> {
+        <Self as ::serde::Deserialize>::deserialize(d)
+    }
+}
+#[doc(hidden)]
+pub const __FINDING_JSON_ANY: ::buffa::type_registry::JsonAnyEntry = ::buffa::type_registry::JsonAnyEntry {
+    type_url: "type.googleapis.com/ravelact.browse.v1.Finding",
+    to_json: ::buffa::type_registry::any_to_json::<Finding>,
+    from_json: ::buffa::type_registry::any_from_json::<Finding>,
     is_wkt: false,
 };
 /// ---------------------------------------------------------------------------

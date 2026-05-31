@@ -53,6 +53,13 @@ use url::Url;
 use connect::ravelact::browse::v1::{BrowseService, BrowseServiceExt};
 use proto::ravelact::browse::v1 as pb;
 
+use super::findings_overlay::{self, Basis, NodeKey, SeverityCounts};
+use crate::findings::enrich::{EnrichedFinding, RISKY_TRIGGERS, SENSITIVE_WRITE_SCOPES};
+
+/// Findings grouped by the IR node they attach to, owned so the browse
+/// server can hold them across requests. Empty when `--findings` is omitted.
+type FindingsByNode = std::collections::HashMap<NodeKey, Vec<EnrichedFinding>>;
+
 #[derive(Embed)]
 #[folder = "web/dist/"]
 struct WebAssets;
@@ -65,6 +72,7 @@ struct WebAssets;
 pub(crate) struct BrowseState {
     ir: Arc<Ir>,
     root: Arc<PathBuf>,
+    findings_by_node: Arc<FindingsByNode>,
 }
 
 pub(in crate::cli) fn run(
@@ -73,9 +81,11 @@ pub(in crate::cli) fn run(
     excludes: &GlobSet,
     port: Option<u16>,
     no_open: bool,
+    findings: &[PathBuf],
 ) -> Result<()> {
     let ir = Arc::new(super::super::build_or_load(root, cache_mode, excludes)?);
     let repo_info = compute_repo_info(root);
+    let findings_by_node = Arc::new(load_findings_by_node(&ir, findings)?);
     // Match the canonicalization that `discover_sources` (src/ir/build.rs)
     // applies to root when populating `SourcePos.file`. Holding the same
     // canonical form here means `strip_prefix` succeeds in the normal case;
@@ -87,6 +97,7 @@ pub(in crate::cli) fn run(
     let state = BrowseState {
         ir,
         root: Arc::new(canon_root),
+        findings_by_node,
     };
 
     // Multi-threaded runtime with one worker: ConnectRPC's tower stack
@@ -101,7 +112,22 @@ pub(in crate::cli) fn run(
     runtime.block_on(serve(state, repo_info, port, no_open))
 }
 
-fn build_graph_response(ir: &Ir) -> pb::GetGraphResponse {
+/// Load every `--findings` file, run the M1 pipeline, and group the enriched
+/// findings by IR node (owned, deterministically sorted). Empty map when no
+/// findings were supplied — the browse overlay then stays inert.
+fn load_findings_by_node(ir: &Ir, paths: &[PathBuf]) -> Result<FindingsByNode> {
+    if paths.is_empty() {
+        return Ok(FindingsByNode::new());
+    }
+    let enriched = findings_overlay::load_enriched(ir, paths)?;
+    let grouped = findings_overlay::group_by_node(&enriched);
+    Ok(grouped
+        .into_iter()
+        .map(|(key, refs)| (key, refs.into_iter().cloned().collect()))
+        .collect())
+}
+
+fn build_graph_response(ir: &Ir, findings_by_node: &FindingsByNode) -> pb::GetGraphResponse {
     let mut b = GraphBuilder::new();
 
     // Initial nodes from IR collections. Anything reached via edge
@@ -134,9 +160,183 @@ fn build_graph_response(ir: &Ir) -> pb::GetGraphResponse {
         b.visit(source, walk::Node::Action(la));
     }
 
+    inject_findings_overlay(&mut b.nodes, &mut b.edges, ir, findings_by_node);
+
     pb::GetGraphResponse {
         nodes: b.nodes,
         edges: b.edges,
+        __buffa_unknown_fields: Default::default(),
+    }
+}
+
+/// Map a graph node id (`wf:` / `la:` prefixed) back to the [`NodeKey`] used
+/// to index findings. External / docker nodes never carry findings → `None`.
+fn graph_id_node_key(id: &str) -> Option<NodeKey> {
+    if let Some(rest) = id.strip_prefix("wf:") {
+        Some(NodeKey::Workflow(WorkflowId(rest.to_string())))
+    } else {
+        id.strip_prefix("la:")
+            .map(|rest| NodeKey::Action(ActionId(rest.to_string())))
+    }
+}
+
+/// Whether any finding on a node is reachable from a risky trigger.
+fn node_reachable_from_risky(findings: &[EnrichedFinding]) -> bool {
+    findings.iter().any(|ef| {
+        ef.graph_context
+            .reachable_from
+            .iter()
+            .any(|t| RISKY_TRIGGERS.contains(&t.as_str()))
+    })
+}
+
+/// Whether any finding on a node sits on an orphan node.
+fn node_is_orphan(findings: &[EnrichedFinding]) -> bool {
+    findings.iter().any(|ef| ef.graph_context.is_orphan)
+}
+
+/// Distinct source-tool labels (e.g. `["zizmor"]`) across a node's findings,
+/// sorted for deterministic output. Backs the SPA's source filter facet.
+fn node_finding_sources(findings: &[EnrichedFinding]) -> Vec<String> {
+    let mut sources: Vec<String> = findings
+        .iter()
+        .map(|ef| ef.finding.source.label().to_string())
+        .collect();
+    sources.sort();
+    sources.dedup();
+    sources
+}
+
+/// Whether any finding on a node has write-all or a sensitive write scope.
+/// Always false for action nodes (no permission context in M1).
+fn node_has_write(findings: &[EnrichedFinding]) -> bool {
+    findings.iter().any(|ef| {
+        ef.graph_context
+            .permission_context
+            .as_ref()
+            .is_some_and(|pc| {
+                pc.write_all
+                    || pc
+                        .write_scopes
+                        .iter()
+                        .any(|s| SENSITIVE_WRITE_SCOPES.contains(&s.as_str()))
+            })
+    })
+}
+
+/// Inject the findings overlay into the freshly built nodes/edges: per-node
+/// source-severity counts + context flags, and the dangerous-path edge set.
+fn inject_findings_overlay(
+    nodes: &mut [pb::CyNode],
+    edges: &mut [pb::CyEdge],
+    ir: &Ir,
+    findings_by_node: &FindingsByNode,
+) {
+    if findings_by_node.is_empty() {
+        return;
+    }
+
+    // Per-node counts + context flags.
+    for node in nodes.iter_mut() {
+        let Some(data) = node.data.as_option_mut() else {
+            continue;
+        };
+        let Some(key) = graph_id_node_key(&data.id) else {
+            continue;
+        };
+        let Some(group) = findings_by_node.get(&key) else {
+            continue;
+        };
+        let refs: Vec<&EnrichedFinding> = group.iter().collect();
+        let counts = SeverityCounts::tally(&refs, Basis::Source);
+        data.finding_counts = ::buffa::MessageField::some(severity_counts_to_proto(&counts));
+        data.reachable_from_risky = node_reachable_from_risky(group);
+        data.is_orphan = node_is_orphan(group);
+        data.has_write = node_has_write(group);
+        data.finding_sources = node_finding_sources(group);
+    }
+
+    // Dangerous-path edges: an edge u→v lies on a risky-entry→finding path iff
+    // u is forward-reachable from a risky entry AND v is backward-reachable to
+    // a finding node. Both closures run over the directed edge set.
+    let finding_node_ids: HashSet<String> = findings_by_node
+        .keys()
+        .map(|k| match k {
+            NodeKey::Workflow(id) => workflow_node_id(id),
+            NodeKey::Action(id) => action_node_id(id),
+        })
+        .collect();
+    let risky_entry_ids: HashSet<String> = ir
+        .workflows
+        .iter()
+        .filter(|w| {
+            w.triggers
+                .iter()
+                .any(|t| t.is_entry_point() && RISKY_TRIGGERS.contains(&t.event.name()))
+        })
+        .map(|w| workflow_node_id(&w.id))
+        .collect();
+
+    if finding_node_ids.is_empty() || risky_entry_ids.is_empty() {
+        return;
+    }
+
+    let edge_pairs: Vec<(String, String)> = edges
+        .iter()
+        .filter_map(|e| {
+            e.data
+                .as_option()
+                .map(|d| (d.source.clone(), d.target.clone()))
+        })
+        .collect();
+    let forward = closure(&edge_pairs, &risky_entry_ids, Direction::Forward);
+    let backward = closure(&edge_pairs, &finding_node_ids, Direction::Backward);
+
+    for edge in edges.iter_mut() {
+        if let Some(d) = edge.data.as_option_mut() {
+            d.on_dangerous_path = forward.contains(&d.source) && backward.contains(&d.target);
+        }
+    }
+}
+
+enum Direction {
+    Forward,
+    Backward,
+}
+
+/// Reachability closure over directed edges from `seeds` (worklist traversal;
+/// order is irrelevant to the resulting set). Forward follows source→target;
+/// Backward follows target→source. Seeds are included in the result.
+fn closure(edges: &[(String, String)], seeds: &HashSet<String>, dir: Direction) -> HashSet<String> {
+    let mut adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for (s, t) in edges {
+        let (from, to) = match dir {
+            Direction::Forward => (s.as_str(), t.as_str()),
+            Direction::Backward => (t.as_str(), s.as_str()),
+        };
+        adj.entry(from).or_default().push(to);
+    }
+    let mut out: HashSet<String> = seeds.iter().cloned().collect();
+    let mut queue: Vec<String> = seeds.iter().cloned().collect();
+    while let Some(n) = queue.pop() {
+        for &next in adj.get(n.as_str()).into_iter().flatten() {
+            if out.insert(next.to_string()) {
+                queue.push(next.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Convert the shared `SeverityCounts` tally into the proto message.
+fn severity_counts_to_proto(c: &SeverityCounts) -> pb::FindingCounts {
+    pb::FindingCounts {
+        error: c.error,
+        high: c.high,
+        medium: c.medium,
+        low: c.low,
+        info: c.info,
+        total: c.error + c.high + c.medium + c.low + c.info,
         __buffa_unknown_fields: Default::default(),
     }
 }
@@ -172,6 +372,13 @@ impl GraphBuilder {
                 id,
                 label,
                 kind: kind.to_string(),
+                // Findings overlay fields default to empty; populated by the
+                // findings-aware build path (see build_graph_response).
+                finding_counts: ::buffa::MessageField::none(),
+                reachable_from_risky: false,
+                is_orphan: false,
+                has_write: false,
+                finding_sources: Vec::new(),
                 __buffa_unknown_fields: Default::default(),
             }),
             __buffa_unknown_fields: Default::default(),
@@ -208,6 +415,8 @@ impl GraphBuilder {
                 source: source.to_string(),
                 target,
                 kind: kind.to_string(),
+                // Defaults to false; set by the findings-aware build path.
+                on_dangerous_path: false,
                 __buffa_unknown_fields: Default::default(),
             }),
             __buffa_unknown_fields: Default::default(),
@@ -477,7 +686,12 @@ fn split_owner_repo(rest: &str) -> Option<(String, String)> {
 /// router shape is kept in lockstep with the serve loop so
 /// `tests/e2e_browse.rs` can drive it through a Connect client.
 pub(crate) fn build_router(state: BrowseState, repo_info: Option<RepoInfo>) -> Router {
-    let svc = Arc::new(BrowseSvc::new(state.ir, state.root, repo_info));
+    let svc = Arc::new(BrowseSvc::new(
+        state.ir,
+        state.root,
+        repo_info,
+        state.findings_by_node,
+    ));
     let connect_router = svc.register(::connectrpc::Router::new());
     Router::new()
         .route("/", get(serve_index))
@@ -696,19 +910,29 @@ pub(crate) struct BrowseSvc {
     ir: Arc<Ir>,
     root: Arc<PathBuf>,
     repo_info: Option<RepoInfo>,
+    findings_by_node: Arc<FindingsByNode>,
 }
 
 impl BrowseSvc {
-    pub(crate) fn new(ir: Arc<Ir>, root: Arc<PathBuf>, repo_info: Option<RepoInfo>) -> Self {
+    // `pub(in crate::cli)` (not `pub(crate)`) because the signature mentions
+    // `FindingsByNode`, whose `NodeKey` is `pub(in crate::cli)`; only the
+    // browse module + its tests construct this.
+    pub(in crate::cli) fn new(
+        ir: Arc<Ir>,
+        root: Arc<PathBuf>,
+        repo_info: Option<RepoInfo>,
+        findings_by_node: Arc<FindingsByNode>,
+    ) -> Self {
         Self {
             ir,
             root,
             repo_info,
+            findings_by_node,
         }
     }
 
     fn graph_response(&self) -> pb::GetGraphResponse {
-        build_graph_response(&self.ir)
+        build_graph_response(&self.ir, &self.findings_by_node)
     }
 
     fn repo_response(&self) -> Option<pb::GetRepoResponse> {
@@ -1154,6 +1378,45 @@ fn trace_json_to_proto(node: &trace_query::TraceJsonNode) -> pb::TraceJsonNode {
     }
 }
 
+impl BrowseSvc {
+    /// Per-node findings for the SPA's Findings tab. Empty for unknown kinds,
+    /// nodes without findings, or when browse ran without `--findings`.
+    fn findings_response(&self, kind: &str, id: &str) -> pb::GetFindingsResponse {
+        let key = match kind {
+            "workflow" => Some(NodeKey::Workflow(WorkflowId(id.to_string()))),
+            "local-action" => Some(NodeKey::Action(ActionId(id.to_string()))),
+            _ => None,
+        };
+        let findings = key
+            .and_then(|k| self.findings_by_node.get(&k))
+            .map(|group| group.iter().map(finding_to_proto).collect())
+            .unwrap_or_default();
+        pb::GetFindingsResponse {
+            findings,
+            __buffa_unknown_fields: Default::default(),
+        }
+    }
+}
+
+/// Project an enriched finding into its proto form. Source severity and graph
+/// priority stay separate lowercase strings (M1/M2 invariant).
+fn finding_to_proto(ef: &EnrichedFinding) -> pb::Finding {
+    pb::Finding {
+        rule_id: ef.finding.rule_id.clone(),
+        message: ef.finding.message.clone(),
+        source_severity: findings_overlay::severity_word(ef.finding.severity).to_string(),
+        graph_priority: findings_overlay::severity_word(ef.graph_priority).to_string(),
+        priority_reasons: ef
+            .priority_reasons
+            .iter()
+            .map(findings_overlay::reason_word)
+            .collect(),
+        file: path_to_forward(&ef.finding.location.path),
+        line: ef.finding.location.start_line.unwrap_or(0),
+        __buffa_unknown_fields: Default::default(),
+    }
+}
+
 // `async fn` in trait impls produces a more specific return type than the
 // trait's `impl Future<...>`. That refinement is intentional here — the
 // trait only needs a `Send` future, which our `async fn` bodies satisfy.
@@ -1231,6 +1494,14 @@ impl BrowseService for BrowseSvc {
         let resp = self.trace_response(request.id)?;
         ConnectResponse::ok(resp)
     }
+
+    async fn get_findings(
+        &self,
+        _ctx: RequestContext,
+        request: connect::ravelact::browse::v1::OwnedGetFindingsRequestView,
+    ) -> ServiceResult<pb::GetFindingsResponse> {
+        ConnectResponse::ok(self.findings_response(request.kind, request.id))
+    }
 }
 
 #[cfg(test)]
@@ -1255,6 +1526,7 @@ mod tests {
         BrowseState {
             ir,
             root: Arc::new(PathBuf::new()),
+            findings_by_node: Arc::new(FindingsByNode::new()),
         }
     }
 
@@ -1286,8 +1558,12 @@ mod tests {
     /// startup except for the repo discovery step (none of these tests
     /// exercise `GetRepo`).
     fn svc_for(ir: Arc<Ir>) -> BrowseSvc {
-        let BrowseState { ir, root } = state_for(ir);
-        BrowseSvc::new(ir, root, None)
+        let BrowseState {
+            ir,
+            root,
+            findings_by_node,
+        } = state_for(ir);
+        BrowseSvc::new(ir, root, None, findings_by_node)
     }
 
     #[test]
@@ -1826,7 +2102,7 @@ mod tests {
     fn build_graph_response_emits_cytoscape_shape() {
         let ir = build_ir(Path::new("tests/fixtures/simple"), &GlobSet::empty())
             .expect("simple fixture should load");
-        let resp = build_graph_response(&ir);
+        let resp = build_graph_response(&ir, &FindingsByNode::new());
 
         assert!(
             !resp.nodes.is_empty(),
@@ -1871,7 +2147,7 @@ mod tests {
             &GlobSet::empty(),
         )
         .expect("synthetic fixture should load");
-        let resp = build_graph_response(&ir);
+        let resp = build_graph_response(&ir, &FindingsByNode::new());
         let kinds: std::collections::HashSet<&str> =
             resp.nodes.iter().map(|n| node_fields(n).2).collect();
         assert!(
@@ -1884,7 +2160,7 @@ mod tests {
     fn build_graph_response_covers_local_workflow_calls() {
         let ir = build_ir(Path::new("tests/fixtures/multi-caller"), &GlobSet::empty())
             .expect("multi-caller fixture should load");
-        let resp = build_graph_response(&ir);
+        let resp = build_graph_response(&ir, &FindingsByNode::new());
         let kinds: std::collections::HashSet<&str> =
             resp.edges.iter().map(|e| edge_fields(e).3).collect();
         assert!(
@@ -2208,7 +2484,7 @@ mod tests {
             &GlobSet::empty(),
         )
         .expect("cross-repo-call fixture should load");
-        let resp = build_graph_response(&ir);
+        let resp = build_graph_response(&ir, &FindingsByNode::new());
         let kinds: std::collections::HashSet<&str> =
             resp.nodes.iter().map(|n| node_fields(n).2).collect();
         assert!(
@@ -2359,7 +2635,12 @@ mod tests {
             repo: "ravelact".to_string(),
             git_ref: "main".to_string(),
         };
-        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), Some(info));
+        let svc = BrowseSvc::new(
+            ir,
+            Arc::new(PathBuf::new()),
+            Some(info),
+            Arc::new(FindingsByNode::new()),
+        );
         let req = decoded_request(&pb::GetRepoRequest::default());
         let resp = BrowseService::get_repo(&svc, empty_ctx(), req)
             .await
@@ -2573,7 +2854,7 @@ mod tests {
     #[test]
     fn build_graph_response_emits_docker_node_and_edge() {
         let ir = load_fixture_ir("tests/fixtures/synthetic/docker-uses-workflow");
-        let resp = build_graph_response(&ir);
+        let resp = build_graph_response(&ir, &FindingsByNode::new());
         let has_docker_node = resp
             .nodes
             .iter()
@@ -2669,5 +2950,137 @@ mod tests {
         for (path, expected) in cases {
             assert_eq!(mime_for_extension(path), *expected, "for input {path}");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Findings overlay (in-process; the e2e suite drives the same paths
+    // through a spawned binary, which llvm-cov does not instrument).
+    // ------------------------------------------------------------------
+
+    fn zizmor_sarif() -> PathBuf {
+        PathBuf::from("tests/fixtures/synthetic/zizmor-findings/zizmor.sarif")
+    }
+
+    fn zizmor_findings_ir_and_map() -> (Arc<Ir>, FindingsByNode) {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/zizmor-findings");
+        let map = load_findings_by_node(&ir, std::slice::from_ref(&zizmor_sarif()))
+            .expect("load findings");
+        (ir, map)
+    }
+
+    #[test]
+    fn load_findings_by_node_empty_without_paths() {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/zizmor-findings");
+        assert!(load_findings_by_node(&ir, &[]).unwrap().is_empty());
+    }
+
+    #[test]
+    fn build_graph_response_injects_finding_counts_flags_and_sources() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        assert!(!findings.is_empty());
+        let resp = build_graph_response(&ir, &findings);
+
+        let prt = resp
+            .nodes
+            .iter()
+            .filter_map(|n| n.data.as_option())
+            .find(|d| d.id == "wf:.github/workflows/pr-target.yml")
+            .expect("pr-target node present");
+        assert!(
+            prt.reachable_from_risky,
+            "pr-target reached by pull_request_target"
+        );
+        assert!(prt.has_write, "pr-target declares write-all");
+        assert_eq!(prt.finding_sources, vec!["zizmor".to_string()]);
+        assert!(prt.finding_counts.as_option().expect("counts").total > 0);
+
+        // ci.yml: push (not risky) + contents: write (sensitive).
+        let ci = resp
+            .nodes
+            .iter()
+            .filter_map(|n| n.data.as_option())
+            .find(|d| d.id == "wf:.github/workflows/ci.yml")
+            .expect("ci node present");
+        assert!(!ci.reachable_from_risky);
+        assert!(ci.has_write);
+
+        // This fixture has no risky-entry -> local-callee chain, so no edge is
+        // on a dangerous path (every edge target is an external action).
+        assert!(
+            resp.edges
+                .iter()
+                .filter_map(|e| e.data.as_option())
+                .all(|d| !d.on_dangerous_path),
+            "no dangerous edges expected for external-only callees",
+        );
+    }
+
+    #[test]
+    fn findings_response_maps_kinds_and_projects_fields() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+
+        let resp = svc.findings_response("workflow", ".github/workflows/pr-target.yml");
+        assert!(!resp.findings.is_empty());
+        for f in &resp.findings {
+            assert!(!f.source_severity.is_empty(), "source severity present");
+            assert!(!f.graph_priority.is_empty(), "graph priority present");
+            assert_eq!(f.file, ".github/workflows/pr-target.yml");
+        }
+        // write-all + risky trigger promotes priority to high.
+        assert!(resp.findings.iter().any(|f| f.graph_priority == "high"));
+
+        // local-action kind resolves; unknown kind / id yield empty (never error).
+        assert!(!svc
+            .findings_response("local-action", ".github/actions/orphan-tool")
+            .findings
+            .is_empty());
+        assert!(svc
+            .findings_response("external-action", "x")
+            .findings
+            .is_empty());
+        assert!(svc
+            .findings_response("workflow", "nope.yml")
+            .findings
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn trait_get_findings_returns_node_findings() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+        let req = decoded_request(&pb::GetFindingsRequest {
+            kind: "workflow".into(),
+            id: ".github/workflows/pr-target.yml".into(),
+            __buffa_unknown_fields: Default::default(),
+        });
+        let resp = BrowseService::get_findings(&svc, empty_ctx(), req)
+            .await
+            .expect("get_findings must succeed")
+            .body;
+        assert!(!resp.findings.is_empty(), "pr-target has findings");
+    }
+
+    #[test]
+    fn closure_walks_forward_and_backward() {
+        // a -> b -> c, plus a sibling edge a -> d.
+        let edges = vec![
+            ("a".to_string(), "b".to_string()),
+            ("b".to_string(), "c".to_string()),
+            ("a".to_string(), "d".to_string()),
+        ];
+        let seeds: HashSet<String> = ["a".to_string()].into_iter().collect();
+        let fwd = closure(&edges, &seeds, Direction::Forward);
+        assert_eq!(
+            fwd,
+            ["a", "b", "c", "d"].iter().map(|s| s.to_string()).collect()
+        );
+        let leaf: HashSet<String> = ["c".to_string()].into_iter().collect();
+        let back = closure(&edges, &leaf, Direction::Backward);
+        // c can be reached from a and b; d is not on a path to c.
+        assert_eq!(
+            back,
+            ["a", "b", "c"].iter().map(|s| s.to_string()).collect()
+        );
     }
 }

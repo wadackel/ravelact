@@ -1,0 +1,1858 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "invocations": [
+        {
+          "executionSuccessful": true
+        }
+      ],
+      "results": [
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "does not set persist-credentials: false",
+                                "feature_kind": "Normal",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/ci.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "build"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 0
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "does not set persist-credentials: false"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/ci.yml"
+                          },
+                          "region": {
+                            "endColumn": 34,
+                            "endLine": 12,
+                            "snippet": {
+                              "text": "name: Checkout\n        uses: actions/checkout@v4"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 9,
+                            "startLine": 11
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "warning",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "does not set persist-credentials: false",
+                      "feature_kind": "Normal",
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/ci.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "build"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 0
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "does not set persist-credentials: false"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "endColumn": 34,
+                  "endLine": 12,
+                  "snippet": {
+                    "text": "name: Checkout\n        uses: actions/checkout@v4"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 9,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "credential persistence through GitHub Actions artifacts: does not set persist-credentials: false"
+          },
+          "properties": {
+            "zizmor/confidence": "Low",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "Medium"
+          },
+          "ruleId": "zizmor/artipacked"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "does not set persist-credentials: false",
+                                "feature_kind": "Normal",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "inspect"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 0
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "does not set persist-credentials: false"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 57,
+                            "endLine": 13,
+                            "snippet": {
+                              "text": "name: Checkout PR head\n        uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 9,
+                            "startLine": 10
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "warning",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "does not set persist-credentials: false",
+                      "feature_kind": "Normal",
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/pr-target.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "inspect"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 0
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "does not set persist-credentials: false"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "endColumn": 57,
+                  "endLine": 13,
+                  "snippet": {
+                    "text": "name: Checkout PR head\n        uses: actions/checkout@v4\n        with:\n          ref: ${{ github.event.pull_request.head.sha }}"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 9,
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "credential persistence through GitHub Actions artifacts: does not set persist-credentials: false"
+          },
+          "properties": {
+            "zizmor/confidence": "Low",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "Medium"
+          },
+          "ruleId": "zizmor/artipacked"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "pull_request_target is almost always used insecurely",
+                                "feature_kind": "Normal",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "on"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "pull_request_target is almost always used insecurely"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 33,
+                            "endLine": 4,
+                            "snippet": {
+                              "text": "on:\n  pull_request_target:\n    types: [opened, synchronize]"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 1,
+                            "startLine": 2
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "pull_request_target is almost always used insecurely",
+                      "feature_kind": "Normal",
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/pr-target.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "on"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "pull_request_target is almost always used insecurely"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "endColumn": 33,
+                  "endLine": 4,
+                  "snippet": {
+                    "text": "on:\n  pull_request_target:\n    types: [opened, synchronize]"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 1,
+                  "startLine": 2
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "use of fundamentally insecure workflow trigger: pull_request_target is almost always used insecurely"
+          },
+          "properties": {
+            "zizmor/confidence": "Medium",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/dangerous-triggers"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "may expand into attacker-controllable code",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 11,
+                                    "fragment": {
+                                      "Raw": "github.event.ref"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/actions/orphan-tool/action.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "runs"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "may expand into attacker-controllable code"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/actions/orphan-tool/action.yml"
+                          },
+                          "region": {
+                            "endColumn": 42,
+                            "endLine": 10,
+                            "snippet": {
+                              "text": "echo \"ref ${{ github.event.ref }}\""
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 26,
+                            "startLine": 10
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "importance": "important",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "this run block",
+                                "feature_kind": "KeyOnly",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/actions/orphan-tool/action.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Related",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "runs"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "this run block"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/actions/orphan-tool/action.yml"
+                          },
+                          "region": {
+                            "endColumn": 10,
+                            "endLine": 10,
+                            "snippet": {
+                              "text": "run"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 7,
+                            "startLine": 10
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "may expand into attacker-controllable code",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 11,
+                          "fragment": {
+                            "Raw": "github.event.ref"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/actions/orphan-tool/action.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "runs"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 1
+                          },
+                          {
+                            "Key": "run"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "may expand into attacker-controllable code"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/actions/orphan-tool/action.yml"
+                },
+                "region": {
+                  "endColumn": 42,
+                  "endLine": 10,
+                  "snippet": {
+                    "text": "echo \"ref ${{ github.event.ref }}\""
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 26,
+                  "startLine": 10
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "code injection via template expansion: may expand into attacker-controllable code"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/template-injection"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "may expand into attacker-controllable code",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 20,
+                                    "fragment": {
+                                      "Raw": "github.event.head_commit.author.name"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/ci.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "build"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "may expand into attacker-controllable code"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/ci.yml"
+                          },
+                          "region": {
+                            "endColumn": 73,
+                            "endLine": 14,
+                            "snippet": {
+                              "text": "echo \"Building for ${{ github.event.head_commit.author.name }}\""
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 37,
+                            "startLine": 14
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "importance": "important",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "this run block",
+                                "feature_kind": "KeyOnly",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/ci.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Related",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "build"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "this run block"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/ci.yml"
+                          },
+                          "region": {
+                            "endColumn": 12,
+                            "endLine": 14,
+                            "snippet": {
+                              "text": "run"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 9,
+                            "startLine": 14
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "may expand into attacker-controllable code",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 20,
+                          "fragment": {
+                            "Raw": "github.event.head_commit.author.name"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/ci.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "build"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 1
+                          },
+                          {
+                            "Key": "run"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "may expand into attacker-controllable code"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "endColumn": 73,
+                  "endLine": 14,
+                  "snippet": {
+                    "text": "echo \"Building for ${{ github.event.head_commit.author.name }}\""
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 37,
+                  "startLine": 14
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "code injection via template expansion: may expand into attacker-controllable code"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/template-injection"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "may expand into attacker-controllable code",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 16,
+                                    "fragment": {
+                                      "Raw": "github.event.pull_request.title"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "inspect"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "may expand into attacker-controllable code"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 64,
+                            "endLine": 15,
+                            "snippet": {
+                              "text": "echo \"Title is ${{ github.event.pull_request.title }}\""
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 33,
+                            "startLine": 15
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "importance": "important",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "this run block",
+                                "feature_kind": "KeyOnly",
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Related",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "inspect"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 1
+                                    },
+                                    {
+                                      "Key": "run"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "this run block"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 12,
+                            "endLine": 15,
+                            "snippet": {
+                              "text": "run"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 9,
+                            "startLine": 15
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "may expand into attacker-controllable code",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 16,
+                          "fragment": {
+                            "Raw": "github.event.pull_request.title"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/pr-target.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "inspect"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 1
+                          },
+                          {
+                            "Key": "run"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "may expand into attacker-controllable code"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "endColumn": 64,
+                  "endLine": 15,
+                  "snippet": {
+                    "text": "echo \"Title is ${{ github.event.pull_request.title }}\""
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 33,
+                  "startLine": 15
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "code injection via template expansion: may expand into attacker-controllable code"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/template-injection"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "action is not pinned to a hash (required by blanket policy)",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 0,
+                                    "fragment": {
+                                      "Raw": "setup-org/setup-action@v3"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/actions/orphan-tool/action.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "runs"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 0
+                                    },
+                                    {
+                                      "Key": "uses"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "action is not pinned to a hash (required by blanket policy)"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/actions/orphan-tool/action.yml"
+                          },
+                          "region": {
+                            "endColumn": 38,
+                            "endLine": 7,
+                            "snippet": {
+                              "text": "setup-org/setup-action@v3"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 13,
+                            "startLine": 7
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "action is not pinned to a hash (required by blanket policy)",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 0,
+                          "fragment": {
+                            "Raw": "setup-org/setup-action@v3"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/actions/orphan-tool/action.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "runs"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 0
+                          },
+                          {
+                            "Key": "uses"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "action is not pinned to a hash (required by blanket policy)"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/actions/orphan-tool/action.yml"
+                },
+                "region": {
+                  "endColumn": 38,
+                  "endLine": 7,
+                  "snippet": {
+                    "text": "setup-org/setup-action@v3"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 13,
+                  "startLine": 7
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "unpinned action reference: action is not pinned to a hash (required by blanket policy)"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/unpinned-uses"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "action is not pinned to a hash (required by blanket policy)",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 0,
+                                    "fragment": {
+                                      "Raw": "actions/checkout@v4"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/ci.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "build"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 0
+                                    },
+                                    {
+                                      "Key": "uses"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "action is not pinned to a hash (required by blanket policy)"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/ci.yml"
+                          },
+                          "region": {
+                            "endColumn": 34,
+                            "endLine": 12,
+                            "snippet": {
+                              "text": "actions/checkout@v4"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 15,
+                            "startLine": 12
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "action is not pinned to a hash (required by blanket policy)",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 0,
+                          "fragment": {
+                            "Raw": "actions/checkout@v4"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/ci.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "build"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 0
+                          },
+                          {
+                            "Key": "uses"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "action is not pinned to a hash (required by blanket policy)"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "endColumn": 34,
+                  "endLine": 12,
+                  "snippet": {
+                    "text": "actions/checkout@v4"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 15,
+                  "startLine": 12
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "unpinned action reference: action is not pinned to a hash (required by blanket policy)"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/unpinned-uses"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "action is not pinned to a hash (required by blanket policy)",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 0,
+                                    "fragment": {
+                                      "Raw": "some-org/some-action@v1"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/ci.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "build"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 2
+                                    },
+                                    {
+                                      "Key": "uses"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "action is not pinned to a hash (required by blanket policy)"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/ci.yml"
+                          },
+                          "region": {
+                            "endColumn": 38,
+                            "endLine": 16,
+                            "snippet": {
+                              "text": "some-org/some-action@v1"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 15,
+                            "startLine": 16
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "action is not pinned to a hash (required by blanket policy)",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 0,
+                          "fragment": {
+                            "Raw": "some-org/some-action@v1"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/ci.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "build"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 2
+                          },
+                          {
+                            "Key": "uses"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "action is not pinned to a hash (required by blanket policy)"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "endColumn": 38,
+                  "endLine": 16,
+                  "snippet": {
+                    "text": "some-org/some-action@v1"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 15,
+                  "startLine": 16
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "unpinned action reference: action is not pinned to a hash (required by blanket policy)"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/unpinned-uses"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "action is not pinned to a hash (required by blanket policy)",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 0,
+                                    "fragment": {
+                                      "Raw": "actions/checkout@v4"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "inspect"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 0
+                                    },
+                                    {
+                                      "Key": "uses"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "action is not pinned to a hash (required by blanket policy)"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 34,
+                            "endLine": 11,
+                            "snippet": {
+                              "text": "actions/checkout@v4"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 15,
+                            "startLine": 11
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "action is not pinned to a hash (required by blanket policy)",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 0,
+                          "fragment": {
+                            "Raw": "actions/checkout@v4"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/pr-target.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "inspect"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 0
+                          },
+                          {
+                            "Key": "uses"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "action is not pinned to a hash (required by blanket policy)"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "endColumn": 34,
+                  "endLine": 11,
+                  "snippet": {
+                    "text": "actions/checkout@v4"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 15,
+                  "startLine": 11
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "unpinned action reference: action is not pinned to a hash (required by blanket policy)"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/unpinned-uses"
+        },
+        {
+          "codeFlows": [
+            {
+              "threadFlows": [
+                {
+                  "locations": [
+                    {
+                      "importance": "essential",
+                      "location": {
+                        "logicalLocations": [
+                          {
+                            "properties": {
+                              "symbolic": {
+                                "annotation": "action is not pinned to a hash (required by blanket policy)",
+                                "feature_kind": {
+                                  "Subfeature": {
+                                    "after": 0,
+                                    "fragment": {
+                                      "Raw": "deploy-org/deploy-action@v2"
+                                    }
+                                  }
+                                },
+                                "key": {
+                                  "Local": {
+                                    "given_path": "./.github/workflows/pr-target.yml",
+                                    "prefix": "."
+                                  }
+                                },
+                                "kind": "Primary",
+                                "route": {
+                                  "route": [
+                                    {
+                                      "Key": "jobs"
+                                    },
+                                    {
+                                      "Key": "inspect"
+                                    },
+                                    {
+                                      "Key": "steps"
+                                    },
+                                    {
+                                      "Index": 2
+                                    },
+                                    {
+                                      "Key": "uses"
+                                    }
+                                  ]
+                                }
+                              }
+                            }
+                          }
+                        ],
+                        "message": {
+                          "text": "action is not pinned to a hash (required by blanket policy)"
+                        },
+                        "physicalLocation": {
+                          "artifactLocation": {
+                            "uri": ".github/workflows/pr-target.yml"
+                          },
+                          "region": {
+                            "endColumn": 42,
+                            "endLine": 17,
+                            "snippet": {
+                              "text": "deploy-org/deploy-action@v2"
+                            },
+                            "sourceLanguage": "yaml",
+                            "startColumn": 15,
+                            "startLine": 17
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "kind": "fail",
+          "level": "error",
+          "locations": [
+            {
+              "logicalLocations": [
+                {
+                  "properties": {
+                    "symbolic": {
+                      "annotation": "action is not pinned to a hash (required by blanket policy)",
+                      "feature_kind": {
+                        "Subfeature": {
+                          "after": 0,
+                          "fragment": {
+                            "Raw": "deploy-org/deploy-action@v2"
+                          }
+                        }
+                      },
+                      "key": {
+                        "Local": {
+                          "given_path": "./.github/workflows/pr-target.yml",
+                          "prefix": "."
+                        }
+                      },
+                      "kind": "Primary",
+                      "route": {
+                        "route": [
+                          {
+                            "Key": "jobs"
+                          },
+                          {
+                            "Key": "inspect"
+                          },
+                          {
+                            "Key": "steps"
+                          },
+                          {
+                            "Index": 2
+                          },
+                          {
+                            "Key": "uses"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ],
+              "message": {
+                "text": "action is not pinned to a hash (required by blanket policy)"
+              },
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "endColumn": 42,
+                  "endLine": 17,
+                  "snippet": {
+                    "text": "deploy-org/deploy-action@v2"
+                  },
+                  "sourceLanguage": "yaml",
+                  "startColumn": 15,
+                  "startLine": 17
+                }
+              }
+            }
+          ],
+          "message": {
+            "text": "unpinned action reference: action is not pinned to a hash (required by blanket policy)"
+          },
+          "properties": {
+            "zizmor/confidence": "High",
+            "zizmor/persona": "Regular",
+            "zizmor/severity": "High"
+          },
+          "ruleId": "zizmor/unpinned-uses"
+        }
+      ],
+      "tool": {
+        "driver": {
+          "downloadUri": "https://github.com/zizmorcore/zizmor",
+          "informationUri": "https://docs.zizmor.sh",
+          "name": "zizmor",
+          "rules": [
+            {
+              "help": {
+                "markdown": "`template-injection`: code injection via template expansion\n\nDocs: <https://docs.zizmor.sh/audits/#template-injection>",
+                "text": "code injection via template expansion"
+              },
+              "helpUri": "https://docs.zizmor.sh/audits/#template-injection",
+              "id": "zizmor/template-injection",
+              "name": "template-injection",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              }
+            },
+            {
+              "help": {
+                "markdown": "`unpinned-uses`: unpinned action reference\n\nDocs: <https://docs.zizmor.sh/audits/#unpinned-uses>",
+                "text": "unpinned action reference"
+              },
+              "helpUri": "https://docs.zizmor.sh/audits/#unpinned-uses",
+              "id": "zizmor/unpinned-uses",
+              "name": "unpinned-uses",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              }
+            },
+            {
+              "help": {
+                "markdown": "`artipacked`: credential persistence through GitHub Actions artifacts\n\nDocs: <https://docs.zizmor.sh/audits/#artipacked>",
+                "text": "credential persistence through GitHub Actions artifacts"
+              },
+              "helpUri": "https://docs.zizmor.sh/audits/#artipacked",
+              "id": "zizmor/artipacked",
+              "name": "artipacked",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              }
+            },
+            {
+              "help": {
+                "markdown": "`dangerous-triggers`: use of fundamentally insecure workflow trigger\n\nDocs: <https://docs.zizmor.sh/audits/#dangerous-triggers>",
+                "text": "use of fundamentally insecure workflow trigger"
+              },
+              "helpUri": "https://docs.zizmor.sh/audits/#dangerous-triggers",
+              "id": "zizmor/dangerous-triggers",
+              "name": "dangerous-triggers",
+              "properties": {
+                "tags": [
+                  "security"
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "version": "2.1.0"
+}
