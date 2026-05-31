@@ -51,7 +51,7 @@ Export (output artifacts):
   graph        Render the call graph as Mermaid (use --event to filter)
 
 Other:
-  browse       Launch local server and render the workflow graph in a browser (PoC)
+  browse       Launch local server and render the workflow graph in a browser
   build        Build IR and persist to ${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
   completion   Generate shell completion setup snippet (bash / zsh / fish)
   help         Print this message or the help of the given subcommand(s)
@@ -316,8 +316,8 @@ pub enum Command {
     },
 
     /// Launch a local HTTP server and render the workflow graph in a
-    /// browser via Cytoscape.js. Minimal PoC — no filters, no detail
-    /// panels, no live reload. Binds to `127.0.0.1` on an ephemeral
+    /// browser via Cytoscape.js. The graph is built once at startup, so
+    /// there is no live reload. Binds to `127.0.0.1` on an ephemeral
     /// port (override with `--port`), opens the default browser
     /// (skip with `--no-open`), and serves until `Ctrl+C`.
     Browse {

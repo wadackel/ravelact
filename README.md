@@ -59,7 +59,7 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 
 ## Features
 
-🖥️ **Interactive Web UI (PoC)**
+🖥️ **Interactive Web UI**
 - Run `ravelact browse` to explore the workflow graph in your browser — pan, zoom, search, click into a node for details / triggers / impact / trace, or pick a trigger event to see what it impacts.
 
 🧭 **Workflow Graph Navigation**
@@ -266,7 +266,7 @@ wf_1 --> extwf_0
 | `dump` | Export | Print the IR as JSON | 0 |
 | `graph` | Export | Render the call graph as Mermaid `graph LR` | 0 |
 | `build` | Other | Build IR and persist the cache | 0 |
-| `browse` | Other | Launch local server and render the workflow graph in a browser (PoC) | 0 |
+| `browse` | Other | Launch local server and render the workflow graph in a browser | 0 |
 | `completion <shell>` | Other | Print shell-completion setup snippet (bash / zsh / fish) | 0 |
 
 ### Global flags
@@ -737,7 +737,7 @@ Paste the resulting Mermaid into a renderer (mermaid.live, GitHub Flavored Markd
 
 ### Browse
 
-`browse` is a proof-of-concept interactive Web UI for the workflow estate. It launches a local HTTP server bound to `127.0.0.1` on an ephemeral port (or the `--port <N>` you pin), serves the React SPA bundled into the binary, and opens your default browser at the resulting URL. Pass `--no-open` to skip the browser launch for headless / scripted use. The server prunes `tests/fixtures/**` from the graph by default — pass `--include-test-fixtures` to opt back in.
+`browse` is an interactive Web UI for the workflow estate. It launches a local HTTP server bound to `127.0.0.1` on an ephemeral port (or the `--port <N>` you pin), serves the React SPA bundled into the binary, and opens your default browser at the resulting URL. Pass `--no-open` to skip the browser launch for headless / scripted use. The server prunes `tests/fixtures/**` from the graph by default — pass `--include-test-fixtures` to opt back in.
 
 #### Quick start
 
@@ -769,7 +769,7 @@ A small "Powered by ravelact v\<X.Y.Z>" pill is anchored to the bottom-left of t
 
 #### Limitations
 
-`browse` is a PoC. The graph is built once at server start — there is no live reload, so re-run the command after editing workflow files. The UI is light-theme only. It ships with the binary via `rust-embed`, so a stock `cargo install ravelact` is enough — no `pnpm install` on the consumer side.
+The graph is built once at server start — there is no live reload, so re-run the command after editing workflow files. The UI is light-theme only. It ships with the binary via `rust-embed`, so a stock `cargo install ravelact` is enough — no `pnpm install` on the consumer side.
 
 #### Developer reference
 
