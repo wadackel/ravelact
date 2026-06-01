@@ -245,6 +245,15 @@ Integration tests under `tests/` (notably `tests/e2e_oss.rs`) use [`insta`](http
 > [!WARNING]
 > Never blindly overwrite `.snap` files by hand. Always review the diff first to confirm the change is intentional — silent snapshot churn is the #1 source of behavioral regressions slipping through review.
 
+## Findings fixtures
+
+The SARIF finding-overlay tests (`src/findings/`, `tests/findings*.rs`) are driven by synthetic estates under `tests/fixtures/synthetic/`:
+
+- `zizmor-findings/` — intentionally-vulnerable workflows plus a committed `zizmor.sarif` (and an `actionlint.sarif` for multi-source overlay coverage).
+- `actionlint-findings/` — intentionally-broken workflows plus a committed `actionlint.sarif`.
+
+The `.sarif` files are **regenerated, not hand-written**, and normalized for deterministic diffs. Each directory's `README.md` documents the exact regeneration command — re-run it after a zizmor / actionlint upgrade or a fixture edit. These fixtures live under `tests/fixtures/`, which `just lint-actions` does not scan, so their deliberate problems never trip the repo's own CI.
+
 ## IR cache
 
 Build artifacts are cached at `${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json` (or `$HOME/.local/state/ravelact/...` when `XDG_STATE_HOME` is unset). The cache lives **outside** the repository so adopters do not need any `.gitignore` entry. The cache is keyed by `SCHEMA_VERSION` in the IR. See README "Cache location" for the full prerequisite (`XDG_STATE_HOME` or `HOME` required).
