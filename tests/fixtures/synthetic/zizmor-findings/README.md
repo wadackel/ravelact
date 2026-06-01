@@ -23,3 +23,21 @@ Notes:
   scan, so its deliberate vulnerabilities never trip the repo's own zizmor CI.
 - zizmor 1.25.2 emits no `security-severity` / `rank`; per-result severity lives
   in `properties["zizmor/severity"]` (High/Medium/Low) plus the coarse `level`.
+
+## actionlint.sarif (multi-source overlay)
+
+This estate also carries `actionlint.sarif` so the overlay can be exercised with
+two sources at once. actionlint flags the same untrusted-input steps zizmor does
+(`ci.yml:14`, `pr-target.yml:15`), demonstrating both sources on one node.
+Regenerate it with the shared template (`../../actionlint-sarif.tmpl`):
+
+```bash
+cd tests/fixtures/synthetic/zizmor-findings
+NORMALIZE='.runs[0].results |= sort_by(.ruleId, .locations[0].physicalLocation.artifactLocation.uri, .locations[0].physicalLocation.region.startLine, .locations[0].physicalLocation.region.startColumn)'
+nix develop ../../../.. -c bash -c \
+  "actionlint -shellcheck= -pyflakes= -format \"\$(cat ../../actionlint-sarif.tmpl)\" .github/workflows/*.yml | jq '$NORMALIZE'" \
+  > actionlint.sarif
+```
+
+(The estate keeps the legacy `.yml` extension, so these URIs are `.yml`. See
+`../actionlint-findings/README.md` for the dedicated actionlint fixture.)

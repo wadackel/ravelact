@@ -1,0 +1,287 @@
+---
+source: tests/findings.rs
+expression: enriched
+---
+[
+  {
+    "finding": {
+      "id": "actionlint:action:.github/workflows/ci.yaml:10:15",
+      "source": "actionlint",
+      "rule_id": "action",
+      "title": "action",
+      "message": "specifying action \"actions/checkout\" in invalid format because ref is missing. available formats are \"{owner}/{repo}@{ref}\" or \"{owner}/{repo}/{path}@{ref}\"",
+      "severity": "error",
+      "location": {
+        "path": ".github/workflows/ci.yaml",
+        "start_line": 10,
+        "start_column": 15,
+        "end_column": 30
+      }
+    },
+    "attachment": {
+      "node": {
+        "node": "workflow",
+        "id": ".github/workflows/ci.yaml"
+      },
+      "sub_anchor": {
+        "anchor": "step",
+        "job": "build",
+        "index": 0
+      },
+      "confidence": "heuristic",
+      "reason": "nearest preceding anchor at line 9 for finding at line 10"
+    },
+    "graph_context": {
+      "reachable_from": [
+        "push"
+      ],
+      "callers": [],
+      "callees": [],
+      "affected_entrypoints": [
+        ".github/workflows/ci.yaml"
+      ],
+      "is_orphan": false,
+      "permission_context": {
+        "write_all": false,
+        "write_scopes": [],
+        "source": "none-declared"
+      },
+      "secret_context": {
+        "requires_secrets": false,
+        "inherits_secrets": false,
+        "passes_secrets": false
+      }
+    },
+    "graph_priority": "error",
+    "priority_reasons": []
+  },
+  {
+    "finding": {
+      "id": "actionlint:expression:.github/workflows/ci.yaml:12:33",
+      "source": "actionlint",
+      "rule_id": "expression",
+      "title": "expression",
+      "message": "property \"target\" is not defined in object type {}",
+      "severity": "error",
+      "location": {
+        "path": ".github/workflows/ci.yaml",
+        "start_line": 12,
+        "start_column": 33,
+        "end_column": 45
+      }
+    },
+    "attachment": {
+      "node": {
+        "node": "workflow",
+        "id": ".github/workflows/ci.yaml"
+      },
+      "sub_anchor": {
+        "anchor": "step",
+        "job": "build",
+        "index": 1
+      },
+      "confidence": "heuristic",
+      "reason": "nearest preceding anchor at line 11 for finding at line 12"
+    },
+    "graph_context": {
+      "reachable_from": [
+        "push"
+      ],
+      "callers": [],
+      "callees": [],
+      "affected_entrypoints": [
+        ".github/workflows/ci.yaml"
+      ],
+      "is_orphan": false,
+      "permission_context": {
+        "write_all": false,
+        "write_scopes": [],
+        "source": "none-declared"
+      },
+      "secret_context": {
+        "requires_secrets": false,
+        "inherits_secrets": false,
+        "passes_secrets": false
+      }
+    },
+    "graph_priority": "error",
+    "priority_reasons": []
+  },
+  {
+    "finding": {
+      "id": "actionlint:expression:.github/workflows/release.yaml:14:30",
+      "source": "actionlint",
+      "rule_id": "expression",
+      "title": "expression",
+      "message": "\"github.event.pull_request.title\" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks for more details",
+      "severity": "error",
+      "location": {
+        "path": ".github/workflows/release.yaml",
+        "start_line": 14,
+        "start_column": 30,
+        "end_column": 60
+      }
+    },
+    "attachment": {
+      "node": {
+        "node": "workflow",
+        "id": ".github/workflows/release.yaml"
+      },
+      "sub_anchor": {
+        "anchor": "step",
+        "job": "publish",
+        "index": 0
+      },
+      "confidence": "heuristic",
+      "reason": "nearest preceding anchor at line 13 for finding at line 14"
+    },
+    "graph_context": {
+      "reachable_from": [
+        "pull_request_target",
+        "push"
+      ],
+      "callers": [],
+      "callees": [],
+      "affected_entrypoints": [
+        ".github/workflows/release.yaml"
+      ],
+      "is_orphan": false,
+      "permission_context": {
+        "write_all": false,
+        "write_scopes": [
+          "contents"
+        ],
+        "source": "workflow"
+      },
+      "secret_context": {
+        "requires_secrets": false,
+        "inherits_secrets": false,
+        "passes_secrets": false
+      }
+    },
+    "graph_priority": "error",
+    "priority_reasons": [
+      {
+        "reason": "reachable_from_risky_trigger",
+        "trigger": "pull_request_target"
+      },
+      {
+        "reason": "sensitive_write_scope",
+        "scope": "contents"
+      }
+    ]
+  },
+  {
+    "finding": {
+      "id": "actionlint:glob:.github/workflows/release.yaml:4:25",
+      "source": "actionlint",
+      "rule_id": "glob",
+      "title": "glob",
+      "message": "invalid glob pattern. unexpected EOF while checking end of character match []. missing ]. note: filter pattern syntax is explained at https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet",
+      "severity": "error",
+      "location": {
+        "path": ".github/workflows/release.yaml",
+        "start_line": 4,
+        "start_column": 25,
+        "end_column": 27
+      }
+    },
+    "attachment": {
+      "node": {
+        "node": "workflow",
+        "id": ".github/workflows/release.yaml"
+      },
+      "sub_anchor": {
+        "anchor": "workflow_file"
+      },
+      "confidence": "exact",
+      "reason": "file/header level (line 4 precedes all jobs and steps)"
+    },
+    "graph_context": {
+      "reachable_from": [
+        "pull_request_target",
+        "push"
+      ],
+      "callers": [],
+      "callees": [],
+      "affected_entrypoints": [
+        ".github/workflows/release.yaml"
+      ],
+      "is_orphan": false,
+      "permission_context": {
+        "write_all": false,
+        "write_scopes": [
+          "contents"
+        ],
+        "source": "workflow"
+      },
+      "secret_context": {
+        "requires_secrets": false,
+        "inherits_secrets": false,
+        "passes_secrets": false
+      }
+    },
+    "graph_priority": "error",
+    "priority_reasons": [
+      {
+        "reason": "reachable_from_risky_trigger",
+        "trigger": "pull_request_target"
+      },
+      {
+        "reason": "sensitive_write_scope",
+        "scope": "contents"
+      }
+    ]
+  },
+  {
+    "finding": {
+      "id": "actionlint:job-needs:.github/workflows/ci.yaml:13:3",
+      "source": "actionlint",
+      "rule_id": "job-needs",
+      "title": "job-needs",
+      "message": "job \"deploy\" needs job \"setup\" which does not exist in this workflow",
+      "severity": "error",
+      "location": {
+        "path": ".github/workflows/ci.yaml",
+        "start_line": 13,
+        "start_column": 3,
+        "end_column": 9
+      }
+    },
+    "attachment": {
+      "node": {
+        "node": "workflow",
+        "id": ".github/workflows/ci.yaml"
+      },
+      "sub_anchor": {
+        "anchor": "job",
+        "job": "deploy"
+      },
+      "confidence": "exact",
+      "reason": "exact start-line match at line 13"
+    },
+    "graph_context": {
+      "reachable_from": [
+        "push"
+      ],
+      "callers": [],
+      "callees": [],
+      "affected_entrypoints": [
+        ".github/workflows/ci.yaml"
+      ],
+      "is_orphan": false,
+      "permission_context": {
+        "write_all": false,
+        "write_scopes": [],
+        "source": "none-declared"
+      },
+      "secret_context": {
+        "requires_secrets": false,
+        "inherits_secrets": false,
+        "passes_secrets": false
+      }
+    },
+    "graph_priority": "error",
+    "priority_reasons": []
+  }
+]

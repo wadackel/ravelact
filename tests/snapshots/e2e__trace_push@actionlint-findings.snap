@@ -1,0 +1,10 @@
+---
+source: tests/e2e.rs
+expression: out
+---
+trace push  2 entry workflows
+
+╭─ push   (filters=none)
+├─→ .github/workflows/ci.yaml  [wf]
+│
+╰─→ .github/workflows/release.yaml  [wf]

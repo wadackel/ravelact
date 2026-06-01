@@ -49,3 +49,34 @@ fn zizmor_sarif_overlay_pipeline() {
 
     insta::assert_json_snapshot!("zizmor_overlay", enriched);
 }
+
+#[test]
+fn actionlint_sarif_overlay_pipeline() {
+    let fixture =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/synthetic/actionlint-findings");
+
+    let ir = build_ir(&fixture, &GlobSet::empty()).expect("build IR from fixture");
+    let findings = read_findings(&fixture.join("actionlint.sarif")).expect("read actionlint SARIF");
+    assert!(!findings.is_empty(), "fixture SARIF should yield findings");
+
+    let mut enriched: Vec<_> = findings
+        .into_iter()
+        .map(|finding| {
+            let attachment = attach(&ir, &finding);
+            enrich(&ir, finding, attachment)
+        })
+        .collect();
+
+    // Stable, iteration-order-independent ordering for a portable snapshot.
+    enriched.sort_by_key(|e| {
+        (
+            e.finding.rule_id.clone(),
+            e.finding.location.path.to_string_lossy().into_owned(),
+            e.finding.location.start_line,
+            e.finding.location.start_column,
+            e.finding.id.0.clone(),
+        )
+    });
+
+    insta::assert_json_snapshot!("actionlint_overlay", enriched);
+}
