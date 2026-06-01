@@ -93,7 +93,7 @@ frontend: frontend-deps
 build-release: frontend
     cargo build --release --locked
 
-install:
+install: frontend
     cargo install --path . --locked
 
 bench:
