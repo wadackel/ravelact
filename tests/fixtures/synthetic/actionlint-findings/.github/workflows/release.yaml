@@ -1,0 +1,14 @@
+name: release
+on:
+  push:
+    branches: ['release/[']
+  pull_request_target:
+    types: [opened]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish
+        run: echo "title ${{ github.event.pull_request.title }}"

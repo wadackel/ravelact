@@ -1,0 +1,13 @@
+---
+source: tests/findings_overlay.rs
+expression: out
+---
+impact  no impacted targets
+
+FINDINGS ON IMPACTED PATHS
+  .github/workflows/ci.yml
+    - [actionlint/error] expression (L14)
+    - [zizmor/medium] artipacked (L11)
+    - [zizmor/high] template-injection (L14)
+    - [zizmor/high] unpinned-uses (L12)
+    - [zizmor/high] unpinned-uses (L16)

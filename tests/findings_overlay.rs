@@ -24,6 +24,15 @@ fn sarif_arg() -> String {
         .into_owned()
 }
 
+/// Path to the actionlint SARIF generated against the same zizmor estate. Used
+/// to exercise multi-source overlay (`load_enriched`'s `Vec<PathBuf>` loop).
+fn actionlint_sarif_arg() -> String {
+    fixture()
+        .join("actionlint.sarif")
+        .to_string_lossy()
+        .into_owned()
+}
+
 /// Run `ravelact --root <fixture> <args>` and capture stdout (expects success).
 fn run(args: &[&str]) -> String {
     let mut cmd = Command::cargo_bin("ravelact").unwrap();
@@ -74,6 +83,27 @@ fn impact_markdown_show_findings() {
         "markdown",
     ]);
     insta::assert_snapshot!("impact_markdown_show_findings", out);
+}
+
+/// Multi-source overlay: two `--findings` files (zizmor + actionlint) are
+/// concatenated by `load_enriched` and overlaid together. Both tools flag the
+/// same untrusted-input steps (`ci.yml:14`, `pr-target.yml:15`); this test
+/// targets `ci.yml`, so its snapshot shows the `ci.yml:14` overlap — both a
+/// `zizmor`-sourced and an `actionlint`-sourced finding on one node. actionlint
+/// rows show the bare `kind` (`expression`) while zizmor rows show the
+/// source-stripped id (`template-injection`) — expected asymmetry.
+#[test]
+fn impact_text_multi_source() {
+    let out = run(&[
+        "impact",
+        ".github/workflows/ci.yml",
+        "--findings",
+        &sarif_arg(),
+        "--findings",
+        &actionlint_sarif_arg(),
+        "--show-findings",
+    ]);
+    insta::assert_snapshot!("impact_text_multi_source", out);
 }
 
 #[test]

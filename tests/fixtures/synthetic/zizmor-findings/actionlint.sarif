@@ -1,0 +1,58 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "actionlint",
+          "informationUri": "https://github.com/rhysd/actionlint"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "expression",
+          "level": "error",
+          "message": {
+            "text": "\"github.event.head_commit.author.name\" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks for more details"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yml"
+                },
+                "region": {
+                  "startLine": 14,
+                  "startColumn": 37,
+                  "endColumn": 72
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "expression",
+          "level": "error",
+          "message": {
+            "text": "\"github.event.pull_request.title\" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks for more details"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/pr-target.yml"
+                },
+                "region": {
+                  "startLine": 15,
+                  "startColumn": 33,
+                  "endColumn": 63
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

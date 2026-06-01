@@ -1,0 +1,18 @@
+name: ci
+on:
+  push:
+    branches: ['main']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout
+      - name: Build matrix ref
+        run: echo "building ${{ matrix.target }}"
+  deploy:
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        run: echo "deploying"

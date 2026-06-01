@@ -1,0 +1,121 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/os/schemas/sarif-schema-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "actionlint",
+          "informationUri": "https://github.com/rhysd/actionlint"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "action",
+          "level": "error",
+          "message": {
+            "text": "specifying action \"actions/checkout\" in invalid format because ref is missing. available formats are \"{owner}/{repo}@{ref}\" or \"{owner}/{repo}/{path}@{ref}\""
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yaml"
+                },
+                "region": {
+                  "startLine": 10,
+                  "startColumn": 15,
+                  "endColumn": 30
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "expression",
+          "level": "error",
+          "message": {
+            "text": "property \"target\" is not defined in object type {}"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yaml"
+                },
+                "region": {
+                  "startLine": 12,
+                  "startColumn": 33,
+                  "endColumn": 45
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "expression",
+          "level": "error",
+          "message": {
+            "text": "\"github.event.pull_request.title\" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/reference/security/secure-use#good-practices-for-mitigating-script-injection-attacks for more details"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/release.yaml"
+                },
+                "region": {
+                  "startLine": 14,
+                  "startColumn": 30,
+                  "endColumn": 60
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "glob",
+          "level": "error",
+          "message": {
+            "text": "invalid glob pattern. unexpected EOF while checking end of character match []. missing ]. note: filter pattern syntax is explained at https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/release.yaml"
+                },
+                "region": {
+                  "startLine": 4,
+                  "startColumn": 25,
+                  "endColumn": 27
+                }
+              }
+            }
+          ]
+        },
+        {
+          "ruleId": "job-needs",
+          "level": "error",
+          "message": {
+            "text": "job \"deploy\" needs job \"setup\" which does not exist in this workflow"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": ".github/workflows/ci.yaml"
+                },
+                "region": {
+                  "startLine": 13,
+                  "startColumn": 3,
+                  "endColumn": 9
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

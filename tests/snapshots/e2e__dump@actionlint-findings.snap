@@ -1,0 +1,48 @@
+---
+source: tests/e2e.rs
+expression: projection
+---
+{
+  "actions": [],
+  "externals": [],
+  "schema_version": 10,
+  "workflows": [
+    {
+      "id": ".github/workflows/ci.yaml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "build",
+          "step_uses_kinds": []
+        },
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "deploy",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "ci",
+      "triggers": [
+        "push"
+      ]
+    },
+    {
+      "id": ".github/workflows/release.yaml",
+      "jobs": [
+        {
+          "calls_secrets": null,
+          "calls_workflow": null,
+          "id": "publish",
+          "step_uses_kinds": []
+        }
+      ],
+      "name": "release",
+      "triggers": [
+        "pull_request_target",
+        "push"
+      ]
+    }
+  ]
+}
