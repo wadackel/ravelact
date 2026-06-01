@@ -49,11 +49,15 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 - [Annotations](#annotations)
   - [What `dispatches` and `triggers` mean](#what-dispatches-and-triggers-mean)
   - [Scope and limitations](#scope-and-limitations)
+- [Findings overlay](#findings-overlay)
+  - [Source severity vs graph priority](#source-severity-vs-graph-priority)
+  - [Scope and limitations](#scope-and-limitations-1)
 - [CI Integration](#ci-integration)
   - [PR impact summary](#pr-impact-summary)
   - [Required checks](#required-checks)
   - [Optional hygiene gates](#optional-hygiene-gates)
   - [Graph artifact](#graph-artifact)
+  - [Overlaying security findings](#overlaying-security-findings)
 - [Documentation](#documentation)
 - [License](#license)
 
@@ -78,6 +82,10 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 🛠️ **Refactor Signals**
 - Rank composite-action extraction candidates from duplicated step sequences with `extract`.
 - Cluster near-duplicate workflows with `dedup` using single-linkage union-find.
+
+🩺 **External Findings Overlay**
+- Feed a [SARIF](https://sarifweb.azurewebsites.net/) report from `zizmor`, `actionlint`, or any SARIF-emitting tool into `--findings` to overlay each finding onto the graph node it lives on — in `trace` / `callers` / `impact` / `orphans`, the `graph` Mermaid, and the `browse` UI.
+- Re-rank findings by **graph priority** (`--show-priority`): ravelact promotes findings reachable from `pull_request_target` / `workflow_run` or holding sensitive write scopes, and demotes orphaned / test-fixture ones.
 
 🤖 **AI-Agent Ready**
 - Ships an [AgentSkill](#agentskill-for-ai-agents) so coding assistants (Claude Code, Copilot, Cursor, Codex, Gemini CLI, …) know which command to run for which question.
@@ -303,6 +311,8 @@ The `--format` flag is opt-in per command. Most report commands accept `text|jso
 
 Human `text` output uses compact status lines such as `impact  no impacted targets` and `dedup  no near-duplicate clusters  (threshold=0.80)` for empty states — when present, the parens-wrapped trailing segment is the run summary (counts, descriptors). Markdown-capable reports keep the longer "No … found" prose for PR comments and GitHub Job Summaries.
 
+Independently of `--format`, `trace`, `callers`, `impact`, and `orphans` accept `--findings <PATH>` to overlay external SARIF findings onto their output, `graph` accepts `--highlight findings`, and `browse` accepts `--findings`. See [Findings overlay](#findings-overlay).
+
 ### Inspect
 
 Inspect commands are non-blocking reports and exit `0`.
@@ -318,6 +328,8 @@ ravelact trace push
 ravelact trace push --format table
 ravelact trace pull_request --type opened --branch main
 ```
+
+`--findings <PATH>` overlays external SARIF findings scoped to the reachable nodes — `!` sub-lines in `tree`, a severity-count fold in the `table` `note` column, and a `findings` array in `json`. See [Findings overlay](#findings-overlay).
 
 Example tree output:
 
@@ -419,6 +431,8 @@ kind      location                       detail
 job-call  .github/workflows/caller.yaml  call::_jobcall
 ```
 
+`--findings <PATH>` overlays external SARIF findings scoped to the target plus its callers. See [Findings overlay](#findings-overlay).
+
 #### `impact <files>...`
 
 Given a list of changed files (typically a PR diff), list the entry-point workflows transitively affected and the local actions that consume the changed local actions. Inputs may be workflow YAML, `action.yaml`, or any path under a local action directory; unknown paths are warned to stderr and skipped. The input nodes themselves are excluded from the output — only downstream consumers are listed. Inputs may also be piped via stdin (one path per line); `-` mixes stdin with positional args. Each affected entry is rendered with the row label `workflow` for workflows and `local-action-<kind>` (`composite` / `javascript` / `docker`) for local actions.
@@ -438,6 +452,8 @@ WORKFLOWS
   · .github/workflows/entry-b.yaml
 ```
 
+`--findings <PATH>` overlays external SARIF findings scoped to the changed seed nodes plus the impacted workflows and actions. See [Findings overlay](#findings-overlay).
+
 #### `orphans`
 
 Declared-but-unused report. Four kinds in one pass: reusable workflows / local actions (composite / JavaScript / Docker) that nothing references; declared inputs that the callee body never references; declared outputs that no caller consumes via `needs.<job>.outputs.<X>` or `steps.<id>.outputs.<X>`. Local-action rows are tagged with the kind (`local-action-composite` / `local-action-javascript` / `local-action-docker`) in text output and as `{"id": ..., "kind": "composite|javascript|docker"}` objects under the `actions` key in JSON. Always exits 0.
@@ -456,6 +472,8 @@ ACTIONS
 kind        target
 javascript  .
 ```
+
+`--findings <PATH>` overlays external SARIF findings scoped to the reported orphan nodes. See [Findings overlay](#findings-overlay).
 
 <details>
 <summary>Notes &amp; limitations</summary>
@@ -735,6 +753,8 @@ Paste the resulting Mermaid into a renderer (mermaid.live, GitHub Flavored Markd
 
 `--format text` (default) emits raw Mermaid suitable for `> graph.mmd` or for piping into a renderer. `--format markdown` wraps the same Mermaid in a `### Graph` heading + fenced ` ```mermaid ` block, ready to drop into a PR comment or GitHub Job Summary (GitHub renders ` ```mermaid ` blocks natively). Use `dump` for IR JSON. When `--event <event>` matches no entry-points, the Markdown output still emits the fenced block; the body is a `%% (no entry-point matches event <event>)` diagnostic comment.
 
+Pass `--findings <PATH> --highlight findings` to annotate node labels with finding-count badges and color nodes by severity. See [Findings overlay](#findings-overlay).
+
 ### Browse
 
 `browse` is an interactive Web UI for the workflow estate. It launches a local HTTP server bound to `127.0.0.1` on an ephemeral port (or the `--port <N>` you pin), serves the React SPA bundled into the binary, and opens your default browser at the resulting URL. Pass `--no-open` to skip the browser launch for headless / scripted use. The server prunes `tests/fixtures/**` from the graph by default — pass `--include-test-fixtures` to opt back in.
@@ -745,7 +765,10 @@ Paste the resulting Mermaid into a renderer (mermaid.live, GitHub Flavored Markd
 ravelact browse                  # opens http://127.0.0.1:<port>/
 ravelact browse --port 7878      # pin the port
 ravelact browse --no-open        # headless / scripted use
+ravelact browse --findings zizmor.sarif  # overlay SARIF findings in the UI
 ```
+
+`--findings <PATH>` overlays external SARIF findings onto the interactive graph: per-node badges, severity colors, a Findings tab in the Panel, context filters, and dangerous-path edges. Repeatable for multiple sources. See [Findings overlay](#findings-overlay).
 
 <p align="center">
   <img src="docs/images/browse-overview.png" alt="ravelact browse — Overview pane with the push trigger event selected; the workflow graph fades every node not transitively reachable from a push-triggered entry workflow" width="720">
@@ -872,6 +895,60 @@ Annotated edges show up in `trace`, `callers`, `impact`, and the `graph` output 
 - `action.yaml` files **do** parse `# ravelact:` comments. Resolved local-action annotations are stored in the IR on `LocalAction.annotations`: `callers` can report those annotation anchors directly, `trace` / `impact` / `graph` consume reachable annotations when workflows call that local action, and `wiring` reports dangling local-action annotations.
 - `wiring` only matches **literal** targets in `gh workflow run X`. Variable expansion (`gh workflow run "$VAR"`), shell line continuation (`\`), and command substitution (`$(...)`) are out of scope and remain known false negatives.
 
+## Findings overlay
+
+External tools like [`zizmor`](https://github.com/woodruffw/zizmor) (security audit) and [`actionlint`](https://github.com/rhysd/actionlint) (syntax / schema lint) already pinpoint problems in individual workflow files. `ravelact` adds the missing dimension: **where each finding sits in the call graph**. Pass a [SARIF](https://sarifweb.azurewebsites.net/) report via `--findings` and ravelact resolves every finding onto the IR node it lives on, then overlays it onto the command's output.
+
+Input is **SARIF only**. The format is auto-detected from the document shape (a `$schema` mentioning `sarif`, or a top-level `runs` array), so any SARIF-emitting tool works — `zizmor` and `actionlint` are first-class, and other sources (e.g. `trivy`) are carried through generically.
+
+```sh
+# zizmor emits SARIF natively
+zizmor --format sarif .github/workflows > zizmor.sarif
+ravelact trace push --findings zizmor.sarif --show-findings
+
+# multiple sources are concatenated (repeat --findings)
+ravelact impact .github/workflows/_reusable.yaml \
+  --findings zizmor.sarif --findings actionlint.sarif --format json
+```
+
+The overlay is available on six commands:
+
+| Command | Flag | Effect |
+|---|---|---|
+| `trace` | `--findings` | `!` sub-lines in `tree`, severity-count fold in the `table` `note` column, `findings` array in `json` |
+| `callers` | `--findings` | findings scoped to the target plus its callers |
+| `impact` | `--findings` | findings scoped to the changed seeds plus impacted workflows / actions |
+| `orphans` | `--findings` | findings scoped to the reported orphan nodes |
+| `graph` | `--highlight findings` | node-label finding-count badges + severity-colored nodes |
+| `browse` | `--findings` | node badges, severity colors, Findings tab, context filters, dangerous-path edges |
+
+For the four report commands (`trace` / `callers` / `impact` / `orphans`), two shared flags refine the output:
+
+- `--show-findings` — co-display the findings in `text` / `markdown` output (off by default). `json` always includes a `findings` projection whenever `--findings` is given, regardless of this flag.
+- `--show-priority` — annotate each finding with its ravelact-derived graph priority and the reasons behind it, alongside the unchanged source severity (see below).
+
+`graph` exposes the same `--show-priority` to base its badge counts on graph priority instead of source severity.
+
+Findings are graded on five severity tiers — `error`, `high`, `medium`, `low`, `info` — rendered as compact `E`/`H`/`M`/`L`/`I` badges. The overlay **never changes a command's exit code**: it is informational context layered on top of the existing report.
+
+### Source severity vs graph priority
+
+Each finding carries two severities:
+
+- **Source severity** — the value the originating tool assigned (e.g. zizmor's `High` / `Medium` / `Low`). ravelact never mutates this.
+- **Graph priority** — a *separate*, ravelact-derived grade based on where the finding sits in the call graph. It is shown only with `--show-priority`, always accompanied by the reasons that moved it:
+  - **Promoted** toward `high` when the node is reachable from a `pull_request_target` / `workflow_run` trigger (these run with write tokens + secrets on untrusted input), or when the node has `write-all` / `contents: write` / `id-token: write` permissions.
+  - **Demoted** toward `low` when the node is an orphan (no entry workflow reaches it) or lives under a test-fixtures path.
+  - Demotion wins over promotion — an orphan is not reachable anyway.
+
+This lets a `Medium` template-injection finding on a `pull_request_target` workflow surface above a `High` finding on a workflow nothing triggers.
+
+### Scope and limitations
+
+- **SARIF only.** Non-SARIF inputs are rejected with an error; there is no ravelact-native findings format.
+- **Node-scoped.** Each command overlays only the findings that resolve to a node in its own result set (impacted / orphan / reachable / target+callers). Findings that do not resolve to any IR node are dropped from the node-scoped overlays.
+- **No cross-file dedup.** Repeated `--findings` files are concatenated as-is; the same finding present in two SARIF files appears twice.
+
 ## CI Integration
 
 `ravelact` works well as two kinds of CI step:
@@ -983,6 +1060,24 @@ For larger estates, keep a rendered graph source as a build artifact:
           name: ravelact-graph
           path: ravelact-push.mmd
 ```
+
+### Overlaying security findings
+
+Run a SARIF-emitting tool (here `zizmor`), then feed the report into a report command with `--findings` to add graph context — which impacted workflows carry findings, re-ranked by graph priority — to the PR summary. See [Findings overlay](#findings-overlay).
+
+```yaml
+      - uses: wadackel/ravelact@vX.Y.Z  # Pin to a SHA in production
+      - name: Run zizmor
+        run: zizmor --format sarif .github/workflows > zizmor.sarif
+      - name: Impact + findings summary
+        run: |
+          git diff --name-only origin/${{ github.base_ref }}...HEAD \
+            | ravelact impact --root . \
+                --findings zizmor.sarif --show-findings --show-priority --format markdown \
+            >> "$GITHUB_STEP_SUMMARY"
+```
+
+`--findings` never changes the command's exit code, so this stays a report. Keep `zizmor` (and `actionlint`) as their own merge-gating steps when you want them to fail CI directly.
 
 ## Documentation
 

@@ -1,6 +1,6 @@
 //! Finding-overlay normalization layer.
 //!
-//! Pipeline (M1):
+//! Pipeline:
 //!
 //! ```text
 //! input SARIF ──parse──▶ Finding ──attach(ir)──▶ Attachment ──enrich(ir)──▶ EnrichedFinding
@@ -9,8 +9,9 @@
 //! External findings are normalized into the tool-agnostic [`model::Finding`],
 //! resolved onto IR nodes/sub-anchors with a confidence by `attach`, then
 //! enriched with graph context and a derived priority by `enrich`. The CLI
-//! surface is intentionally untouched in M1; this module is exercised through
-//! the library and integration tests.
+//! exposes this overlay via `--findings` on `trace` / `callers` / `impact` /
+//! `orphans`, `--highlight findings` on `graph`, and `--findings` on `browse`
+//! (see `crate::cli::render::findings_overlay`).
 
 use std::path::Path;
 
@@ -21,20 +22,20 @@ pub mod sarif;
 
 pub use model::{Finding, FindingId, FindingSource, FindingTag, Location, Severity};
 
-/// Read findings from a file. M1 supports SARIF only; the format is detected
-/// from the document shape (`$schema` mentioning sarif, or a top-level `runs`
-/// array). ravelact-native JSON and the actionlint adapter are out of scope.
+/// Read findings from a file. SARIF only; the format is detected from the
+/// document shape (`$schema` mentioning sarif, or a top-level `runs` array).
+/// Non-SARIF inputs (e.g. a ravelact-native JSON format) are out of scope.
 pub fn read_findings(path: &Path) -> anyhow::Result<Vec<Finding>> {
     let raw = std::fs::read_to_string(path)
         .map_err(|e| anyhow::anyhow!("failed to read findings file {}: {e}", path.display()))?;
     read_findings_str(&raw)
 }
 
-/// Parse findings from an in-memory string (SARIF-only in M1).
+/// Parse findings from an in-memory string (SARIF only).
 pub fn read_findings_str(raw: &str) -> anyhow::Result<Vec<Finding>> {
     if !looks_like_sarif(raw) {
         anyhow::bail!(
-            "unrecognized findings format; M1 supports SARIF only \
+            "unrecognized findings format; ravelact supports SARIF only \
              (expected a `$schema` mentioning sarif or a top-level `runs` array)"
         );
     }

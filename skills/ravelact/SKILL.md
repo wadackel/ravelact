@@ -49,6 +49,8 @@ asks about any of the following:
 - "Render the call graph as a diagram." → use `graph` (Mermaid).
 - "Give me the IR as JSON for a custom query." → use `dump`.
 - Any consistency question about the workflow estate's wiring → use `wiring`.
+- "Where do the zizmor / actionlint findings sit in the call graph?" → overlay a
+  SARIF report with `--findings` (see [Findings overlay](#findings-overlay)).
 
 ## Setup
 
@@ -184,6 +186,8 @@ Rendering:
 - `--format json` — structured trace entries for automation.
 - `--format markdown` — `### Trace` heading plus the trace rows as a Markdown table.
 - `--ascii` — fall back to ASCII border characters in the tree view.
+- `--findings <PATH>` / `--show-findings` / `--show-priority` — overlay external
+  SARIF findings scoped to the reachable nodes (see [Findings overlay](#findings-overlay)).
 
 ```sh
 ravelact trace push
@@ -373,6 +377,9 @@ are shared nodes; edges follow `uses` / `workflow_call` / `workflow_run`.
 - `--format markdown` — wraps the same Mermaid in a `### Graph` heading + a
   fenced ` ```mermaid ` block, ready to paste into a PR comment or GitHub Job
   Summary.
+- `--findings <PATH> --highlight findings` — annotate node labels with
+  finding-count badges and color nodes by severity; `--show-priority` bases the
+  counts on graph priority (see [Findings overlay](#findings-overlay)).
 - Use `dump` for IR JSON.
 
 ```sh
@@ -397,6 +404,8 @@ dense — e.g., visualizing which external actions a `push` event reaches.
 - `--include-test-fixtures` — include local-action manifests under
   `tests/fixtures/**` (default: excluded to keep the dogfood view focused
   on production workflows).
+- `--findings <PATH>` — overlay external SARIF findings in the UI (see
+  [Findings overlay](#findings-overlay)).
 - `/api/repo` returns 200 when `origin` resolves to a GitHub-like host
   (github.com or GitHub Enterprise) over `ssh://`, `git@host:` (SCP form),
   `https://`, or `http://`; userinfo and ports are tolerated. It returns
@@ -421,6 +430,22 @@ ravelact completion bash    # then: source <(COMPLETE=bash ravelact)
 ravelact completion zsh
 ravelact completion fish
 ```
+
+## Findings overlay
+
+Overlay external **SARIF** findings onto the call graph, so a finding is read in
+graph context. Format is auto-detected (`$schema` mentioning `sarif`, or a
+top-level `runs` array); `zizmor` / `actionlint` are first-class, other SARIF
+sources pass through. Informational only — never changes exit codes, so keep the
+source tool as its own gate. On `trace` / `callers` / `impact` / `orphans`:
+`--findings <PATH>` (repeatable, concatenated, no dedup; scoped to the nodes that
+command reports), `--show-findings` (co-display in `text` / `markdown`; `json`
+always includes findings when `--findings` is set), `--show-priority` (ravelact
+**graph priority** + reasons beside the tool **source severity**: promoted when
+reachable from `pull_request_target` / `workflow_run` or write-capable
+(`write-all` / `contents` / `id-token: write`), demoted when orphaned / test
+fixtures). `graph` uses `--highlight findings`; `browse` uses `--findings`
+(badges, colors, Findings tab, context filters, dangerous-path edges).
 
 ## Output interpretation tips
 
