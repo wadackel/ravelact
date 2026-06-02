@@ -8,6 +8,7 @@ import type {
   GetImpactResponse,
   GetNodeResponse,
   GetRepoResponse,
+  ListFindingsResponse,
   ListTriggersResponse,
   SearchResponse,
   TraceResponse,
@@ -100,6 +101,14 @@ export function fetchTrace(id: string): Promise<TraceResponse | null> {
 // that carry none (and always-empty when browse ran without `--findings`).
 export function fetchFindings(kind: NodeKind, id: string): Promise<GetFindingsResponse> {
   return client.getFindings({ kind, id });
+}
+
+// Cross-cutting findings list for the FindingsFloat. Never NotFound: the
+// server returns an empty list when browse ran without `--findings` (mirrors
+// `fetchFindings`). Each row carries the source tool + its graph node id/kind
+// so the float can select + fit the node on click.
+export function fetchAllFindings(): Promise<ListFindingsResponse> {
+  return client.listFindings({});
 }
 
 // `signal` lets callers cancel a stale request when the user keeps

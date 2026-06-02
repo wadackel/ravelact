@@ -24,6 +24,7 @@ vi.mock("./lib/api.ts", () => ({
   fetchNode: vi.fn(),
   fetchImpact: vi.fn(),
   fetchTrace: vi.fn(),
+  fetchAllFindings: vi.fn(),
 }));
 
 vi.mock("./ui/components/Graph.tsx", () => {
@@ -167,6 +168,7 @@ describe("App — orchestration", () => {
       nodeIds: ["wf:.github/workflows/ci.yaml"],
     });
     (api.fetchRepo as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (api.fetchAllFindings as ReturnType<typeof vi.fn>).mockResolvedValue({ findings: [] });
     (api.fetchNode as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: "wf:.github/workflows/ci.yaml",
       kind: "workflow",
@@ -202,10 +204,10 @@ describe("App — orchestration", () => {
     });
   });
 
-  it("OverviewPane renders by default; node click swaps it to Panel", async () => {
+  it("FindingsFloat renders by default and persists; node click adds the node-only Panel", async () => {
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
-    // No node detail panel mounted yet.
+    await screen.findByRole("complementary", { name: "Findings and events" });
+    // No node detail panel mounted yet — the right pane is node-only.
     expect(screen.queryByRole("complementary", { name: "Node detail panel" })).toBeNull();
 
     // Simulate a node click via the Graph stub's captured callback.
@@ -215,16 +217,15 @@ describe("App — orchestration", () => {
     act(() => {
       latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
     });
-    await waitFor(() => {
-      expect(screen.queryByRole("complementary", { name: "Graph overview" })).toBeNull();
-    });
-    expect(screen.getByRole("complementary", { name: "Node detail panel" })).toBeVisible();
+    // The Panel appears; the float stays (it is an overlay, not a swap).
+    expect(await screen.findByRole("complementary", { name: "Node detail panel" })).toBeVisible();
+    expect(screen.getByRole("complementary", { name: "Findings and events" })).toBeVisible();
   });
 
   it("typing in the search input drives matchedIds (after debounce)", async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
     const input = screen.getByLabelText("Search nodes, files, and triggers");
     await user.type(input, "ci");
 
@@ -243,7 +244,7 @@ describe("App — orchestration", () => {
   it("clearing the search input drops matchedIds back to null", async () => {
     const user = userEvent.setup();
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
     const input = screen.getByLabelText("Search nodes, files, and triggers");
     await user.type(input, "ci");
     await waitFor(() => expect(latestGraphProps().matchedIds).not.toBeNull());
@@ -268,16 +269,16 @@ describe("App — orchestration", () => {
 
   it("clicking a Triggers tab chip drives event-impact through Panel", async () => {
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
 
-    // Select a workflow node so Panel mounts in place of OverviewPane.
+    // Select a workflow node so the node-only Panel mounts.
     act(() => {
       latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow");
     });
     const panel = await screen.findByRole("complementary", { name: "Node detail panel" });
 
     // Switch to the Triggers tab. Scope the lookup to the panel so we
-    // do not collide with any future OverviewPane button that might
+    // do not collide with the FindingsFloat's Events button that may
     // share an accessible name.
     const triggersTab = within(panel).getByRole("tab", { name: "Triggers" });
     act(() => {
@@ -300,7 +301,7 @@ describe("App — orchestration", () => {
 
   it("keeps the active panel tab when selecting a different node", async () => {
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
 
     // Select node A → Panel mounts → switch to Triggers.
     act(() => {
@@ -331,7 +332,7 @@ describe("App — orchestration", () => {
 
   it("resets the active panel tab to Details when the panel is closed", async () => {
     render(<App />);
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
 
     // Select node, switch to Triggers.
     act(() => {
@@ -348,11 +349,11 @@ describe("App — orchestration", () => {
       );
     });
 
-    // Background tap closes the panel (OverviewPane comes back).
+    // Background tap closes the node Panel; the FindingsFloat overlay stays.
     act(() => {
       latestGraphProps().onBackgroundTap();
     });
-    await screen.findByRole("complementary", { name: "Graph overview" });
+    await screen.findByRole("complementary", { name: "Findings and events" });
 
     // Re-open on any node — should start on Details.
     act(() => {
@@ -393,17 +394,25 @@ describe("App — orchestration", () => {
     expect(credits[0]).toHaveAttribute("href", "https://github.com/wadackel/ravelact");
   });
 
+  // The right pane (ResizableRightPane) is node-only now, so a node must be
+  // selected for the resizable stub to mount. This helper renders App and
+  // opens a node so the width assertions have a pane to read.
+  async function renderWithPanel() {
+    render(<App />);
+    await waitFor(() => latestGraphProps());
+    act(() => latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow"));
+    await waitFor(() => latestResizableProps());
+  }
+
   describe("right-pane width persistence", () => {
     it("starts at 360 when localStorage is empty", async () => {
-      render(<App />);
-      await waitFor(() => latestResizableProps());
+      await renderWithPanel();
       expect(latestResizableProps().width).toBe(360);
     });
 
     it("restores a persisted in-range value on mount", async () => {
       localStorage.setItem("ravelact:panel-width", "500");
-      render(<App />);
-      await waitFor(() => latestResizableProps());
+      await renderWithPanel();
       expect(latestResizableProps().width).toBe(500);
     });
 
@@ -415,14 +424,12 @@ describe("App — orchestration", () => {
       ["100", "below MIN"],
     ])("falls back to 360 when persisted value is %s (%s)", async (raw) => {
       localStorage.setItem("ravelact:panel-width", raw);
-      render(<App />);
-      await waitFor(() => latestResizableProps());
+      await renderWithPanel();
       expect(latestResizableProps().width).toBe(360);
     });
 
     it("onWidthChange writes through to localStorage and updates the width prop", async () => {
-      render(<App />);
-      await waitFor(() => latestResizableProps());
+      await renderWithPanel();
       act(() => {
         latestResizableProps().onWidthChange(450);
       });
@@ -430,27 +437,24 @@ describe("App — orchestration", () => {
       expect(latestResizableProps().width).toBe(450);
     });
 
-    it("preserves the width across Panel ↔ OverviewPane toggles", async () => {
-      render(<App />);
-      await waitFor(() => latestResizableProps());
-      // Start at default 360; bump to 480.
+    it("preserves the width across node selection changes", async () => {
+      await renderWithPanel();
+      // Bump to 480 on node A.
       act(() => latestResizableProps().onWidthChange(480));
       expect(latestResizableProps().width).toBe(480);
 
-      // OverviewPane → Panel via a node click on the graph stub.
-      await waitFor(() => latestGraphProps());
-      act(() => latestGraphProps().onNodeClick("wf:.github/workflows/ci.yaml", "workflow"));
+      // Close via background tap (Panel unmounts; width lives in App state).
+      act(() => latestGraphProps().onBackgroundTap());
+      await waitFor(() => {
+        expect(screen.queryByRole("complementary", { name: "Node detail panel" })).toBeNull();
+      });
+
+      // Re-open on another node → Panel remounts with the preserved width.
+      act(() => latestGraphProps().onNodeClick("wf:.github/workflows/release.yaml", "workflow"));
       await waitFor(() => {
         expect(
           screen.getByRole("complementary", { name: "Node detail panel" }),
         ).toBeInTheDocument();
-      });
-      expect(latestResizableProps().width).toBe(480);
-
-      // Panel → OverviewPane via background tap.
-      act(() => latestGraphProps().onBackgroundTap());
-      await waitFor(() => {
-        expect(screen.getByRole("complementary", { name: "Graph overview" })).toBeInTheDocument();
       });
       expect(latestResizableProps().width).toBe(480);
     });

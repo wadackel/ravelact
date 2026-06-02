@@ -33,6 +33,33 @@
   --color-kind-docker-border: #db2777;
   --color-kind-docker-text: #9d174d;
 
+  /* Severity palette — single source for the SeverityDot, the GraphNode
+     finding badge, and the Panel findings rows. One vivid color per tier,
+     used for the dot.
+
+     These are the redesign reference's oklch values (vivid, not muted). This
+     INTENTIONALLY diverges from the M2 CLI Mermaid `severity_style` hex —
+     the browse SPA owns its own, brighter severity palette per the design
+     review. `graph --highlight findings` (Rust/Mermaid) is unchanged. */
+  --color-sev-error: oklch(55% 0.2 25);
+  --color-sev-high: oklch(63% 0.17 45);
+  --color-sev-medium: oklch(72% 0.14 75);
+  --color-sev-low: oklch(60% 0.1 240);
+  --color-sev-info: oklch(62% 0.02 260);
+
+  /* Source-tool palette for the per-rule SourceBadge. Hue-separated so zizmor
+     vs actionlint read at a glance; `default` backs ravelact + unknown
+     external tools. */
+  --color-source-zizmor: #c084fc;
+  --color-source-zizmor-bg: #f3e8ff;
+  --color-source-zizmor-text: #6b21a8;
+  --color-source-actionlint: #38bdf8;
+  --color-source-actionlint-bg: #e0f2fe;
+  --color-source-actionlint-text: #075985;
+  --color-source-default: #d4d4d8;
+  --color-source-default-bg: #f4f4f5;
+  --color-source-default-text: #52525b;
+
   --spacing-1: 4px;
   --spacing-2: 8px;
   --spacing-3: 12px;

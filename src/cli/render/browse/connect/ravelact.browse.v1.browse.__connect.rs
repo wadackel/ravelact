@@ -106,6 +106,18 @@ pub type OwnedGetFindingsResponseView = ::buffa::view::OwnedView<
         'static,
     >,
 >;
+///Shorthand for `OwnedView<ListFindingsRequestView<'static>>`.
+pub type OwnedListFindingsRequestView = ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsRequestView<
+        'static,
+    >,
+>;
+///Shorthand for `OwnedView<ListFindingsResponseView<'static>>`.
+pub type OwnedListFindingsResponseView = ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsResponseView<
+        'static,
+    >,
+>;
 impl ::connectrpc::Encodable<
     crate::cli::render::browse::proto::ravelact::browse::v1::GetGraphResponse,
 >
@@ -358,6 +370,34 @@ for ::buffa::view::OwnedView<
         ::connectrpc::__codegen::encode_view_body(&**self, codec)
     }
 }
+impl ::connectrpc::Encodable<
+    crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsResponse,
+>
+for crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsResponseView<
+    '_,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(self, codec)
+    }
+}
+impl ::connectrpc::Encodable<
+    crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsResponse,
+>
+for ::buffa::view::OwnedView<
+    crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsResponseView<
+        'static,
+    >,
+> {
+    fn encode(
+        &self,
+        codec: ::connectrpc::CodecFormat,
+    ) -> ::std::result::Result<::buffa::bytes::Bytes, ::connectrpc::ConnectError> {
+        ::connectrpc::__codegen::encode_view_body(&**self, codec)
+    }
+}
 /// Full service name for this service.
 pub const BROWSE_SERVICE_SERVICE_NAME: &str = "ravelact.browse.v1.BrowseService";
 /// Static [`Spec`](::connectrpc::Spec) for the server-side `GetGraph` RPC.
@@ -438,6 +478,15 @@ pub const BROWSE_SERVICE_TRACE_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::se
 /// [`RequestContext::spec`](::connectrpc::RequestContext::spec).
 pub const BROWSE_SERVICE_GET_FINDINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
         "/ravelact.browse.v1.BrowseService/GetFindings",
+        ::connectrpc::StreamType::Unary,
+    )
+    .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
+/// Static [`Spec`](::connectrpc::Spec) for the server-side `ListFindings` RPC.
+///
+/// The dispatcher surfaces this on
+/// [`RequestContext::spec`](::connectrpc::RequestContext::spec).
+pub const BROWSE_SERVICE_LIST_FINDINGS_SPEC: ::connectrpc::Spec = ::connectrpc::Spec::server(
+        "/ravelact.browse.v1.BrowseService/ListFindings",
         ::connectrpc::StreamType::Unary,
     )
     .with_idempotency_level(::connectrpc::IdempotencyLevel::Unknown);
@@ -612,6 +661,24 @@ pub trait BrowseService: Send + Sync + 'static {
         Output = ::connectrpc::ServiceResult<
             impl ::connectrpc::Encodable<
                 crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
+            > + Send + use<'a, Self>,
+        >,
+    > + Send;
+    /// Every enriched finding across the estate, each annotated with the node it
+    /// anchored to. Backs the SPA's cross-cutting findings float. Empty when
+    /// browse was started without `--findings`. Returned in a stable order
+    /// (graph_priority desc, then node_id / rule_id / line ascending) so the UI
+    /// and tests do not depend on HashMap iteration order.
+    ///
+    /// `'a` lets the response body borrow from `&self` (e.g. server-resident state).
+    fn list_findings<'a>(
+        &'a self,
+        ctx: ::connectrpc::RequestContext,
+        request: OwnedListFindingsRequestView,
+    ) -> impl ::std::future::Future<
+        Output = ::connectrpc::ServiceResult<
+            impl ::connectrpc::Encodable<
+                crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsResponse,
             > + Send + use<'a, Self>,
         >,
     > + Send;
@@ -806,6 +873,24 @@ impl<S: BrowseService> BrowseServiceExt for S {
                 },
             )
             .with_spec(BROWSE_SERVICE_GET_FINDINGS_SPEC)
+            .route_view(
+                BROWSE_SERVICE_SERVICE_NAME,
+                "ListFindings",
+                {
+                    let svc = ::std::sync::Arc::clone(&self);
+                    ::connectrpc::view_handler_fn(move |ctx, req, format| {
+                        let svc = ::std::sync::Arc::clone(&svc);
+                        async move {
+                            svc.list_findings(ctx, req)
+                                .await?
+                                .encode::<
+                                    crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsResponse,
+                                >(format)
+                        }
+                    })
+                },
+            )
+            .with_spec(BROWSE_SERVICE_LIST_FINDINGS_SPEC)
     }
 }
 /// Monomorphic dispatcher for `BrowseService`.
@@ -903,6 +988,12 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                 Some(
                     ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
                         .with_spec(BROWSE_SERVICE_GET_FINDINGS_SPEC),
+                )
+            }
+            "ListFindings" => {
+                Some(
+                    ::connectrpc::dispatcher::codegen::MethodDescriptor::unary(false)
+                        .with_spec(BROWSE_SERVICE_LIST_FINDINGS_SPEC),
                 )
             }
             _ => None,
@@ -1034,6 +1125,19 @@ impl<T: BrowseService> ::connectrpc::Dispatcher for BrowseServiceServer<T> {
                         .await?
                         .encode::<
                             crate::cli::render::browse::proto::ravelact::browse::v1::GetFindingsResponse,
+                        >(format)
+                })
+            }
+            "ListFindings" => {
+                let svc = ::std::sync::Arc::clone(&self.inner);
+                Box::pin(async move {
+                    let req = ::connectrpc::dispatcher::codegen::decode_request_view::<
+                        crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsRequestView,
+                    >(request.encoded()?, format)?;
+                    svc.list_findings(ctx, req)
+                        .await?
+                        .encode::<
+                            crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsResponse,
                         >(format)
                 })
             }
@@ -1545,6 +1649,51 @@ where
                 &self.config,
                 BROWSE_SERVICE_SERVICE_NAME,
                 "GetFindings",
+                request,
+                options,
+            )
+            .await
+    }
+    /// Call the ListFindings RPC. Sends a request to /ravelact.browse.v1.BrowseService/ListFindings.
+    pub async fn list_findings(
+        &self,
+        request: crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsRequest,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        self.list_findings_with_options(
+                request,
+                ::connectrpc::client::CallOptions::default(),
+            )
+            .await
+    }
+    /// Call the ListFindings RPC with explicit per-call options. Options override [`ClientConfig`](::connectrpc::client::ClientConfig) defaults.
+    pub async fn list_findings_with_options(
+        &self,
+        request: crate::cli::render::browse::proto::ravelact::browse::v1::ListFindingsRequest,
+        options: ::connectrpc::client::CallOptions,
+    ) -> Result<
+        ::connectrpc::client::UnaryResponse<
+            ::buffa::view::OwnedView<
+                crate::cli::render::browse::proto::ravelact::browse::v1::__buffa::view::ListFindingsResponseView<
+                    'static,
+                >,
+            >,
+        >,
+        ::connectrpc::ConnectError,
+    > {
+        ::connectrpc::client::call_unary(
+                &self.transport,
+                &self.config,
+                BROWSE_SERVICE_SERVICE_NAME,
+                "ListFindings",
                 request,
                 options,
             )

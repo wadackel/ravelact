@@ -17,7 +17,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file ravelact/browse/v1/browse.proto.
  */
 export const file_ravelact_browse_v1_browse: GenFile = /*@__PURE__*/
-  fileDesc("Ch9yYXZlbGFjdC9icm93c2UvdjEvYnJvd3NlLnByb3RvEhJyYXZlbGFjdC5icm93c2UudjEiEQoPR2V0R3JhcGhSZXF1ZXN0ImgKEEdldEdyYXBoUmVzcG9uc2USKQoFbm9kZXMYASADKAsyGi5yYXZlbGFjdC5icm93c2UudjEuQ3lOb2RlEikKBWVkZ2VzGAIgAygLMhoucmF2ZWxhY3QuYnJvd3NlLnYxLkN5RWRnZSI2CgZDeU5vZGUSLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeU5vZGVEYXRhIs0BCgpDeU5vZGVEYXRhEgoKAmlkGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGtpbmQYAyABKAkSOQoOZmluZGluZ19jb3VudHMYBCABKAsyIS5yYXZlbGFjdC5icm93c2UudjEuRmluZGluZ0NvdW50cxIcChRyZWFjaGFibGVfZnJvbV9yaXNreRgFIAEoCBIRCglpc19vcnBoYW4YBiABKAgSEQoJaGFzX3dyaXRlGAcgASgIEhcKD2ZpbmRpbmdfc291cmNlcxgIIAMoCSI2CgZDeUVkZ2USLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeUVkZ2VEYXRhImEKCkN5RWRnZURhdGESCgoCaWQYASABKAkSDgoGc291cmNlGAIgASgJEg4KBnRhcmdldBgDIAEoCRIMCgRraW5kGAQgASgJEhkKEW9uX2Rhbmdlcm91c19wYXRoGAUgASgIImYKDUZpbmRpbmdDb3VudHMSDQoFZXJyb3IYASABKA0SDAoEaGlnaBgCIAEoDRIOCgZtZWRpdW0YAyABKA0SCwoDbG93GAQgASgNEgwKBGluZm8YBSABKA0SDQoFdG90YWwYBiABKA0iLgoSR2V0RmluZGluZ3NSZXF1ZXN0EgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkiRAoTR2V0RmluZGluZ3NSZXNwb25zZRItCghmaW5kaW5ncxgBIAMoCzIbLnJhdmVsYWN0LmJyb3dzZS52MS5GaW5kaW5nIpIBCgdGaW5kaW5nEg8KB3J1bGVfaWQYASABKAkSDwoHbWVzc2FnZRgCIAEoCRIXCg9zb3VyY2Vfc2V2ZXJpdHkYAyABKAkSFgoOZ3JhcGhfcHJpb3JpdHkYBCABKAkSGAoQcHJpb3JpdHlfcmVhc29ucxgFIAMoCRIMCgRmaWxlGAYgASgJEgwKBGxpbmUYByABKA0iEAoOR2V0UmVwb1JlcXVlc3QiSQoPR2V0UmVwb1Jlc3BvbnNlEgwKBGhvc3QYASABKAkSDQoFb3duZXIYAiABKAkSDAoEcmVwbxgDIAEoCRILCgNyZWYYBCABKAkiFQoTTGlzdFRyaWdnZXJzUmVxdWVzdCJIChRMaXN0VHJpZ2dlcnNSZXNwb25zZRIwCgRyb3dzGAEgAygLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLlRyaWdnZXJTdW1tYXJ5IoEBCg5UcmlnZ2VyU3VtbWFyeRINCgVldmVudBgBIAEoCRIXCg9lbnRyeV93b3JrZmxvd3MYAiABKA0SFAoMZGVjbGFyYXRpb25zGAMgASgNEg0KBXR5cGVkGAQgASgNEhAKCGZpbHRlcmVkGAUgASgNEhAKCGV4YW1wbGVzGAYgAygJIlQKDVNlYXJjaFJlcXVlc3QSCQoBcRgBIAEoCRIRCgRraW5kGAIgASgJSACIAQESEgoFbGltaXQYAyABKA1IAYgBAUIHCgVfa2luZEIICgZfbGltaXQiZAoOU2VhcmNoUmVzcG9uc2USMAoHbWF0Y2hlcxgBIAMoCzIfLnJhdmVsYWN0LmJyb3dzZS52MS5TZWFyY2hNYXRjaBIRCgl0cnVuY2F0ZWQYAiABKAgSDQoFdG90YWwYAyABKA0iNgoLU2VhcmNoTWF0Y2gSCgoCaWQYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCSImChVHZXRFdmVudEltcGFjdFJlcXVlc3QSDQoFZXZlbnQYASABKAkiUgoWR2V0RXZlbnRJbXBhY3RSZXNwb25zZRINCgVldmVudBgBIAEoCRIXCg9lbnRyeV93b3JrZmxvd3MYAiADKAkSEAoIbm9kZV9pZHMYAyADKAkiKgoOR2V0Tm9kZVJlcXVlc3QSDAoEa2luZBgBIAEoCRIKCgJpZBgCIAEoCSLMAQoPR2V0Tm9kZVJlc3BvbnNlEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDAoEZmlsZRgEIAEoCRIPCgdzdW1tYXJ5GAUgASgJEhYKDmVudHJ5X3RyaWdnZXJzGAYgAygJEg8KB3JlZnNfaW4YByADKAkSEAoIcmVmc19vdXQYCCADKAkSNgoNaWZfY29uZGl0aW9ucxgJIAMoCzIfLnJhdmVsYWN0LmJyb3dzZS52MS5JZkNvbmRpdGlvbiJ+CgtJZkNvbmRpdGlvbhIxCgNqb2IYASABKAsyIi5yYXZlbGFjdC5icm93c2UudjEuSm9iSWZDb25kaXRpb25IABIzCgRzdGVwGAIgASgLMiMucmF2ZWxhY3QuYnJvd3NlLnYxLlN0ZXBJZkNvbmRpdGlvbkgAQgcKBXNjb3BlIjQKDkpvYklmQ29uZGl0aW9uEg4KBmpvYl9pZBgBIAEoCRISCgpleHByZXNzaW9uGAIgASgJIqEBCg9TdGVwSWZDb25kaXRpb24SEwoGam9iX2lkGAEgASgJSACIAQESEgoKc3RlcF9pbmRleBgCIAEoDRIUCgdzdGVwX2lkGAMgASgJSAGIAQESFgoJc3RlcF9uYW1lGAQgASgJSAKIAQESEgoKZXhwcmVzc2lvbhgFIAEoCUIJCgdfam9iX2lkQgoKCF9zdGVwX2lkQgwKCl9zdGVwX25hbWUiHgoQR2V0SW1wYWN0UmVxdWVzdBIKCgJpZBgBIAEoCSJrChFHZXRJbXBhY3RSZXNwb25zZRIRCgl3b3JrZmxvd3MYASADKAkSMQoHYWN0aW9ucxgCIAMoCzIgLnJhdmVsYWN0LmJyb3dzZS52MS5JbXBhY3RBY3Rpb24SEAoIdW5rbm93bnMYAyADKAkiKAoMSW1wYWN0QWN0aW9uEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkiGgoMVHJhY2VSZXF1ZXN0EgoKAmlkGAEgASgJIlQKDVRyYWNlUmVzcG9uc2USLwoEdHJlZRgBIAEoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlEhIKCmV2ZW50X3VzZWQYAiABKAki/wMKDVRyYWNlSnNvbk5vZGUSOQoId29ya2Zsb3cYASABKAsyJS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VXb3JrZmxvd05vZGVIABI1CgZhY3Rpb24YAiABKAsyIy5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VBY3Rpb25Ob2RlSAASRgoPZXh0ZXJuYWxfYWN0aW9uGAMgASgLMisucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlRXh0ZXJuYWxBY3Rpb25Ob2RlSAASSgoRZXh0ZXJuYWxfd29ya2Zsb3cYBCABKAsyLS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VFeHRlcm5hbFdvcmtmbG93Tm9kZUgAEjUKBmRvY2tlchgFIAEoCzIjLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZURvY2tlck5vZGVIABI7Cglhbm5vdGF0ZWQYBiABKAsyJi5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VBbm5vdGF0ZWROb2RlSAASMwoFY3ljbGUYByABKAsyIi5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VDeWNsZU5vZGVIABI3CgdndWFyZGVkGAggASgLMiQucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlR3VhcmRlZE5vZGVIAEIGCgRub2RlIlQKEVRyYWNlV29ya2Zsb3dOb2RlEgoKAmlkGAEgASgJEjMKCGNoaWxkcmVuGAIgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiUgoPVHJhY2VBY3Rpb25Ob2RlEgoKAmlkGAEgASgJEjMKCGNoaWxkcmVuGAIgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiaAoXVHJhY2VFeHRlcm5hbEFjdGlvbk5vZGUSDQoFb3duZXIYASABKAkSDAoEcmVwbxgCIAEoCRIUCgdzdWJwYXRoGAMgASgJSACIAQESDgoGZ2l0cmVmGAQgASgJQgoKCF9zdWJwYXRoIlYKGVRyYWNlRXh0ZXJuYWxXb3JrZmxvd05vZGUSDQoFb3duZXIYASABKAkSDAoEcmVwbxgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBmdpdHJlZhgEIAEoCSIgCg9UcmFjZURvY2tlck5vZGUSDQoFaW1hZ2UYASABKAkieAoSVHJhY2VBbm5vdGF0ZWROb2RlEgwKBHZlcmIYASABKAkSEAoIZGFuZ2xpbmcYAiABKAgSDQoFbGFiZWwYAyABKAkSMwoIY2hpbGRyZW4YBCADKAsyIS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VKc29uTm9kZSI1Cg5UcmFjZUN5Y2xlTm9kZRITCgt0YXJnZXRfa2luZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkiVQoQVHJhY2VHdWFyZGVkTm9kZRIPCgdpZl9leHByGAEgASgJEjAKBWlubmVyGAIgASgLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUyswYKDUJyb3dzZVNlcnZpY2USVQoIR2V0R3JhcGgSIy5yYXZlbGFjdC5icm93c2UudjEuR2V0R3JhcGhSZXF1ZXN0GiQucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEdyYXBoUmVzcG9uc2USUgoHR2V0UmVwbxIiLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRSZXBvUmVxdWVzdBojLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRSZXBvUmVzcG9uc2USYQoMTGlzdFRyaWdnZXJzEicucmF2ZWxhY3QuYnJvd3NlLnYxLkxpc3RUcmlnZ2Vyc1JlcXVlc3QaKC5yYXZlbGFjdC5icm93c2UudjEuTGlzdFRyaWdnZXJzUmVzcG9uc2USTwoGU2VhcmNoEiEucmF2ZWxhY3QuYnJvd3NlLnYxLlNlYXJjaFJlcXVlc3QaIi5yYXZlbGFjdC5icm93c2UudjEuU2VhcmNoUmVzcG9uc2USZwoOR2V0RXZlbnRJbXBhY3QSKS5yYXZlbGFjdC5icm93c2UudjEuR2V0RXZlbnRJbXBhY3RSZXF1ZXN0GioucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEV2ZW50SW1wYWN0UmVzcG9uc2USUgoHR2V0Tm9kZRIiLnJhdmVsYWN0LmJyb3dzZS52MS5HZXROb2RlUmVxdWVzdBojLnJhdmVsYWN0LmJyb3dzZS52MS5HZXROb2RlUmVzcG9uc2USWAoJR2V0SW1wYWN0EiQucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEltcGFjdFJlcXVlc3QaJS5yYXZlbGFjdC5icm93c2UudjEuR2V0SW1wYWN0UmVzcG9uc2USTAoFVHJhY2USIC5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VSZXF1ZXN0GiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlUmVzcG9uc2USXgoLR2V0RmluZGluZ3MSJi5yYXZlbGFjdC5icm93c2UudjEuR2V0RmluZGluZ3NSZXF1ZXN0GicucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEZpbmRpbmdzUmVzcG9uc2ViBnByb3RvMw");
+  fileDesc("Ch9yYXZlbGFjdC9icm93c2UvdjEvYnJvd3NlLnByb3RvEhJyYXZlbGFjdC5icm93c2UudjEiEQoPR2V0R3JhcGhSZXF1ZXN0ImgKEEdldEdyYXBoUmVzcG9uc2USKQoFbm9kZXMYASADKAsyGi5yYXZlbGFjdC5icm93c2UudjEuQ3lOb2RlEikKBWVkZ2VzGAIgAygLMhoucmF2ZWxhY3QuYnJvd3NlLnYxLkN5RWRnZSI2CgZDeU5vZGUSLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeU5vZGVEYXRhIs0BCgpDeU5vZGVEYXRhEgoKAmlkGAEgASgJEg0KBWxhYmVsGAIgASgJEgwKBGtpbmQYAyABKAkSOQoOZmluZGluZ19jb3VudHMYBCABKAsyIS5yYXZlbGFjdC5icm93c2UudjEuRmluZGluZ0NvdW50cxIcChRyZWFjaGFibGVfZnJvbV9yaXNreRgFIAEoCBIRCglpc19vcnBoYW4YBiABKAgSEQoJaGFzX3dyaXRlGAcgASgIEhcKD2ZpbmRpbmdfc291cmNlcxgIIAMoCSI2CgZDeUVkZ2USLAoEZGF0YRgBIAEoCzIeLnJhdmVsYWN0LmJyb3dzZS52MS5DeUVkZ2VEYXRhImEKCkN5RWRnZURhdGESCgoCaWQYASABKAkSDgoGc291cmNlGAIgASgJEg4KBnRhcmdldBgDIAEoCRIMCgRraW5kGAQgASgJEhkKEW9uX2Rhbmdlcm91c19wYXRoGAUgASgIImYKDUZpbmRpbmdDb3VudHMSDQoFZXJyb3IYASABKA0SDAoEaGlnaBgCIAEoDRIOCgZtZWRpdW0YAyABKA0SCwoDbG93GAQgASgNEgwKBGluZm8YBSABKA0SDQoFdG90YWwYBiABKA0iLgoSR2V0RmluZGluZ3NSZXF1ZXN0EgwKBGtpbmQYASABKAkSCgoCaWQYAiABKAkiRAoTR2V0RmluZGluZ3NSZXNwb25zZRItCghmaW5kaW5ncxgBIAMoCzIbLnJhdmVsYWN0LmJyb3dzZS52MS5GaW5kaW5nIqIBCgdGaW5kaW5nEg8KB3J1bGVfaWQYASABKAkSDwoHbWVzc2FnZRgCIAEoCRIXCg9zb3VyY2Vfc2V2ZXJpdHkYAyABKAkSFgoOZ3JhcGhfcHJpb3JpdHkYBCABKAkSGAoQcHJpb3JpdHlfcmVhc29ucxgFIAMoCRIMCgRmaWxlGAYgASgJEgwKBGxpbmUYByABKA0SDgoGc291cmNlGAggASgJIhUKE0xpc3RGaW5kaW5nc1JlcXVlc3QiTQoUTGlzdEZpbmRpbmdzUmVzcG9uc2USNQoIZmluZGluZ3MYASADKAsyIy5yYXZlbGFjdC5icm93c2UudjEuRmluZGluZ1dpdGhOb2RlImMKD0ZpbmRpbmdXaXRoTm9kZRIsCgdmaW5kaW5nGAEgASgLMhsucmF2ZWxhY3QuYnJvd3NlLnYxLkZpbmRpbmcSDwoHbm9kZV9pZBgCIAEoCRIRCglub2RlX2tpbmQYAyABKAkiEAoOR2V0UmVwb1JlcXVlc3QiSQoPR2V0UmVwb1Jlc3BvbnNlEgwKBGhvc3QYASABKAkSDQoFb3duZXIYAiABKAkSDAoEcmVwbxgDIAEoCRILCgNyZWYYBCABKAkiFQoTTGlzdFRyaWdnZXJzUmVxdWVzdCJIChRMaXN0VHJpZ2dlcnNSZXNwb25zZRIwCgRyb3dzGAEgAygLMiIucmF2ZWxhY3QuYnJvd3NlLnYxLlRyaWdnZXJTdW1tYXJ5IoEBCg5UcmlnZ2VyU3VtbWFyeRINCgVldmVudBgBIAEoCRIXCg9lbnRyeV93b3JrZmxvd3MYAiABKA0SFAoMZGVjbGFyYXRpb25zGAMgASgNEg0KBXR5cGVkGAQgASgNEhAKCGZpbHRlcmVkGAUgASgNEhAKCGV4YW1wbGVzGAYgAygJIlQKDVNlYXJjaFJlcXVlc3QSCQoBcRgBIAEoCRIRCgRraW5kGAIgASgJSACIAQESEgoFbGltaXQYAyABKA1IAYgBAUIHCgVfa2luZEIICgZfbGltaXQiZAoOU2VhcmNoUmVzcG9uc2USMAoHbWF0Y2hlcxgBIAMoCzIfLnJhdmVsYWN0LmJyb3dzZS52MS5TZWFyY2hNYXRjaBIRCgl0cnVuY2F0ZWQYAiABKAgSDQoFdG90YWwYAyABKA0iNgoLU2VhcmNoTWF0Y2gSCgoCaWQYASABKAkSDAoEa2luZBgCIAEoCRINCgVsYWJlbBgDIAEoCSImChVHZXRFdmVudEltcGFjdFJlcXVlc3QSDQoFZXZlbnQYASABKAkiUgoWR2V0RXZlbnRJbXBhY3RSZXNwb25zZRINCgVldmVudBgBIAEoCRIXCg9lbnRyeV93b3JrZmxvd3MYAiADKAkSEAoIbm9kZV9pZHMYAyADKAkiKgoOR2V0Tm9kZVJlcXVlc3QSDAoEa2luZBgBIAEoCRIKCgJpZBgCIAEoCSLMAQoPR2V0Tm9kZVJlc3BvbnNlEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSDQoFbGFiZWwYAyABKAkSDAoEZmlsZRgEIAEoCRIPCgdzdW1tYXJ5GAUgASgJEhYKDmVudHJ5X3RyaWdnZXJzGAYgAygJEg8KB3JlZnNfaW4YByADKAkSEAoIcmVmc19vdXQYCCADKAkSNgoNaWZfY29uZGl0aW9ucxgJIAMoCzIfLnJhdmVsYWN0LmJyb3dzZS52MS5JZkNvbmRpdGlvbiJ+CgtJZkNvbmRpdGlvbhIxCgNqb2IYASABKAsyIi5yYXZlbGFjdC5icm93c2UudjEuSm9iSWZDb25kaXRpb25IABIzCgRzdGVwGAIgASgLMiMucmF2ZWxhY3QuYnJvd3NlLnYxLlN0ZXBJZkNvbmRpdGlvbkgAQgcKBXNjb3BlIjQKDkpvYklmQ29uZGl0aW9uEg4KBmpvYl9pZBgBIAEoCRISCgpleHByZXNzaW9uGAIgASgJIqEBCg9TdGVwSWZDb25kaXRpb24SEwoGam9iX2lkGAEgASgJSACIAQESEgoKc3RlcF9pbmRleBgCIAEoDRIUCgdzdGVwX2lkGAMgASgJSAGIAQESFgoJc3RlcF9uYW1lGAQgASgJSAKIAQESEgoKZXhwcmVzc2lvbhgFIAEoCUIJCgdfam9iX2lkQgoKCF9zdGVwX2lkQgwKCl9zdGVwX25hbWUiHgoQR2V0SW1wYWN0UmVxdWVzdBIKCgJpZBgBIAEoCSJrChFHZXRJbXBhY3RSZXNwb25zZRIRCgl3b3JrZmxvd3MYASADKAkSMQoHYWN0aW9ucxgCIAMoCzIgLnJhdmVsYWN0LmJyb3dzZS52MS5JbXBhY3RBY3Rpb24SEAoIdW5rbm93bnMYAyADKAkiKAoMSW1wYWN0QWN0aW9uEgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkiGgoMVHJhY2VSZXF1ZXN0EgoKAmlkGAEgASgJIlQKDVRyYWNlUmVzcG9uc2USLwoEdHJlZRgBIAEoCzIhLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZUpzb25Ob2RlEhIKCmV2ZW50X3VzZWQYAiABKAki/wMKDVRyYWNlSnNvbk5vZGUSOQoId29ya2Zsb3cYASABKAsyJS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VXb3JrZmxvd05vZGVIABI1CgZhY3Rpb24YAiABKAsyIy5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VBY3Rpb25Ob2RlSAASRgoPZXh0ZXJuYWxfYWN0aW9uGAMgASgLMisucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlRXh0ZXJuYWxBY3Rpb25Ob2RlSAASSgoRZXh0ZXJuYWxfd29ya2Zsb3cYBCABKAsyLS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VFeHRlcm5hbFdvcmtmbG93Tm9kZUgAEjUKBmRvY2tlchgFIAEoCzIjLnJhdmVsYWN0LmJyb3dzZS52MS5UcmFjZURvY2tlck5vZGVIABI7Cglhbm5vdGF0ZWQYBiABKAsyJi5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VBbm5vdGF0ZWROb2RlSAASMwoFY3ljbGUYByABKAsyIi5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VDeWNsZU5vZGVIABI3CgdndWFyZGVkGAggASgLMiQucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlR3VhcmRlZE5vZGVIAEIGCgRub2RlIlQKEVRyYWNlV29ya2Zsb3dOb2RlEgoKAmlkGAEgASgJEjMKCGNoaWxkcmVuGAIgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiUgoPVHJhY2VBY3Rpb25Ob2RlEgoKAmlkGAEgASgJEjMKCGNoaWxkcmVuGAIgAygLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUiaAoXVHJhY2VFeHRlcm5hbEFjdGlvbk5vZGUSDQoFb3duZXIYASABKAkSDAoEcmVwbxgCIAEoCRIUCgdzdWJwYXRoGAMgASgJSACIAQESDgoGZ2l0cmVmGAQgASgJQgoKCF9zdWJwYXRoIlYKGVRyYWNlRXh0ZXJuYWxXb3JrZmxvd05vZGUSDQoFb3duZXIYASABKAkSDAoEcmVwbxgCIAEoCRIMCgRwYXRoGAMgASgJEg4KBmdpdHJlZhgEIAEoCSIgCg9UcmFjZURvY2tlck5vZGUSDQoFaW1hZ2UYASABKAkieAoSVHJhY2VBbm5vdGF0ZWROb2RlEgwKBHZlcmIYASABKAkSEAoIZGFuZ2xpbmcYAiABKAgSDQoFbGFiZWwYAyABKAkSMwoIY2hpbGRyZW4YBCADKAsyIS5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VKc29uTm9kZSI1Cg5UcmFjZUN5Y2xlTm9kZRITCgt0YXJnZXRfa2luZBgBIAEoCRIOCgZ0YXJnZXQYAiABKAkiVQoQVHJhY2VHdWFyZGVkTm9kZRIPCgdpZl9leHByGAEgASgJEjAKBWlubmVyGAIgASgLMiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlSnNvbk5vZGUylgcKDUJyb3dzZVNlcnZpY2USVQoIR2V0R3JhcGgSIy5yYXZlbGFjdC5icm93c2UudjEuR2V0R3JhcGhSZXF1ZXN0GiQucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEdyYXBoUmVzcG9uc2USUgoHR2V0UmVwbxIiLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRSZXBvUmVxdWVzdBojLnJhdmVsYWN0LmJyb3dzZS52MS5HZXRSZXBvUmVzcG9uc2USYQoMTGlzdFRyaWdnZXJzEicucmF2ZWxhY3QuYnJvd3NlLnYxLkxpc3RUcmlnZ2Vyc1JlcXVlc3QaKC5yYXZlbGFjdC5icm93c2UudjEuTGlzdFRyaWdnZXJzUmVzcG9uc2USTwoGU2VhcmNoEiEucmF2ZWxhY3QuYnJvd3NlLnYxLlNlYXJjaFJlcXVlc3QaIi5yYXZlbGFjdC5icm93c2UudjEuU2VhcmNoUmVzcG9uc2USZwoOR2V0RXZlbnRJbXBhY3QSKS5yYXZlbGFjdC5icm93c2UudjEuR2V0RXZlbnRJbXBhY3RSZXF1ZXN0GioucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEV2ZW50SW1wYWN0UmVzcG9uc2USUgoHR2V0Tm9kZRIiLnJhdmVsYWN0LmJyb3dzZS52MS5HZXROb2RlUmVxdWVzdBojLnJhdmVsYWN0LmJyb3dzZS52MS5HZXROb2RlUmVzcG9uc2USWAoJR2V0SW1wYWN0EiQucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEltcGFjdFJlcXVlc3QaJS5yYXZlbGFjdC5icm93c2UudjEuR2V0SW1wYWN0UmVzcG9uc2USTAoFVHJhY2USIC5yYXZlbGFjdC5icm93c2UudjEuVHJhY2VSZXF1ZXN0GiEucmF2ZWxhY3QuYnJvd3NlLnYxLlRyYWNlUmVzcG9uc2USXgoLR2V0RmluZGluZ3MSJi5yYXZlbGFjdC5icm93c2UudjEuR2V0RmluZGluZ3NSZXF1ZXN0GicucmF2ZWxhY3QuYnJvd3NlLnYxLkdldEZpbmRpbmdzUmVzcG9uc2USYQoMTGlzdEZpbmRpbmdzEicucmF2ZWxhY3QuYnJvd3NlLnYxLkxpc3RGaW5kaW5nc1JlcXVlc3QaKC5yYXZlbGFjdC5icm93c2UudjEuTGlzdEZpbmRpbmdzUmVzcG9uc2ViBnByb3RvMw");
 
 /**
  * @generated from message ravelact.browse.v1.GetGraphRequest
@@ -347,6 +347,14 @@ export type Finding = Message<"ravelact.browse.v1.Finding"> & {
    * @generated from field: uint32 line = 7;
    */
   line: number;
+
+  /**
+   * Lowercase source-tool label (e.g. "zizmor", "actionlint", "ravelact").
+   * Backs the SPA's per-rule source badge. Mirrors `FindingSource::label()`.
+   *
+   * @generated from field: string source = 8;
+   */
+  source: string;
 };
 
 /**
@@ -355,6 +363,67 @@ export type Finding = Message<"ravelact.browse.v1.Finding"> & {
  */
 export const FindingSchema: GenMessage<Finding> = /*@__PURE__*/
   messageDesc(file_ravelact_browse_v1_browse, 9);
+
+/**
+ * @generated from message ravelact.browse.v1.ListFindingsRequest
+ */
+export type ListFindingsRequest = Message<"ravelact.browse.v1.ListFindingsRequest"> & {
+};
+
+/**
+ * Describes the message ravelact.browse.v1.ListFindingsRequest.
+ * Use `create(ListFindingsRequestSchema)` to create a new message.
+ */
+export const ListFindingsRequestSchema: GenMessage<ListFindingsRequest> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 10);
+
+/**
+ * @generated from message ravelact.browse.v1.ListFindingsResponse
+ */
+export type ListFindingsResponse = Message<"ravelact.browse.v1.ListFindingsResponse"> & {
+  /**
+   * @generated from field: repeated ravelact.browse.v1.FindingWithNode findings = 1;
+   */
+  findings: FindingWithNode[];
+};
+
+/**
+ * Describes the message ravelact.browse.v1.ListFindingsResponse.
+ * Use `create(ListFindingsResponseSchema)` to create a new message.
+ */
+export const ListFindingsResponseSchema: GenMessage<ListFindingsResponse> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 11);
+
+/**
+ * A finding paired with the graph node it anchored to, so the cross-cutting
+ * float can select + fit that node on click. `node_id` is the `wf:` / `la:`
+ * prefixed id used by the graph; `node_kind` is workflow / local-action.
+ *
+ * @generated from message ravelact.browse.v1.FindingWithNode
+ */
+export type FindingWithNode = Message<"ravelact.browse.v1.FindingWithNode"> & {
+  /**
+   * @generated from field: ravelact.browse.v1.Finding finding = 1;
+   */
+  finding?: Finding | undefined;
+
+  /**
+   * @generated from field: string node_id = 2;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string node_kind = 3;
+   */
+  nodeKind: string;
+};
+
+/**
+ * Describes the message ravelact.browse.v1.FindingWithNode.
+ * Use `create(FindingWithNodeSchema)` to create a new message.
+ */
+export const FindingWithNodeSchema: GenMessage<FindingWithNode> = /*@__PURE__*/
+  messageDesc(file_ravelact_browse_v1_browse, 12);
 
 /**
  * @generated from message ravelact.browse.v1.GetRepoRequest
@@ -367,7 +436,7 @@ export type GetRepoRequest = Message<"ravelact.browse.v1.GetRepoRequest"> & {
  * Use `create(GetRepoRequestSchema)` to create a new message.
  */
 export const GetRepoRequestSchema: GenMessage<GetRepoRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 10);
+  messageDesc(file_ravelact_browse_v1_browse, 13);
 
 /**
  * @generated from message ravelact.browse.v1.GetRepoResponse
@@ -401,7 +470,7 @@ export type GetRepoResponse = Message<"ravelact.browse.v1.GetRepoResponse"> & {
  * Use `create(GetRepoResponseSchema)` to create a new message.
  */
 export const GetRepoResponseSchema: GenMessage<GetRepoResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 11);
+  messageDesc(file_ravelact_browse_v1_browse, 14);
 
 /**
  * @generated from message ravelact.browse.v1.ListTriggersRequest
@@ -414,7 +483,7 @@ export type ListTriggersRequest = Message<"ravelact.browse.v1.ListTriggersReques
  * Use `create(ListTriggersRequestSchema)` to create a new message.
  */
 export const ListTriggersRequestSchema: GenMessage<ListTriggersRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 12);
+  messageDesc(file_ravelact_browse_v1_browse, 15);
 
 /**
  * @generated from message ravelact.browse.v1.ListTriggersResponse
@@ -431,7 +500,7 @@ export type ListTriggersResponse = Message<"ravelact.browse.v1.ListTriggersRespo
  * Use `create(ListTriggersResponseSchema)` to create a new message.
  */
 export const ListTriggersResponseSchema: GenMessage<ListTriggersResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 13);
+  messageDesc(file_ravelact_browse_v1_browse, 16);
 
 /**
  * @generated from message ravelact.browse.v1.TriggerSummary
@@ -477,7 +546,7 @@ export type TriggerSummary = Message<"ravelact.browse.v1.TriggerSummary"> & {
  * Use `create(TriggerSummarySchema)` to create a new message.
  */
 export const TriggerSummarySchema: GenMessage<TriggerSummary> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 14);
+  messageDesc(file_ravelact_browse_v1_browse, 17);
 
 /**
  * @generated from message ravelact.browse.v1.SearchRequest
@@ -506,7 +575,7 @@ export type SearchRequest = Message<"ravelact.browse.v1.SearchRequest"> & {
  * Use `create(SearchRequestSchema)` to create a new message.
  */
 export const SearchRequestSchema: GenMessage<SearchRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 15);
+  messageDesc(file_ravelact_browse_v1_browse, 18);
 
 /**
  * @generated from message ravelact.browse.v1.SearchResponse
@@ -533,7 +602,7 @@ export type SearchResponse = Message<"ravelact.browse.v1.SearchResponse"> & {
  * Use `create(SearchResponseSchema)` to create a new message.
  */
 export const SearchResponseSchema: GenMessage<SearchResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 16);
+  messageDesc(file_ravelact_browse_v1_browse, 19);
 
 /**
  * @generated from message ravelact.browse.v1.SearchMatch
@@ -560,7 +629,7 @@ export type SearchMatch = Message<"ravelact.browse.v1.SearchMatch"> & {
  * Use `create(SearchMatchSchema)` to create a new message.
  */
 export const SearchMatchSchema: GenMessage<SearchMatch> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 17);
+  messageDesc(file_ravelact_browse_v1_browse, 20);
 
 /**
  * @generated from message ravelact.browse.v1.GetEventImpactRequest
@@ -577,7 +646,7 @@ export type GetEventImpactRequest = Message<"ravelact.browse.v1.GetEventImpactRe
  * Use `create(GetEventImpactRequestSchema)` to create a new message.
  */
 export const GetEventImpactRequestSchema: GenMessage<GetEventImpactRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 18);
+  messageDesc(file_ravelact_browse_v1_browse, 21);
 
 /**
  * @generated from message ravelact.browse.v1.GetEventImpactResponse
@@ -606,7 +675,7 @@ export type GetEventImpactResponse = Message<"ravelact.browse.v1.GetEventImpactR
  * Use `create(GetEventImpactResponseSchema)` to create a new message.
  */
 export const GetEventImpactResponseSchema: GenMessage<GetEventImpactResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 19);
+  messageDesc(file_ravelact_browse_v1_browse, 22);
 
 /**
  * @generated from message ravelact.browse.v1.GetNodeRequest
@@ -630,7 +699,7 @@ export type GetNodeRequest = Message<"ravelact.browse.v1.GetNodeRequest"> & {
  * Use `create(GetNodeRequestSchema)` to create a new message.
  */
 export const GetNodeRequestSchema: GenMessage<GetNodeRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 20);
+  messageDesc(file_ravelact_browse_v1_browse, 23);
 
 /**
  * @generated from message ravelact.browse.v1.GetNodeResponse
@@ -694,7 +763,7 @@ export type GetNodeResponse = Message<"ravelact.browse.v1.GetNodeResponse"> & {
  * Use `create(GetNodeResponseSchema)` to create a new message.
  */
 export const GetNodeResponseSchema: GenMessage<GetNodeResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 21);
+  messageDesc(file_ravelact_browse_v1_browse, 24);
 
 /**
  * Discriminated union preserving the invariant that step-scope carries
@@ -728,7 +797,7 @@ export type IfCondition = Message<"ravelact.browse.v1.IfCondition"> & {
  * Use `create(IfConditionSchema)` to create a new message.
  */
 export const IfConditionSchema: GenMessage<IfCondition> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 22);
+  messageDesc(file_ravelact_browse_v1_browse, 25);
 
 /**
  * @generated from message ravelact.browse.v1.JobIfCondition
@@ -750,7 +819,7 @@ export type JobIfCondition = Message<"ravelact.browse.v1.JobIfCondition"> & {
  * Use `create(JobIfConditionSchema)` to create a new message.
  */
 export const JobIfConditionSchema: GenMessage<JobIfCondition> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 23);
+  messageDesc(file_ravelact_browse_v1_browse, 26);
 
 /**
  * @generated from message ravelact.browse.v1.StepIfCondition
@@ -792,7 +861,7 @@ export type StepIfCondition = Message<"ravelact.browse.v1.StepIfCondition"> & {
  * Use `create(StepIfConditionSchema)` to create a new message.
  */
 export const StepIfConditionSchema: GenMessage<StepIfCondition> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 24);
+  messageDesc(file_ravelact_browse_v1_browse, 27);
 
 /**
  * @generated from message ravelact.browse.v1.GetImpactRequest
@@ -809,7 +878,7 @@ export type GetImpactRequest = Message<"ravelact.browse.v1.GetImpactRequest"> & 
  * Use `create(GetImpactRequestSchema)` to create a new message.
  */
 export const GetImpactRequestSchema: GenMessage<GetImpactRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 25);
+  messageDesc(file_ravelact_browse_v1_browse, 28);
 
 /**
  * @generated from message ravelact.browse.v1.GetImpactResponse
@@ -838,7 +907,7 @@ export type GetImpactResponse = Message<"ravelact.browse.v1.GetImpactResponse"> 
  * Use `create(GetImpactResponseSchema)` to create a new message.
  */
 export const GetImpactResponseSchema: GenMessage<GetImpactResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 26);
+  messageDesc(file_ravelact_browse_v1_browse, 29);
 
 /**
  * @generated from message ravelact.browse.v1.ImpactAction
@@ -862,7 +931,7 @@ export type ImpactAction = Message<"ravelact.browse.v1.ImpactAction"> & {
  * Use `create(ImpactActionSchema)` to create a new message.
  */
 export const ImpactActionSchema: GenMessage<ImpactAction> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 27);
+  messageDesc(file_ravelact_browse_v1_browse, 30);
 
 /**
  * @generated from message ravelact.browse.v1.TraceRequest
@@ -879,7 +948,7 @@ export type TraceRequest = Message<"ravelact.browse.v1.TraceRequest"> & {
  * Use `create(TraceRequestSchema)` to create a new message.
  */
 export const TraceRequestSchema: GenMessage<TraceRequest> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 28);
+  messageDesc(file_ravelact_browse_v1_browse, 31);
 
 /**
  * @generated from message ravelact.browse.v1.TraceResponse
@@ -904,7 +973,7 @@ export type TraceResponse = Message<"ravelact.browse.v1.TraceResponse"> & {
  * Use `create(TraceResponseSchema)` to create a new message.
  */
 export const TraceResponseSchema: GenMessage<TraceResponse> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 29);
+  messageDesc(file_ravelact_browse_v1_browse, 32);
 
 /**
  * Mirrors `src/query/trace.rs::TraceJsonNode` (8 variants). Encoded as a
@@ -973,7 +1042,7 @@ export type TraceJsonNode = Message<"ravelact.browse.v1.TraceJsonNode"> & {
  * Use `create(TraceJsonNodeSchema)` to create a new message.
  */
 export const TraceJsonNodeSchema: GenMessage<TraceJsonNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 30);
+  messageDesc(file_ravelact_browse_v1_browse, 33);
 
 /**
  * @generated from message ravelact.browse.v1.TraceWorkflowNode
@@ -995,7 +1064,7 @@ export type TraceWorkflowNode = Message<"ravelact.browse.v1.TraceWorkflowNode"> 
  * Use `create(TraceWorkflowNodeSchema)` to create a new message.
  */
 export const TraceWorkflowNodeSchema: GenMessage<TraceWorkflowNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 31);
+  messageDesc(file_ravelact_browse_v1_browse, 34);
 
 /**
  * @generated from message ravelact.browse.v1.TraceActionNode
@@ -1017,7 +1086,7 @@ export type TraceActionNode = Message<"ravelact.browse.v1.TraceActionNode"> & {
  * Use `create(TraceActionNodeSchema)` to create a new message.
  */
 export const TraceActionNodeSchema: GenMessage<TraceActionNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 32);
+  messageDesc(file_ravelact_browse_v1_browse, 35);
 
 /**
  * @generated from message ravelact.browse.v1.TraceExternalActionNode
@@ -1049,7 +1118,7 @@ export type TraceExternalActionNode = Message<"ravelact.browse.v1.TraceExternalA
  * Use `create(TraceExternalActionNodeSchema)` to create a new message.
  */
 export const TraceExternalActionNodeSchema: GenMessage<TraceExternalActionNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 33);
+  messageDesc(file_ravelact_browse_v1_browse, 36);
 
 /**
  * @generated from message ravelact.browse.v1.TraceExternalWorkflowNode
@@ -1081,7 +1150,7 @@ export type TraceExternalWorkflowNode = Message<"ravelact.browse.v1.TraceExterna
  * Use `create(TraceExternalWorkflowNodeSchema)` to create a new message.
  */
 export const TraceExternalWorkflowNodeSchema: GenMessage<TraceExternalWorkflowNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 34);
+  messageDesc(file_ravelact_browse_v1_browse, 37);
 
 /**
  * @generated from message ravelact.browse.v1.TraceDockerNode
@@ -1098,7 +1167,7 @@ export type TraceDockerNode = Message<"ravelact.browse.v1.TraceDockerNode"> & {
  * Use `create(TraceDockerNodeSchema)` to create a new message.
  */
 export const TraceDockerNodeSchema: GenMessage<TraceDockerNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 35);
+  messageDesc(file_ravelact_browse_v1_browse, 38);
 
 /**
  * @generated from message ravelact.browse.v1.TraceAnnotatedNode
@@ -1133,7 +1202,7 @@ export type TraceAnnotatedNode = Message<"ravelact.browse.v1.TraceAnnotatedNode"
  * Use `create(TraceAnnotatedNodeSchema)` to create a new message.
  */
 export const TraceAnnotatedNodeSchema: GenMessage<TraceAnnotatedNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 36);
+  messageDesc(file_ravelact_browse_v1_browse, 39);
 
 /**
  * @generated from message ravelact.browse.v1.TraceCycleNode
@@ -1157,7 +1226,7 @@ export type TraceCycleNode = Message<"ravelact.browse.v1.TraceCycleNode"> & {
  * Use `create(TraceCycleNodeSchema)` to create a new message.
  */
 export const TraceCycleNodeSchema: GenMessage<TraceCycleNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 37);
+  messageDesc(file_ravelact_browse_v1_browse, 40);
 
 /**
  * @generated from message ravelact.browse.v1.TraceGuardedNode
@@ -1179,7 +1248,7 @@ export type TraceGuardedNode = Message<"ravelact.browse.v1.TraceGuardedNode"> & 
  * Use `create(TraceGuardedNodeSchema)` to create a new message.
  */
 export const TraceGuardedNodeSchema: GenMessage<TraceGuardedNode> = /*@__PURE__*/
-  messageDesc(file_ravelact_browse_v1_browse, 38);
+  messageDesc(file_ravelact_browse_v1_browse, 41);
 
 /**
  * All RPCs are unary. The single consumer is the React SPA bundled into
@@ -1287,6 +1356,20 @@ export const BrowseService: GenService<{
     methodKind: "unary";
     input: typeof GetFindingsRequestSchema;
     output: typeof GetFindingsResponseSchema;
+  },
+  /**
+   * Every enriched finding across the estate, each annotated with the node it
+   * anchored to. Backs the SPA's cross-cutting findings float. Empty when
+   * browse was started without `--findings`. Returned in a stable order
+   * (graph_priority desc, then node_id / rule_id / line ascending) so the UI
+   * and tests do not depend on HashMap iteration order.
+   *
+   * @generated from rpc ravelact.browse.v1.BrowseService.ListFindings
+   */
+  listFindings: {
+    methodKind: "unary";
+    input: typeof ListFindingsRequestSchema;
+    output: typeof ListFindingsResponseSchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_ravelact_browse_v1_browse, 0);

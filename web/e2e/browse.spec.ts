@@ -213,11 +213,13 @@ test("highlight: tap fades non-reachable; second tap recomputes set", async ({ p
   expect(after).not.toEqual(before);
 });
 
-test("overview pane lists events and clicking one fades unrelated nodes", async ({ page }) => {
+test("findings float lists events and clicking one fades unrelated nodes", async ({ page }) => {
   await waitForGraph(page);
 
-  // OverviewPane is mounted by default (no node selected).
-  const overview = page.getByRole("complementary", { name: "Graph overview" });
+  // The FindingsFloat is always mounted (top-left overlay). The dogfood
+  // server runs without `--findings`, so it shows only the Events tab and the
+  // event rows are visible without a tab switch.
+  const overview = page.getByRole("complementary", { name: "Findings and events" });
   await expect(overview).toBeVisible();
 
   // The dogfood estate has at least `push` as an event.
@@ -246,7 +248,7 @@ test("overview pane lists events and clicking one fades unrelated nodes", async 
 
 test("clicking the same event again clears the analysis fade", async ({ page }) => {
   await waitForGraph(page);
-  const overview = page.getByRole("complementary", { name: "Graph overview" });
+  const overview = page.getByRole("complementary", { name: "Findings and events" });
   // pull_request triggers only `ci.yaml` in the dogfood estate so
   // `release.yaml` and `release-plz.yaml` reliably fade. Using `push`
   // would reach every node and break the fade assertion.
@@ -313,10 +315,11 @@ test("search + event compose with OR: union is visible", async ({ page }) => {
     { timeout: 5_000 },
   );
 
-  // Click pull_request event in the overview. Note that the panel
-  // does NOT open just by overview interaction, so OverviewPane is
-  // still mounted alongside the active search.
-  const overview = page.getByRole("complementary", { name: "Graph overview" });
+  // Click pull_request event in the FindingsFloat's Events tab. The float is
+  // a left overlay that coexists with the active search (it does not open the
+  // node Panel), so the event filter composes with the search via OR — the
+  // interaction invariant the right-pane OverviewPane used to provide.
+  const overview = page.getByRole("complementary", { name: "Findings and events" });
   await overview.getByRole("button", { name: /^pull_request/ }).click();
 
   // After OR composition: union of (search-matched) ∪ (event-reachable)

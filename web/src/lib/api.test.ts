@@ -14,6 +14,7 @@ const stub: Record<string, ReturnType<typeof vi.fn>> = {
   getNode: vi.fn(),
   getImpact: vi.fn(),
   trace: vi.fn(),
+  listFindings: vi.fn(),
 };
 
 vi.mock("@connectrpc/connect", async (importOriginal) => {
@@ -29,6 +30,7 @@ vi.mock("@connectrpc/connect-web", () => ({
 }));
 
 const {
+  fetchAllFindings,
   fetchEventImpact,
   fetchGraph,
   fetchImpact,
@@ -165,6 +167,22 @@ describe("lib/api — Connect client wrappers", () => {
   it("fetchEventImpact throws on transport failure", async () => {
     stub.getEventImpact!.mockRejectedValueOnce(new ConnectError("nope", Code.Internal));
     await expect(fetchEventImpact("push")).rejects.toThrow("nope");
+  });
+
+  it("fetchAllFindings returns the cross-cutting list (empty request)", async () => {
+    stub.listFindings!.mockResolvedValueOnce({
+      findings: [
+        {
+          finding: { ruleId: "template-injection", source: "zizmor", graphPriority: "high" },
+          nodeId: "wf:.github/workflows/ci.yaml",
+          nodeKind: "workflow",
+        },
+      ],
+    });
+    const r = await fetchAllFindings();
+    expect(stub.listFindings).toHaveBeenCalledWith({});
+    expect(r.findings[0]?.nodeId).toBe("wf:.github/workflows/ci.yaml");
+    expect(r.findings[0]?.finding?.source).toBe("zizmor");
   });
 
   it("fetchTriggers returns the parsed list on success", async () => {

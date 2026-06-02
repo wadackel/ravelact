@@ -1,4 +1,4 @@
-// Shared width state for the `ravelact browse` right pane (Panel + OverviewPane).
+// Width state for the `ravelact browse` node detail pane (Panel).
 // Effective bounds: [MIN, max(MIN, floor(min(MAX_CAP, viewportWidth * 0.6)))].
 // On viewports narrow enough that `viewportWidth * 0.6 < MIN`, the floor is
 // pinned to MIN — the pane cannot be smaller than MIN even if it ends up
