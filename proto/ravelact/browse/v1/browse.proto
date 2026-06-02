@@ -47,6 +47,13 @@ service BrowseService {
   // when browse was started without `--findings` or the node carries none.
   // Lazily fetched by the SPA's Findings tab, mirroring GetNode/GetImpact.
   rpc GetFindings(GetFindingsRequest) returns (GetFindingsResponse);
+
+  // Every enriched finding across the estate, each annotated with the node it
+  // anchored to. Backs the SPA's cross-cutting findings float. Empty when
+  // browse was started without `--findings`. Returned in a stable order
+  // (graph_priority desc, then node_id / rule_id / line ascending) so the UI
+  // and tests do not depend on HashMap iteration order.
+  rpc ListFindings(ListFindingsRequest) returns (ListFindingsResponse);
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +160,28 @@ message Finding {
   string file = 6;
   // 1-based source line; 0 when the finding carries no line.
   uint32 line = 7;
+  // Lowercase source-tool label (e.g. "zizmor", "actionlint", "ravelact").
+  // Backs the SPA's per-rule source badge. Mirrors `FindingSource::label()`.
+  string source = 8;
+}
+
+// ---------------------------------------------------------------------------
+// ListFindings
+// ---------------------------------------------------------------------------
+
+message ListFindingsRequest {}
+
+message ListFindingsResponse {
+  repeated FindingWithNode findings = 1;
+}
+
+// A finding paired with the graph node it anchored to, so the cross-cutting
+// float can select + fit that node on click. `node_id` is the `wf:` / `la:`
+// prefixed id used by the graph; `node_kind` is workflow / local-action.
+message FindingWithNode {
+  Finding finding = 1;
+  string node_id = 2;
+  string node_kind = 3;
 }
 
 // ---------------------------------------------------------------------------

@@ -1396,6 +1396,55 @@ impl BrowseSvc {
             __buffa_unknown_fields: Default::default(),
         }
     }
+
+    /// Every enriched finding across the estate, each paired with the graph
+    /// node id it attaches to. Backs the SPA's cross-cutting findings float.
+    /// `FindingsByNode` is a `HashMap`, so the rows are sorted into a stable
+    /// order — graph_priority descending (most severe first), then node_id /
+    /// rule_id / line ascending — making the result independent of iteration
+    /// order for both the UI and the tests.
+    fn list_findings_response(&self) -> pb::ListFindingsResponse {
+        let mut rows: Vec<(String, &'static str, &EnrichedFinding)> = self
+            .findings_by_node
+            .iter()
+            .flat_map(|(key, group)| {
+                let (node_id, node_kind) = match key {
+                    NodeKey::Workflow(id) => (workflow_node_id(id), "workflow"),
+                    NodeKey::Action(id) => (action_node_id(id), "local-action"),
+                };
+                group.iter().map(move |ef| (node_id.clone(), node_kind, ef))
+            })
+            .collect();
+        rows.sort_by(|a, b| {
+            // `Severity` derives `Ord` (Info < … < Error), so `b.cmp(a)` puts
+            // the most severe graph priority first; the rest are ascending
+            // tie-breaks for determinism.
+            b.2.graph_priority
+                .cmp(&a.2.graph_priority)
+                .then_with(|| a.0.cmp(&b.0))
+                .then_with(|| a.2.finding.rule_id.cmp(&b.2.finding.rule_id))
+                .then_with(|| {
+                    a.2.finding
+                        .location
+                        .start_line
+                        .unwrap_or(0)
+                        .cmp(&b.2.finding.location.start_line.unwrap_or(0))
+                })
+        });
+        let findings = rows
+            .into_iter()
+            .map(|(node_id, node_kind, ef)| pb::FindingWithNode {
+                finding: ::buffa::MessageField::some(finding_to_proto(ef)),
+                node_id,
+                node_kind: node_kind.to_string(),
+                __buffa_unknown_fields: Default::default(),
+            })
+            .collect();
+        pb::ListFindingsResponse {
+            findings,
+            __buffa_unknown_fields: Default::default(),
+        }
+    }
 }
 
 /// Project an enriched finding into its proto form. Source severity and graph
@@ -1413,6 +1462,7 @@ fn finding_to_proto(ef: &EnrichedFinding) -> pb::Finding {
             .collect(),
         file: path_to_forward(&ef.finding.location.path),
         line: ef.finding.location.start_line.unwrap_or(0),
+        source: ef.finding.source.label().to_string(),
         __buffa_unknown_fields: Default::default(),
     }
 }
@@ -1501,6 +1551,14 @@ impl BrowseService for BrowseSvc {
         request: connect::ravelact::browse::v1::OwnedGetFindingsRequestView,
     ) -> ServiceResult<pb::GetFindingsResponse> {
         ConnectResponse::ok(self.findings_response(request.kind, request.id))
+    }
+
+    async fn list_findings(
+        &self,
+        _ctx: RequestContext,
+        _request: connect::ravelact::browse::v1::OwnedListFindingsRequestView,
+    ) -> ServiceResult<pb::ListFindingsResponse> {
+        ConnectResponse::ok(self.list_findings_response())
     }
 }
 
@@ -3059,6 +3117,134 @@ mod tests {
             .expect("get_findings must succeed")
             .body;
         assert!(!resp.findings.is_empty(), "pr-target has findings");
+    }
+
+    fn actionlint_sarif() -> PathBuf {
+        PathBuf::from("tests/fixtures/synthetic/zizmor-findings/actionlint.sarif")
+    }
+
+    /// Multi-source (zizmor + actionlint) over the same estate so the
+    /// cross-cutting list spans multiple nodes and multiple source tools.
+    fn multi_source_ir_and_map() -> (Arc<Ir>, FindingsByNode) {
+        let ir = load_fixture_ir("tests/fixtures/synthetic/zizmor-findings");
+        let map = load_findings_by_node(&ir, &[zizmor_sarif(), actionlint_sarif()])
+            .expect("load multi-source findings");
+        (ir, map)
+    }
+
+    // Rank a proto graph_priority word back to its severity tier so a test can
+    // assert the descending ordering (most severe first).
+    fn priority_rank(word: &str) -> u8 {
+        match word {
+            "error" => 4,
+            "high" => 3,
+            "medium" => 2,
+            "low" => 1,
+            _ => 0, // info / unknown
+        }
+    }
+
+    #[test]
+    fn list_findings_response_annotates_node_id_kind_and_source() {
+        let (ir, findings) = multi_source_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+        let resp = svc.list_findings_response();
+        assert!(!resp.findings.is_empty(), "estate carries findings");
+
+        // Both source tools appear across the cross-cutting list.
+        let sources: HashSet<&str> = resp
+            .findings
+            .iter()
+            .map(|fwn| {
+                fwn.finding
+                    .as_option()
+                    .expect("finding present")
+                    .source
+                    .as_str()
+            })
+            .collect();
+        assert!(sources.contains("zizmor"), "zizmor findings present");
+        assert!(
+            sources.contains("actionlint"),
+            "actionlint findings present"
+        );
+
+        for fwn in &resp.findings {
+            // node_id is graph-prefixed and node_kind matches the prefix.
+            match fwn.node_kind.as_str() {
+                "workflow" => assert!(
+                    fwn.node_id.starts_with("wf:"),
+                    "workflow node_id is wf:-prefixed, got {}",
+                    fwn.node_id
+                ),
+                "local-action" => assert!(
+                    fwn.node_id.starts_with("la:"),
+                    "local-action node_id is la:-prefixed, got {}",
+                    fwn.node_id
+                ),
+                other => panic!("unexpected node_kind {other}"),
+            }
+            let f = fwn.finding.as_option().expect("finding present");
+            assert!(!f.source.is_empty(), "source label present");
+        }
+    }
+
+    #[test]
+    fn list_findings_response_is_deterministically_sorted() {
+        let (ir, findings) = multi_source_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+
+        // Stable across calls regardless of HashMap iteration order.
+        let a = svc.list_findings_response();
+        let b = svc.list_findings_response();
+        let key = |r: &pb::ListFindingsResponse| -> Vec<(String, String, String, u32)> {
+            r.findings
+                .iter()
+                .map(|fwn| {
+                    let f = fwn.finding.as_option().expect("finding present");
+                    (
+                        fwn.node_id.clone(),
+                        f.graph_priority.clone(),
+                        f.rule_id.clone(),
+                        f.line,
+                    )
+                })
+                .collect()
+        };
+        assert_eq!(key(&a), key(&b), "ordering is stable across calls");
+
+        // graph_priority descending, then node_id / rule_id / line ascending.
+        for w in a.findings.windows(2) {
+            let lf = w[0].finding.as_option().unwrap();
+            let rf = w[1].finding.as_option().unwrap();
+            let lhs = (
+                std::cmp::Reverse(priority_rank(&lf.graph_priority)),
+                &w[0].node_id,
+                &lf.rule_id,
+                lf.line,
+            );
+            let rhs = (
+                std::cmp::Reverse(priority_rank(&rf.graph_priority)),
+                &w[1].node_id,
+                &rf.rule_id,
+                rf.line,
+            );
+            assert!(lhs <= rhs, "rows are in the documented total order");
+        }
+    }
+
+    #[tokio::test]
+    async fn trait_list_findings_returns_cross_cutting_rows() {
+        let (ir, findings) = zizmor_findings_ir_and_map();
+        let svc = BrowseSvc::new(ir, Arc::new(PathBuf::new()), None, Arc::new(findings));
+        let req = decoded_request(&pb::ListFindingsRequest {
+            __buffa_unknown_fields: Default::default(),
+        });
+        let resp = BrowseService::list_findings(&svc, empty_ctx(), req)
+            .await
+            .expect("list_findings must succeed")
+            .body;
+        assert!(!resp.findings.is_empty(), "estate has findings");
     }
 
     #[test]

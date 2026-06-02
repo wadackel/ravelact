@@ -499,6 +499,7 @@ function finding(overrides: Partial<Record<string, unknown>> = {}) {
     priorityReasons: ["reachable-from pull_request_target"],
     file: ".github/workflows/x.yaml",
     line: 12,
+    source: "zizmor",
     ...overrides,
   };
 }
@@ -554,11 +555,21 @@ describe("Panel — Findings tab", () => {
     expect(api.fetchFindings).toHaveBeenCalledTimes(1);
   });
 
-  it("groups findings by source severity and shows graph priority + reasons separately", async () => {
+  it("groups findings by source severity; graph priority is a per-row dot + source badge", async () => {
     (api.fetchFindings as ReturnType<typeof vi.fn>).mockResolvedValue({
       findings: [
-        finding({ sourceSeverity: "medium", graphPriority: "high", ruleId: "zizmor/artipacked" }),
-        finding({ sourceSeverity: "high", graphPriority: "high", ruleId: "zizmor/unpinned-uses" }),
+        finding({
+          sourceSeverity: "medium",
+          graphPriority: "high",
+          ruleId: "zizmor/artipacked",
+          source: "zizmor",
+        }),
+        finding({
+          sourceSeverity: "high",
+          graphPriority: "high",
+          ruleId: "shellcheck/SC2086",
+          source: "actionlint",
+        }),
       ],
     });
     render(
@@ -570,16 +581,19 @@ describe("Panel — Findings tab", () => {
         hasFindings
       />,
     );
-    // Two severity groups appear, high before medium (severity order).
+    // Two severity groups appear, high before medium (source-severity order).
     const groups = await screen.findAllByTestId("finding-group");
     expect(groups.map((g) => g.getAttribute("data-severity"))).toEqual(["high", "medium"]);
-    // Source severity drives the heading; graph priority is shown per-row.
+    // Source severity drives the heading.
     expect(screen.getByText("high (1)")).toBeVisible();
     expect(screen.getByText("medium (1)")).toBeVisible();
     const rows = screen.getAllByTestId("finding-row");
     expect(rows).toHaveLength(2);
-    expect(within(rows[0]!).getByText("zizmor/unpinned-uses")).toBeVisible();
-    expect(within(rows[0]!).getByText("graph: high")).toBeVisible();
+    // The high group's row: rule id, per-row graph-priority dot (title), and
+    // the per-rule source badge.
+    expect(within(rows[0]!).getByText("shellcheck/SC2086")).toBeVisible();
+    expect(within(rows[0]!).getByTitle("graph priority: high")).toBeTruthy();
+    expect(within(rows[0]!).getByTestId("source-badge").textContent).toBe("actionlint");
     expect(within(rows[0]!).getByText("reachable-from pull_request_target")).toBeVisible();
   });
 

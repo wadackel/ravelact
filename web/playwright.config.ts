@@ -45,5 +45,19 @@ export default defineConfig({
       reuseExistingServer: !process.env.CI,
       timeout: 30_000,
     },
+    // Findings-enabled instance on :7880 over the synthetic multi-source
+    // fixture (zizmor + actionlint SARIF). `browse-findings.spec.ts` hits this
+    // server's embedded SPA directly (same-origin API, no Vite proxy) so the
+    // cross-cutting FindingsFloat + finding-click flow has automated coverage
+    // — the dogfood repo carries no SARIF, so the :7879 path cannot exercise
+    // it. The embedded SPA is the freshly built `web/dist` (just frontend &&
+    // cargo build --release), matching the live Vite SPA on :5173.
+    {
+      command:
+        "../target/release/ravelact --root ../tests/fixtures/synthetic/zizmor-findings browse --no-open --port 7880 --findings ../tests/fixtures/synthetic/zizmor-findings/zizmor.sarif --findings ../tests/fixtures/synthetic/zizmor-findings/actionlint.sarif",
+      url: "http://localhost:7880/",
+      reuseExistingServer: !process.env.CI,
+      timeout: 30_000,
+    },
   ],
 });

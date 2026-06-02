@@ -1,16 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchEventImpact, fetchGraph, fetchRepo, fetchSearch, fetchTriggers } from "./lib/api.ts";
+import {
+  fetchAllFindings,
+  fetchEventImpact,
+  fetchGraph,
+  fetchRepo,
+  fetchSearch,
+  fetchTriggers,
+} from "./lib/api.ts";
 import { getRavelactRf } from "./lib/dev-globals.ts";
 import type { FindingFacets } from "./lib/graph-filter.ts";
 import { NODE_KINDS } from "./lib/kind-format.ts";
 import { readPersistedWidth, writePersistedWidth } from "./lib/panel-width.ts";
 import { useDebounced } from "./ui/hooks/useDebounced.ts";
-import type { GraphPayload, NodeKind, RepoInfo, TriggerSummary } from "./lib/types.ts";
+import type {
+  FindingWithNode,
+  GraphPayload,
+  NodeKind,
+  RepoInfo,
+  TriggerSummary,
+} from "./lib/types.ts";
 import { ErrorBanner } from "./ui/components/ErrorBanner.tsx";
-import { FindingsFilter } from "./ui/components/FindingsFilter.tsx";
+import { FindingsFloat } from "./ui/components/FindingsFloat.tsx";
 import { Graph } from "./ui/components/Graph.tsx";
 import { Header } from "./ui/components/Header.tsx";
-import { OverviewPane } from "./ui/components/OverviewPane.tsx";
 import { Panel, type Tab } from "./ui/components/Panel.tsx";
 import { PoweredBy } from "./ui/components/PoweredBy.tsx";
 
@@ -32,9 +44,14 @@ export function App() {
   // panel starts on Details.
   const [panelTab, setPanelTab] = useState<Tab>("details");
 
-  // Lifted from Header so the OverviewPane can render the same data
+  // Lifted from Header so the FindingsFloat can render the same data
   // without a second /api/triggers round-trip.
   const [triggers, setTriggers] = useState<TriggerSummary[] | null>(null);
+
+  // Cross-cutting findings list backing the FindingsFloat's Findings tab.
+  // Empty when browse ran without `--findings` (the RPC never 404s), so the
+  // float simply shows no findings rows in that case.
+  const [allFindings, setAllFindings] = useState<FindingWithNode[]>([]);
 
   // GitHub provenance of the local `--root` repo. `null` when the
   // backend returns 404 (non-git / non-github / detached HEAD), in which
@@ -48,15 +65,15 @@ export function App() {
   const [matchedIds, setMatchedIds] = useState<Set<string> | null>(null);
 
   // Event-impact state (analysisIds is the orthogonal filter that
-  // OverviewPane's clicks drive).
+  // the FindingsFloat's event clicks drive).
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [analysisIds, setAnalysisIds] = useState<Set<string> | null>(null);
 
-  // Shared width for the right pane. Lifted out of Panel / OverviewPane
-  // so switching between them does not snap back to the default.
-  // Persisted to localStorage from the handler (not an effect) so the
-  // initial mount does not re-write the value that was just read, and
-  // storage-blocked environments do not warn on every page load.
+  // Width for the node detail pane. Persisted to localStorage from the
+  // handler (not an effect) so the initial mount does not re-write the value
+  // that was just read, and storage-blocked environments do not warn on every
+  // page load. The right pane is now node-only (the cross-cutting overview
+  // moved to FindingsFloat), so this width belongs solely to Panel.
   const [panelWidth, setPanelWidth] = useState<number>(() => readPersistedWidth());
   const handlePanelWidthChange = useCallback((next: number) => {
     setPanelWidth(next);
@@ -128,6 +145,23 @@ export function App() {
     };
   }, []);
 
+  // Cross-cutting findings for the float. One fetch on mount; the RPC returns
+  // an empty list (never 404) when browse ran without `--findings`, so the
+  // float just renders no findings in that case.
+  useEffect(() => {
+    let cancelled = false;
+    fetchAllFindings()
+      .then((r) => {
+        if (!cancelled) setAllFindings(r.findings);
+      })
+      .catch(() => {
+        // best-effort: the Findings tab stays empty on failure
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Search fetch: debounce + AbortController so stale responses
   // cannot overwrite fresh ones.
   useEffect(() => {
@@ -191,6 +225,14 @@ export function App() {
     getRavelactRf()?.fitNodes(ids);
   }, [matchedIds]);
 
+  // Cross-cutting finding click: open the owning node's Panel on its Findings
+  // tab and fit the graph to it (mirrors handleSearchEnter's fitNodes use).
+  const handleSelectFinding = useCallback((id: string, kind: NodeKind) => {
+    setSelected({ id, kind });
+    setPanelTab("findings");
+    getRavelactRf()?.fitNodes([id]);
+  }, []);
+
   const nodeCount = payload?.nodes.length ?? 0;
 
   return (
@@ -216,19 +258,32 @@ export function App() {
               findingFacets={findingFacets}
             />
           )}
-          {findingsMeta.hasFindings && (
-            <div className="absolute top-3 left-3 z-10 w-[280px] max-w-[calc(100%-24px)]">
-              <FindingsFilter
-                facets={findingFacets}
-                onChange={setFindingFacets}
+          {payload && (
+            // Bounded top→bottom band so the float never grows into the
+            // bottom-left credit pill. `pointer-events-none` lets clicks fall
+            // through the empty area below the panel to the graph; the panel
+            // itself re-enables pointer events.
+            <div className="absolute top-3 bottom-14 left-3 z-10 w-[300px] max-w-[calc(100%-24px)] pointer-events-none">
+              <FindingsFloat
+                hasFindings={findingsMeta.hasFindings}
+                findings={allFindings}
                 availableSources={findingsMeta.sources}
+                facets={findingFacets}
+                onChangeFacets={setFindingFacets}
+                onSelectFinding={handleSelectFinding}
+                triggers={triggers}
+                selectedEvent={selectedEvent}
+                onSelectEvent={setSelectedEvent}
               />
             </div>
           )}
           <ErrorBanner message={error} />
           <PoweredBy />
         </section>
-        {selected ? (
+        {/* Right pane is node-only: the cross-cutting overview lives in the
+            top-left FindingsFloat now, so nothing renders here without a
+            selection. */}
+        {selected && (
           <Panel
             key={selected.id}
             openFor={selected}
@@ -241,14 +296,6 @@ export function App() {
             width={panelWidth}
             onWidthChange={handlePanelWidthChange}
             hasFindings={findingsMeta.hasFindings}
-          />
-        ) : (
-          <OverviewPane
-            triggers={triggers}
-            selectedEvent={selectedEvent}
-            onSelectEvent={setSelectedEvent}
-            width={panelWidth}
-            onWidthChange={handlePanelWidthChange}
           />
         )}
       </main>

@@ -42,6 +42,9 @@ pub mod __buffa {
         reg.register_json_any(super::__GET_FINDINGS_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_FINDINGS_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__FINDING_JSON_ANY);
+        reg.register_json_any(super::__LIST_FINDINGS_REQUEST_JSON_ANY);
+        reg.register_json_any(super::__LIST_FINDINGS_RESPONSE_JSON_ANY);
+        reg.register_json_any(super::__FINDING_WITH_NODE_JSON_ANY);
         reg.register_json_any(super::__GET_REPO_REQUEST_JSON_ANY);
         reg.register_json_any(super::__GET_REPO_RESPONSE_JSON_ANY);
         reg.register_json_any(super::__LIST_TRIGGERS_REQUEST_JSON_ANY);
@@ -93,6 +96,12 @@ pub use self::__buffa::view::GetFindingsRequestView;
 pub use self::__buffa::view::GetFindingsResponseView;
 #[doc(inline)]
 pub use self::__buffa::view::FindingView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFindingsRequestView;
+#[doc(inline)]
+pub use self::__buffa::view::ListFindingsResponseView;
+#[doc(inline)]
+pub use self::__buffa::view::FindingWithNodeView;
 #[doc(inline)]
 pub use self::__buffa::view::GetRepoRequestView;
 #[doc(inline)]

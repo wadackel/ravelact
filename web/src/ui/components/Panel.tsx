@@ -20,7 +20,20 @@ import type {
   TraceResponse,
 } from "../../lib/types.ts";
 import { ResizableRightPane } from "./ResizableRightPane.tsx";
-import { Chip, ChipList, Field, FieldRows, FieldValue, Kind, Status } from "./ui/index.ts";
+import {
+  Chip,
+  ChipList,
+  Field,
+  FieldRows,
+  FieldValue,
+  Kind,
+  isSeverityTier,
+  SEVERITY_TIERS,
+  SeverityDot,
+  type SeverityTier,
+  SourceBadge,
+  Status,
+} from "./ui/index.ts";
 
 export type Tab = "details" | "triggers" | "impact" | "trace" | "findings";
 // Base tabs, always present. The "findings" tab is appended only when the
@@ -519,9 +532,9 @@ function renderTriggers(
 
 // Interactive trigger chip that drives App's `selectedEvent` state.
 // Clicking calls `onToggle(selected ? null : event)` so the same chip
-// click both selects and clears, matching OverviewPane's row toggle
-// (OverviewPane.tsx:67-72). Visual shape mirrors `Chip` for layout
-// consistency; active state borrows OverviewPane's accent tokens.
+// click both selects and clears, matching the FindingsFloat Events-row
+// toggle. Visual shape mirrors `Chip` for layout consistency; active state
+// borrows the same accent tokens.
 function EventChipButton({
   event,
   selected,
@@ -637,11 +650,9 @@ function renderTrace(
   );
 }
 
-// Source-severity tiers, most → least severe. Findings group under these
-// headings; the per-finding graph priority is shown separately so the two
+// Findings group under source-severity headings (SEVERITY_TIERS is most →
+// least severe); the per-finding graph priority is shown separately so the two
 // severity axes are never conflated (matching the M1/M2 invariant).
-const SEVERITY_ORDER = ["error", "high", "medium", "low", "info"] as const;
-
 function renderFindings(state: State) {
   if (state.findingsError) {
     return <Status type="error">Error: {state.findingsError}</Status>;
@@ -663,16 +674,27 @@ function renderFindings(state: State) {
       groups.set(key, [f]);
     }
   }
-  // Keep SEVERITY_ORDER (most → least severe) and drop empty tiers, while
-  // carrying `rows` through so the render needs no non-null assertion.
-  const ordered = SEVERITY_ORDER.flatMap((sev) => {
+  // Iterate SEVERITY_TIERS (most → least severe) and drop empty tiers, while
+  // carrying `rows` through so the render needs no non-null assertion. `sev`
+  // is a SeverityTier, so the SeverityDot below needs no cast.
+  const ordered = SEVERITY_TIERS.flatMap((sev) => {
     const rows = groups.get(sev);
     return rows && rows.length > 0 ? [{ sev, rows }] : [];
   });
   return (
     <>
       {ordered.map(({ sev, rows }) => (
-        <Field key={sev} label={`${sev} (${rows.length})`}>
+        <Field
+          key={sev}
+          label={
+            <span className="inline-flex items-center gap-1.5">
+              <SeverityDot severity={sev} size="sm" />
+              <span>
+                {sev} ({rows.length})
+              </span>
+            </span>
+          }
+        >
           <div data-testid="finding-group" data-severity={sev}>
             <FieldRows>
               {rows.map((f, i) => (
@@ -686,12 +708,25 @@ function renderFindings(state: State) {
   );
 }
 
+// A finding row keeps the M1/M2 dual-axis intact symbolically: the enclosing
+// group conveys the source severity, while the row's leading dot is the
+// ravelact-derived graph priority (title-disclosed). The source tool is a
+// SourceBadge instead of inline text, and the priority reasons stay as compact
+// chips — replacing the dense `graph: <prio>` text + bare rule id line.
 function FindingRow({ finding }: { finding: Finding }) {
+  const priority: SeverityTier = isSeverityTier(finding.graphPriority)
+    ? finding.graphPriority
+    : "info";
   return (
     <div data-testid="finding-row" className="py-1 text-fg">
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="font-mono text-[11px] break-all">{finding.ruleId}</span>
-        <Chip>graph: {finding.graphPriority}</Chip>
+      <div className="flex items-center gap-2">
+        <SeverityDot
+          severity={priority}
+          size="sm"
+          title={`graph priority: ${finding.graphPriority}`}
+        />
+        <span className="font-mono text-[11px] break-all flex-1 min-w-0">{finding.ruleId}</span>
+        <SourceBadge source={finding.source} />
       </div>
       {finding.message && (
         <div className="text-fg-muted text-[11px] mt-0.5 break-words">{finding.message}</div>

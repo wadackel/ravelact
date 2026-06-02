@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Handle, Position } from "@xyflow/react";
 import type { NodeKind } from "../../lib/types.ts";
+import { SeverityDot, type SeverityTier } from "./ui/index.ts";
 
 // Per-node finding tally + OR-aggregated context flags. Present on a node
 // only when it carries findings (total > 0); absent for a findings-free
@@ -29,18 +30,8 @@ export type GraphNodeData = {
   findings?: FindingOverlay;
 };
 
-// Most-severe tier present, mapping to a badge color bucket. Mirrors the
-// M2 CLI `severity_style` ordering (error|high → high, medium → medium,
-// otherwise low) so the browse badge and the `graph` Mermaid styling agree.
-export type BadgeSeverity = "high" | "medium" | "low";
-
-export function maxBadgeSeverity(c: FindingOverlay["counts"]): BadgeSeverity {
-  if (c.error > 0 || c.high > 0) return "high";
-  if (c.medium > 0) return "medium";
-  return "low";
-}
-
-// Compact non-zero tally, severity order, e.g. `E1 H2 M1`.
+// Compact non-zero tally, severity order, e.g. `E1 H2 M1`. Kept as the
+// accessible-name / tooltip text for the multi-dot badge.
 export function compactCounts(c: FindingOverlay["counts"]): string {
   const parts: string[] = [];
   for (const [letter, n] of [
@@ -73,27 +64,40 @@ const COLOR_BY_KIND_NODE =
 const HANDLE_CLASS =
   "opacity-0 pointer-events-none !w-px !h-px min-w-[1px] min-h-[1px] !border-0 !bg-transparent";
 
-// Severity badge colors keyed on the `data-severity` bucket. Hex mirrors the
-// M2 `graph --highlight findings` Mermaid `severity_style` fills/strokes so
-// the two surfaces stay visually consistent.
-const BADGE_CLASS =
-  "ml-1 shrink-0 inline-flex items-center rounded px-1.5 py-px text-[10px] font-semibold font-mono border " +
-  "data-[severity=high]:bg-[#f8d7da] data-[severity=high]:text-[#842029] data-[severity=high]:border-[#dc3545] " +
-  "data-[severity=medium]:bg-[#fff3cd] data-[severity=medium]:text-[#664d03] data-[severity=medium]:border-[#fd7e14] " +
-  "data-[severity=low]:bg-[#e2e3e5] data-[severity=low]:text-[#41464b] data-[severity=low]:border-[#6c757d]";
+// Severity tiers in display order, paired with the overlay-count field they
+// read. Drives the multi-dot badge: one colored dot + count per present tier.
+const BADGE_TIERS: ReadonlyArray<[SeverityTier, keyof FindingOverlay["counts"]]> = [
+  ["error", "error"],
+  ["high", "high"],
+  ["medium", "medium"],
+  ["low", "low"],
+  ["info", "info"],
+];
 
+// Symbolic finding badge: a colored SeverityDot + count for each present tier
+// (e.g. ●1 ●2 ●1), replacing the dense `E1 H2 M1` string. Colors are
+// token-driven via SeverityDot. The compact tally remains the accessible name.
 function FindingBadge({ findings }: { findings: FindingOverlay }) {
-  const severity = maxBadgeSeverity(findings.counts);
-  const label = compactCounts(findings.counts);
+  const c = findings.counts;
+  const label = compactCounts(c);
   return (
     <span
       data-testid="finding-badge"
-      data-severity={severity}
-      className={BADGE_CLASS}
-      title={`${findings.counts.total} finding(s): ${label}`}
-      aria-label={`${findings.counts.total} findings: ${label}`}
+      className="ml-1 shrink-0 inline-flex items-center gap-1"
+      title={`${c.total} finding(s): ${label}`}
+      aria-label={`${c.total} findings: ${label}`}
     >
-      {label}
+      {BADGE_TIERS.filter(([, field]) => c[field] > 0).map(([severity, field]) => (
+        <span
+          key={severity}
+          className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-elev2 px-1.5 py-0.5"
+        >
+          <SeverityDot severity={severity} size="sm" />
+          <span className="text-[10px] font-semibold font-mono text-fg-muted leading-none">
+            {c[field]}
+          </span>
+        </span>
+      ))}
     </span>
   );
 }
