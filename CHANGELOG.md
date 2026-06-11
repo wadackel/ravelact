@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10](https://github.com/wadackel/ravelact/compare/v0.0.9...v0.0.10) - 2026-06-11
+
+### Added
+
+- *(browse)* cross-cutting findings float + node dot UI ([#65](https://github.com/wadackel/ravelact/pull/65))
+- *(findings)* integrate zizmor SARIF finding overlay (CLI + browse) ([#60](https://github.com/wadackel/ravelact/pull/60))
+
+### Other
+
+- *(findings)* document SARIF finding overlay across docs surfaces ([#64](https://github.com/wadackel/ravelact/pull/64))
+- *(findings)* add actionlint SARIF fixture and multi-source overlay coverage ([#63](https://github.com/wadackel/ravelact/pull/63))
+
 ## [0.0.9](https://github.com/wadackel/ravelact/compare/v0.0.8...v0.0.9) - 2026-05-31
 
 ### Added
