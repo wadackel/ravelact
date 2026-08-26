@@ -40,7 +40,7 @@
     "jsdom": "25.0.1",
     "tailwindcss": "4.3.0",
     "tsx": "4.22.3",
-    "typescript": "5.9.3",
+    "typescript": "7.0.2",
     "vite": "8.0.14",
     "vite-plus": "0.1.22",
     "vitest": "4.1.7"
