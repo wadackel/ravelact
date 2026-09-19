@@ -102,7 +102,7 @@ bench:
 # `--ignore-filename-regex` strips the vendored ConnectRPC + buffa
 # codegen output from both the lcov export and the printed report.
 # Those files are `// @generated` and exempt from the per-file
-# coverage floor (CLAUDE.md "Intentional Conventions").
+# coverage floor (AGENTS.md "Intentional Conventions").
 coverage:
     cargo llvm-cov --workspace --lcov --output-path lcov.info --ignore-filename-regex 'src/cli/render/browse/(proto|connect)/'
     cargo llvm-cov report --ignore-filename-regex 'src/cli/render/browse/(proto|connect)/'
