@@ -58,7 +58,7 @@ assert_cmd = "=2.2.1"
 criterion = { version = "=0.5.1", features = ["html_reports"] }
 insta = { version = "=1.47.2", features = ["json"] }
 predicates = "=3.1.4"
-serial_test = "=3.4.0"
+serial_test = "=4.0.1"
 tempfile = "=3.27.0"
 tower = { version = "=0.5.3", features = ["util"], default-features = false }
 
