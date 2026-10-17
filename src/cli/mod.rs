@@ -115,9 +115,18 @@ pub enum Command {
     /// "either main or develop satisfies branches"); combining different
     /// flags is AND across filter types. Each `--path X` is interpreted as
     /// the single-file changeset of `X` (so `paths-ignore: [docs/**]` rejects
-    /// `--path docs/x.md`). Pattern syntax follows globset's glob subset; see
-    /// docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet
-    /// for the upstream reference.
+    /// `--path docs/x.md`).
+    ///
+    /// For `push`, a trigger that defines only `branches` / `branches-ignore`
+    /// does not match `--tag`, and one that defines only `tags` /
+    /// `tags-ignore` does not match `--branch`, so `--branch` together with
+    /// `--tag` keeps only triggers that accept both. `--tag` without
+    /// `--branch` is a tag push, which skips `paths:` filters. `--path`
+    /// without `--branch` or `--tag` is a branch push.
+    ///
+    /// Filter patterns follow the GitHub filter pattern cheat sheet (`*` stops
+    /// at `/`, `**` crosses it, `?` / `+` quantify the preceding character);
+    /// see docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet.
     Trace {
         /// The trigger event to walk forward from
         /// (e.g. `push`, `pull_request`, `workflow_dispatch`, `schedule`, `workflow_run`).
@@ -125,11 +134,11 @@ pub enum Command {
         event: Option<String>,
         #[arg(long = "type")]
         types: Vec<String>,
-        /// Branch ref name (or glob) to test against the trigger's
+        /// Branch ref name to test against the trigger's
         /// `branches:` / `branches-ignore:` filter. Repeatable.
         #[arg(long = "branch")]
         branches: Vec<String>,
-        /// Tag ref name (or glob) to test against the trigger's
+        /// Tag ref name to test against the trigger's
         /// `tags:` / `tags-ignore:` filter. Repeatable.
         #[arg(long = "tag")]
         tags: Vec<String>,

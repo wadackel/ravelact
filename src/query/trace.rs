@@ -294,6 +294,36 @@ impl TriggerMatch {
     }
 }
 
+/// `true` when the trigger's `branches` / `tags` / `paths` filters accept the
+/// queried values. For `push`, GitHub skips a workflow that defines only one
+/// ref kind (`branches[-ignore]` or `tags[-ignore]`) when the other kind is
+/// pushed, and never evaluates path filters for tag pushes. A query with
+/// `--tag` and no `--branch` is a tag push. A query with only `--path` is a
+/// branch push, because a changed file implies commits pushed to a branch.
+///
+/// Reference: Workflow syntax — `on.push.<branches|tags|branches-ignore|tags-ignore>`
+/// and `on.push.<paths|paths-ignore>` —
+/// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+fn trigger_passes_ref_filters(
+    t: &TriggerSpec,
+    branches: &[String],
+    tags: &[String],
+    paths: &[String],
+) -> bool {
+    let push = t.event == EventKind::Push;
+    let branch_push = !branches.is_empty() || (tags.is_empty() && !paths.is_empty());
+    if push && branch_push && t.branches.is_none() && !t.tags.is_none() {
+        return false;
+    }
+    if push && !tags.is_empty() && t.tags.is_none() && !t.branches.is_none() {
+        return false;
+    }
+    let skip_paths = push && !tags.is_empty() && branches.is_empty();
+    (branches.is_empty() || branches.iter().any(|b| t.branches.matches(b)))
+        && (tags.is_empty() || tags.iter().any(|x| t.tags.matches(x)))
+        && (skip_paths || paths.is_empty() || paths.iter().any(|p| t.paths.matches(p)))
+}
+
 /// Returns one [`TraceEntry`] per entry-point workflow whose `on:` matches
 /// `event`.
 ///
@@ -304,8 +334,8 @@ impl TriggerMatch {
 ///   [`TriggerSpec::matches_activity`].
 /// - `branches`, `tags`, `paths` are OR-matched against the trigger's
 ///   `RefFilter` fields via [`RefFilter::matches`]. A trigger whose filter is
-///   `RefFilter::None` accepts every value (matches GitHub Actions behavior:
-///   no filter declared = trigger fires for every ref / path).
+///   `RefFilter::None` accepts every value, except for the `push` ref-kind
+///   rules in `trigger_passes_ref_filters`.
 ///
 /// When multiple triggers on the same workflow could match (event name +
 /// every filter satisfied), the **first IR-order trigger that passes all
@@ -332,9 +362,7 @@ pub fn trace(
             t.event_name() == event
                 && t.is_entry_point()
                 && (types.is_empty() || types.iter().any(|act| t.matches_activity(act)))
-                && (branches.is_empty() || branches.iter().any(|b| t.branches.matches(b)))
-                && (tags.is_empty() || tags.iter().any(|x| t.tags.matches(x)))
-                && (paths.is_empty() || paths.iter().any(|p| t.paths.matches(p)))
+                && trigger_passes_ref_filters(t, branches, tags, paths)
         });
         if let Some(trigger_spec) = matched {
             let mut visiting_wf = HashSet::new();

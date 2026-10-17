@@ -13,7 +13,11 @@ Filtering flags (all repeatable; OR within one flag, AND across flags):
   subset (`opened` / `synchronize` / `reopened`).
 - `--branch <name>` / `--tag <name>` / `--path <pattern>` — test against the
   trigger's `branches:` / `tags:` / `paths:` filter fields. Each `--path X` is
-  interpreted as the single-file changeset of `X`.
+  interpreted as the single-file changeset of `X`. For `push`, a trigger that
+  defines only branch filters does not match `--tag` (and the reverse), so
+  `--branch` with `--tag` keeps only triggers that accept both; `--tag`
+  without `--branch` skips `paths:` filters; `--path` without `--branch` or
+  `--tag` is treated as a branch push.
 
 Rendering:
 
