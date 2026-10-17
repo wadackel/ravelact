@@ -10,10 +10,11 @@ use walkdir::WalkDir;
 const SCHEMA_VERSION: u32 = 10;
 
 // Pruned at any depth, not just the repository root: these names denote
-// derived / VCS-internal artefacts whose semantics are depth-independent
-// (e.g. nested `pkg/foo/dist/action.yml` is bundled output, not a separate
-// local-action source).
-const EXCLUDED_DIR_NAMES: &[&str] = &[".git", "target", "node_modules", "dist", "build"];
+// derived / VCS-internal artefacts whose semantics are depth-independent.
+// `dist` and `build` are deliberately absent: they are common names for real
+// action directories (e.g. `.github/actions/build`), and pruning them makes
+// every `uses:` of such an action dangle.
+const EXCLUDED_DIR_NAMES: &[&str] = &[".git", "target", "node_modules"];
 
 #[derive(Debug, Clone)]
 pub struct SourceInventory {
@@ -378,29 +379,33 @@ mod tests {
     }
 
     #[test]
-    fn excludes_nested_dir_names() {
+    fn prunes_nested_node_modules_and_target_but_keeps_dist_build() {
         let dir = tempdir().unwrap();
         let root = dir.path();
+        let composite =
+            "runs:\n  using: composite\n  steps:\n    - run: echo hi\n      shell: bash\n";
 
-        // canonical composite (should be detected)
-        write(
-            &root.join("pkg/foo/action.yml"),
-            "runs:\n  using: composite\n  steps:\n    - run: echo hi\n      shell: bash\n",
-        );
-        // nested dist/ — should be pruned
-        write(
-            &root.join("pkg/foo/dist/should-be-ignored/action.yml"),
-            "runs:\n  using: composite\n  steps: []\n",
-        );
-        // nested node_modules/ — pruning must not be specific to "dist"
+        write(&root.join("pkg/foo/action.yml"), composite);
+        write(&root.join("pkg/foo/dist/x/action.yml"), composite);
+        write(&root.join(".github/actions/build/action.yaml"), composite);
+        write(&root.join("tools/dist/action.yml"), composite);
         write(
             &root.join("apps/bar/node_modules/whatever/action.yml"),
-            "runs:\n  using: composite\n  steps: []\n",
+            composite,
         );
+        write(&root.join("a/target/y/action.yml"), composite);
 
         let ir = build_ir(root, &GlobSet::empty()).unwrap();
-        assert_eq!(ir.actions.len(), 1);
-        assert_eq!(ir.actions[0].id.0, "pkg/foo");
+        let ids: Vec<&str> = ir.actions.iter().map(|a| a.id.0.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                ".github/actions/build",
+                "pkg/foo",
+                "pkg/foo/dist/x",
+                "tools/dist",
+            ],
+        );
     }
 
     #[test]
@@ -423,10 +428,19 @@ mod tests {
         }
         // A path under a non-excluded directory must not be flagged.
         assert!(!path_has_excluded_segment(root, &root.join("src/foo.rs")));
+        // `dist` and `build` are ordinary action directory names, not derived output.
+        assert!(!path_has_excluded_segment(
+            root,
+            &root.join("a/dist/action.yml"),
+        ));
+        assert!(!path_has_excluded_segment(
+            root,
+            &root.join("a/build/action.yml"),
+        ));
         // Substring containment must not match — only full path components.
         assert!(!path_has_excluded_segment(
             root,
-            &root.join("dist-tools/action.yml"),
+            &root.join("node_modules-x/action.yml"),
         ));
         assert!(!path_has_excluded_segment(
             root,
@@ -435,7 +449,7 @@ mod tests {
         // Path outside `root` (strip_prefix fails) must be reported as not-excluded.
         assert!(!path_has_excluded_segment(
             root,
-            Path::new("/elsewhere/dist/action.yml"),
+            Path::new("/elsewhere/node_modules/action.yml"),
         ));
     }
 
