@@ -102,50 +102,81 @@ impl std::fmt::Display for Finding {
     }
 }
 
-/// Path-local "currently reachable secret name set". Entry-points start at
-/// `All` (the workflow has access to every repository / org secret); each
-/// hop's `secrets:` declaration narrows or preserves it per GHA spec.
-#[derive(Debug, Clone)]
-enum Reachable {
-    /// Any secret name is in scope (entry-point baseline, or after an
-    /// `Inherit` hop from another `All` state).
-    All,
-    /// Only these specific names propagate further. `Names(empty)` means
-    /// the chain has been fully cut (caller declared no secrets).
-    Names(BTreeSet<String>),
-}
-
-impl Reachable {
-    fn contains(&self, name: &str) -> bool {
-        match self {
-            Reachable::All => true,
-            Reachable::Names(s) => s.contains(name),
-        }
-    }
-
-    fn apply(&self, pass: &SecretsPass) -> Reachable {
-        match pass {
-            SecretsPass::Inherit => self.clone(),
-            SecretsPass::Explicit(map) => {
-                let keys: BTreeSet<String> = map.keys().cloned().collect();
-                match self {
-                    Reachable::All => Reachable::Names(keys),
-                    Reachable::Names(current) => {
-                        Reachable::Names(current.intersection(&keys).cloned().collect())
-                    }
-                }
-            }
-            SecretsPass::None => Reachable::Names(BTreeSet::new()),
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 struct Hop {
     caller_workflow: String,
     caller_job: String,
     callee_workflow: String,
     pass: SecretsPass,
+}
+
+/// The hop where a leaf's required secret stops reaching the leaf, and the
+/// name that hop's callee expects it under (differs from the leaf's name when
+/// a later hop renamed it).
+#[derive(Debug, PartialEq, Eq)]
+struct ChainDrop {
+    hop: usize,
+    name: String,
+}
+
+/// Walks `hops` from the leaf back to the entry point, following each
+/// `KEY: ${{ secrets.SRC }}` rename to the name the caller must hold. Values
+/// that are not a single `secrets.<name>` reference cannot be traced and count
+/// as delivered, as does reaching the entry point, which holds every secret.
+fn trace_drop(hops: &[&Hop], secret: &str) -> Option<ChainDrop> {
+    let mut needed = secret.to_string();
+    let mut from_reference = false;
+    for (idx, hop) in hops.iter().enumerate().rev() {
+        let map = match &hop.pass {
+            SecretsPass::Inherit => continue,
+            SecretsPass::None => {
+                return Some(ChainDrop {
+                    hop: idx,
+                    name: needed,
+                })
+            }
+            SecretsPass::Explicit(map) => map,
+        };
+        // A `secrets.<name>` reference resolves case-insensitively like the
+        // rest of the `secrets` context, but the docs do not say a caller's
+        // keys match the callee's declared names that way, so those stay exact.
+        let value = if from_reference {
+            map.iter()
+                .find(|(key, _)| key.eq_ignore_ascii_case(&needed))
+                .map(|(_, value)| value)
+        } else {
+            map.get(&needed)
+        };
+        let Some(value) = value else {
+            return Some(ChainDrop {
+                hop: idx,
+                name: needed,
+            });
+        };
+        match secret_reference(value) {
+            Some(source) if !source.eq_ignore_ascii_case("GITHUB_TOKEN") => {
+                needed = source.to_string();
+                from_reference = true;
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+/// `SRC` when `value` is exactly `${{ secrets.SRC }}`.
+fn secret_reference(value: &str) -> Option<&str> {
+    let name = value
+        .trim()
+        .strip_prefix("${{")?
+        .strip_suffix("}}")?
+        .trim()
+        .strip_prefix("secrets.")?;
+    let is_ident = !name.is_empty()
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-');
+    is_ident.then_some(name)
 }
 
 pub fn check(ir: &Ir) -> Vec<Finding> {
@@ -244,30 +275,17 @@ fn dfs(
             pass: call.secrets.clone(),
         };
 
-        // Compute reachable set after each hop along path + this hop.
-        let mut reachables: Vec<Reachable> = vec![Reachable::All];
-        for h in path.iter() {
-            let next = reachables.last().unwrap().apply(&h.pass);
-            reachables.push(next);
-        }
-        reachables.push(reachables.last().unwrap().apply(&hop.pass));
-
-        let depth = path.len() + 1;
-        let reachable_at_callee = reachables.last().unwrap();
+        let full_path: Vec<&Hop> = path.iter().chain(std::iter::once(&hop)).collect();
+        let depth = full_path.len();
 
         if let Some(decls) = callee.secrets_required() {
             for decl in decls {
                 if !decl.required {
                     continue;
                 }
-                if reachable_at_callee.contains(&decl.name) {
+                let Some(dropped) = trace_drop(&full_path, &decl.name) else {
                     continue;
-                }
-
-                let drop_idx = (0..reachables.len() - 1).find(|&k| {
-                    reachables[k].contains(&decl.name) && !reachables[k + 1].contains(&decl.name)
-                });
-                let Some(drop_idx) = drop_idx else { continue };
+                };
 
                 if depth == 1 {
                     let key = format!(
@@ -298,8 +316,7 @@ fn dfs(
                         });
                     }
                 } else {
-                    let full_path: Vec<&Hop> = path.iter().chain(std::iter::once(&hop)).collect();
-                    let drop_hop = full_path[drop_idx];
+                    let drop_hop = full_path[dropped.hop];
                     let dropped_at = drop_hop.caller_workflow.clone();
                     let entry = full_path[0].caller_workflow.clone();
                     let chain: Vec<String> = std::iter::once(entry.clone())
@@ -310,6 +327,11 @@ fn dfs(
                         .get(dropped_at.as_str())
                         .map(|w| w.source.file.clone())
                         .unwrap_or_else(|| PathBuf::from(&dropped_at));
+                    let expected_as = if dropped.name == decl.name {
+                        String::new()
+                    } else {
+                        format!(", expected as `{}`", dropped.name)
+                    };
                     let key = format!("Chain|{}|{}|{}|{}", entry, dropped_at, leaf, decl.name);
                     if emitted.insert(key) {
                         findings.push(Finding {
@@ -326,11 +348,12 @@ fn dfs(
                                 job: drop_hop.caller_job.clone(),
                             },
                             message: format!(
-                                "secret `{}` required at `{}` is dropped at `{}` (job `{}`) in chain `{}` (depth={})",
+                                "secret `{}` required at `{}` is dropped at `{}` (job `{}`{}) in chain `{}` (depth={})",
                                 decl.name,
                                 leaf,
                                 dropped_at,
                                 drop_hop.caller_job,
+                                expected_as,
                                 chain.join(" -> "),
                                 depth
                             ),
@@ -785,28 +808,105 @@ mod tests {
         }
     }
 
-    /// Reachable::apply: `Inherit` from an `All` baseline preserves `All`;
-    /// an explicit map after `All` narrows to the map's keys; intersecting
-    /// further with a missing key drops it.
+    fn hop(pass: SecretsPass) -> Hop {
+        Hop {
+            caller_workflow: "caller".into(),
+            caller_job: "job".into(),
+            callee_workflow: "callee".into(),
+            pass,
+        }
+    }
+
+    fn trace(passes: Vec<SecretsPass>, secret: &str) -> Option<ChainDrop> {
+        let hops: Vec<Hop> = passes.into_iter().map(hop).collect();
+        let refs: Vec<&Hop> = hops.iter().collect();
+        trace_drop(&refs, secret)
+    }
+
+    fn dropped(hop: usize, name: &str) -> Option<ChainDrop> {
+        Some(ChainDrop {
+            hop,
+            name: name.into(),
+        })
+    }
+
     #[test]
-    fn reachable_apply_inherit_then_explicit_then_intersect() {
-        let r0 = Reachable::All;
-        let after_inherit = r0.apply(&SecretsPass::Inherit);
-        assert!(matches!(after_inherit, Reachable::All));
-        assert!(after_inherit.contains("ANYTHING"));
+    fn trace_follows_rename_to_entry() {
+        let passes = vec![
+            explicit_pass(&[("NPM", "${{ secrets.NPM_TOKEN }}")]),
+            explicit_pass(&[("TOKEN", "${{ secrets.NPM }}")]),
+        ];
+        assert_eq!(trace(passes, "TOKEN"), None);
+    }
 
-        let after_explicit = after_inherit.apply(&explicit_pass(&[("A", "x"), ("B", "y")]));
-        assert!(after_explicit.contains("A"));
-        assert!(after_explicit.contains("B"));
-        assert!(!after_explicit.contains("C"));
+    #[test]
+    fn trace_reports_upstream_hop_missing_renamed_source() {
+        let passes = vec![
+            explicit_pass(&[("OTHER", "${{ secrets.OTHER }}")]),
+            explicit_pass(&[("TOKEN", "${{ secrets.NPM }}")]),
+        ];
+        assert_eq!(trace(passes, "TOKEN"), dropped(0, "NPM"));
+    }
 
-        // A second explicit hop intersects: only "A" survives.
-        let after_intersect = after_explicit.apply(&explicit_pass(&[("A", "x")]));
-        assert!(after_intersect.contains("A"));
-        assert!(!after_intersect.contains("B"));
+    #[test]
+    fn trace_inherit_keeps_name() {
+        let delivered = vec![
+            explicit_pass(&[("X", "${{ secrets.X }}")]),
+            SecretsPass::Inherit,
+        ];
+        assert_eq!(trace(delivered, "X"), None);
 
-        // None hop fully cuts the chain.
-        let after_none = after_intersect.apply(&SecretsPass::None);
-        assert!(!after_none.contains("A"));
+        let narrowed = vec![
+            explicit_pass(&[("Y", "${{ secrets.Y }}")]),
+            SecretsPass::Inherit,
+        ];
+        assert_eq!(trace(narrowed, "X"), dropped(0, "X"));
+    }
+
+    #[test]
+    fn trace_treats_untraceable_values_as_delivered() {
+        for value in [
+            "literal",
+            "${{ vars.TOKEN }}",
+            "${{ secrets.A || secrets.B }}",
+            "${{ secrets.A }}${{ secrets.B }}",
+            "${{ secrets['A'] }}",
+        ] {
+            let passes = vec![explicit_pass(&[]), explicit_pass(&[("TOKEN", value)])];
+            assert_eq!(trace(passes, "TOKEN"), None, "value: {value}");
+        }
+    }
+
+    #[test]
+    fn trace_github_token_is_always_delivered() {
+        let passes = vec![
+            SecretsPass::None,
+            explicit_pass(&[("TOKEN", "${{ secrets.github_token }}")]),
+        ];
+        assert_eq!(trace(passes, "TOKEN"), None);
+    }
+
+    #[test]
+    fn trace_reference_matches_upstream_key_ignoring_case() {
+        let passes = vec![
+            explicit_pass(&[("NPM", "${{ secrets.NPM_TOKEN }}")]),
+            explicit_pass(&[("TOKEN", "${{ secrets.npm }}")]),
+        ];
+        assert_eq!(trace(passes, "TOKEN"), None);
+    }
+
+    #[test]
+    fn trace_declared_name_matches_caller_key_exactly() {
+        let passes = vec![
+            SecretsPass::Inherit,
+            explicit_pass(&[("token", "${{ secrets.TOKEN }}")]),
+        ];
+        assert_eq!(trace(passes, "TOKEN"), dropped(1, "TOKEN"));
+    }
+
+    #[test]
+    fn trace_reports_drop_nearest_the_leaf() {
+        let passes = vec![SecretsPass::None, SecretsPass::None];
+        assert_eq!(trace(passes, "X"), dropped(1, "X"));
     }
 }

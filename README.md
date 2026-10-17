@@ -540,7 +540,7 @@ permissions  1 finding  (1 medium)
 Trace `secrets:` propagation across entry-point → reusable workflow chains using GitHub Actions' "each layer must explicitly opt in" rule (`secrets: inherit` is **not** transitive — every hop must restate it or pass an explicit map). Findings are sorted by severity (high → medium):
 
 - **MissingSecretPropagation** (high) — a directly-called callee declares a `required: true` secret, but the caller's `secrets:` does not pass it (depth = 1).
-- **SecretsInheritChainBreak** (high) — in a depth ≥ 2 chain, the leaf callee requires a secret but somewhere along the path a hop dropped it (a missing key in an explicit map, `secrets: {}`, or a layer that omitted `secrets:` and passed nothing forward).
+- **SecretsInheritChainBreak** (high) — in a depth ≥ 2 chain, the leaf callee requires a secret but somewhere along the path a hop dropped it (a missing key in an explicit map — including the source of a secret renamed mid-chain — `secrets: {}`, or a layer that omitted `secrets:` and passed nothing forward).
 - **EnvironmentInWorkflowCallCallee** (medium) — a reusable callee reached from an entry-point chain has a job-level `environment:` — per the GHA spec the job's environment-scoped secrets shadow any caller-passed secret of the same name, so the caller's intent is silently dropped at runtime.
 
 ```sh
@@ -560,12 +560,14 @@ secrets  no findings
 - **Scope**: only local callees (`uses: ./.github/workflows/X.yaml`). External (cross-repo) callees are opaque and skipped.
 - **Exit code**: `0` when no findings, `1` when one or more findings are reported.
 - **Reachability**: all three findings fire only on chains that DFS reaches from at least one entry-point trigger. Isolated reusable workflows that nothing references are not analysed for `EnvironmentInWorkflowCallCallee`.
-- **Path-local reachable set**: each DFS path tracks the set of secret names that have actually reached the current hop. Entry-points start with the symbolic "all names" set; each layer's `secrets:` declaration narrows it. `inherit` only forwards what the current hop actually holds — so `A -(explicit{Y})-> B -(inherit)-> C` carries only `{Y}` to `C`, not all of `A`'s secrets.
-- **`SecretsPass` semantics**:
-  - `secrets: inherit` — forward the current reachable set unchanged.
-  - `secrets: { K1: ..., K2: ... }` — restrict the reachable set to the keys; values are not evaluated, only key presence.
-  - `secrets: {}` — drops everything (explicit empty map → reachable becomes `∅`).
+- **Path-local backward trace**: for each `required: true` secret of a callee, ravelact walks the DFS path from that callee back to the entry point, tracking the name each hop's callee expects the secret under. Entry-points hold every secret, so a trace that reaches one is satisfied. `inherit` only forwards what the current hop actually holds — so `A -(explicit{Y})-> B -(inherit)-> C` carries only `{Y}` to `C`, not all of `A`'s secrets.
+- **`SecretsPass` semantics** (walking from the callee toward the entry point):
+  - `secrets: inherit` — the caller must hold the secret under the same name.
+  - `secrets: { K: ${{ secrets.SRC }} }` — `K` must be a key of the map (exact match when `K` is the callee's declared name; case-insensitive when it is a `SRC` followed from a later hop); the caller must then hold `SRC`, so a secret renamed mid-chain (`A -(NPM: secrets.NPM_TOKEN)-> B -(TOKEN: secrets.NPM)-> C`) is followed back as `TOKEN` → `NPM` → `NPM_TOKEN`. A mid-chain reference to a secret its caller never received (e.g. `TOKEN: ${{ secrets.MISSING }}`) is reported as a drop.
+  - `secrets: { K: <other value> }` — a value that is not exactly one `${{ secrets.<name> }}` reference (a literal, `${{ vars.X }}`, `${{ secrets.A || secrets.B }}`, …) cannot be traced and counts as delivered. `${{ secrets.GITHUB_TOKEN }}` also counts as delivered, since every workflow run has it.
+  - `secrets: {}` — drops everything (explicit empty map).
   - No `secrets:` key — drops everything (`SecretsPass::None`).
+- **`dropped_at`**: the hop nearest the callee where the trace breaks. With a single drop on the path this is the hop that drops the secret; when several hops drop it, the one closest to the callee is reported. When that hop expects the secret under a different name than the callee declares, the message adds `` expected as `<name>` ``.
 - **Mutually exclusive (a) vs (b)**: for a given secret on a given path, at most one of `MissingSecretPropagation` / `SecretsInheritChainBreak` is emitted. Depth = 1 yields (a); depth ≥ 2 yields (b) regardless of where in the chain the drop occurred.
 - **Documented limitations**:
   - **Expression-driven `secrets:` values** (e.g. `secrets: ${{ matrix.foo }}`) parse as `SecretsPass::None` and therefore appear as `MissingSecretPropagation`. Known false positive — runtime expression evaluation is out of scope, mirroring how `orphans` bails on dynamic `${{ inputs[var] }}` accesses.
