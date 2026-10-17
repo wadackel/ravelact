@@ -3484,3 +3484,106 @@ jobs:
         "releases/10-alpha must miss (negation pattern subtracts): {stdout_miss}"
     );
 }
+
+#[test]
+fn trace_branch_single_star_does_not_match_slash() {
+    // Filter pattern cheat sheet: `*` "does not match the `/` character".
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let dir = root.join(".github/workflows");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join("feature-star.yml"),
+        r#"
+name: Feature Star
+on:
+  push:
+    branches: ['feature/*']
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo feature
+"#,
+    )
+    .unwrap();
+
+    let trace_branch = |branch: &str| {
+        String::from_utf8(
+            run(root, &["trace", "push", "--branch", branch])
+                .success()
+                .get_output()
+                .stdout
+                .clone(),
+        )
+        .unwrap()
+    };
+
+    let stdout_hit = trace_branch("feature/my-branch");
+    assert!(
+        stdout_hit.contains(".github/workflows/feature-star.yml"),
+        "feature/* must match feature/my-branch: {stdout_hit}"
+    );
+    let stdout_miss = trace_branch("feature/a/b");
+    assert!(
+        !stdout_miss.contains(".github/workflows/feature-star.yml"),
+        "feature/* must NOT match feature/a/b: {stdout_miss}"
+    );
+}
+
+#[test]
+fn trace_push_ref_filter_on_one_axis_rejects_the_other_axis() {
+    // Workflow syntax, on.push.<branches|tags>: "If you define only
+    // tags/tags-ignore or only branches/branches-ignore, the workflow won't
+    // run for events affecting the undefined Git ref."
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let dir = root.join(".github/workflows");
+    std::fs::create_dir_all(&dir).unwrap();
+    for (file, filter) in [
+        ("branches-only.yml", "branches: [main]"),
+        ("tags-only.yml", "tags: ['v*']"),
+        ("both.yml", "branches: [main]\n    tags: ['v*']"),
+        ("unfiltered.yml", "paths: ['**']"),
+    ] {
+        std::fs::write(
+            dir.join(file),
+            format!(
+                "on:\n  push:\n    {filter}\njobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
+            ),
+        )
+        .unwrap();
+    }
+
+    let trace = |args: &[&str]| {
+        String::from_utf8(run(root, args).success().get_output().stdout.clone()).unwrap()
+    };
+
+    let tag_push = trace(&["trace", "push", "--tag", "v1.0"]);
+    for (file, expected) in [
+        ("branches-only.yml", false),
+        ("tags-only.yml", true),
+        ("both.yml", true),
+        ("unfiltered.yml", true),
+    ] {
+        assert_eq!(
+            tag_push.contains(&format!(".github/workflows/{file}")),
+            expected,
+            "{file} on --tag v1.0: {tag_push}"
+        );
+    }
+
+    let branch_push = trace(&["trace", "push", "--branch", "main"]);
+    for (file, expected) in [
+        ("branches-only.yml", true),
+        ("tags-only.yml", false),
+        ("both.yml", true),
+        ("unfiltered.yml", true),
+    ] {
+        assert_eq!(
+            branch_push.contains(&format!(".github/workflows/{file}")),
+            expected,
+            "{file} on --branch main: {branch_push}"
+        );
+    }
+}
