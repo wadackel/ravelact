@@ -10,10 +10,10 @@ use walkdir::WalkDir;
 const SCHEMA_VERSION: u32 = 10;
 
 // Pruned at any depth, not just the repository root: these names denote
-// derived / VCS-internal artefacts whose semantics are depth-independent
-// (e.g. nested `pkg/foo/dist/action.yml` is bundled output, not a separate
-// local-action source).
-const EXCLUDED_DIR_NAMES: &[&str] = &[".git", "target", "node_modules", "dist", "build"];
+// derived / VCS-internal artefacts whose semantics are depth-independent.
+// `build` and `dist` are deliberately absent: both are common local-action
+// names (`.github/actions/build`), so bundled copies are left to `--exclude`.
+const EXCLUDED_DIR_NAMES: &[&str] = &[".git", "target", "node_modules"];
 
 #[derive(Debug, Clone)]
 pub struct SourceInventory {

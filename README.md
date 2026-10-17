@@ -18,7 +18,7 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
 </p>
 
 > [!NOTE]
-> `ravelact` runs offline against the local repository — no GitHub API calls and no token is required. Local-action discovery prunes derived / VCS-internal directories at any depth: `.git`, `target`, `node_modules`, `dist`, `build`.
+> `ravelact` runs offline against the local repository — no GitHub API calls and no token is required. Local-action discovery prunes derived / VCS-internal directories at any depth: `.git`, `target`, `node_modules`. Directories named `dist` or `build` are scanned like any other; pass `--exclude '**/dist/**'` to skip bundled copies.
 
 ## Table of Contents
 
