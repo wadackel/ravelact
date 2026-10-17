@@ -511,8 +511,8 @@ impl RefFilter {
     ///   the only changed file is ignored, which is what `!sequential_match`
     ///   expresses.
     ///
-    /// Glob syntax follows the [`globset`] crate. `*`, `**`, `[abc]`, and the
-    /// leading `!` negation match the GitHub cheat sheet exactly. The `?`
+    /// Glob syntax follows the [`globset`] crate, adjusted so `*`, `**`,
+    /// `[abc]`, and the leading `!` negation match the GitHub cheat sheet. The `?`
     /// quantifier (GitHub: zero-or-one; globset: exactly-one) and `+`
     /// quantifier (GitHub-only) are not faithfully covered; unsupported
     /// patterns surface a warning on stderr and are treated as no-match.
@@ -544,8 +544,26 @@ fn sequential_match(patterns: &[String], value: &str) -> bool {
     hit
 }
 
+/// GitHub's `*` stops at `/` while `**` matches any characters, even inside a
+/// path component. globset only honors that `**` as a whole component and
+/// degrades `releases/**-alpha` to `releases/*-alpha`, so a mid-component `**`
+/// is rewritten to an alternation covering "no slash" and "any slashes".
+///
+/// Reference: Workflow syntax, filter pattern cheat sheet —
+/// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet
 fn glob_match(pattern: &str, value: &str) -> bool {
-    match globset::Glob::new(pattern) {
+    let glob = pattern
+        .split('/')
+        .map(|component| match component {
+            "**" => component.to_string(),
+            _ => component.replace("**", "{*,*/**/*}"),
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    match globset::GlobBuilder::new(&glob)
+        .literal_separator(true)
+        .build()
+    {
         Ok(g) => g.compile_matcher().is_match(value),
         Err(e) => {
             eprintln!("warn: unsupported filter pattern `{pattern}`: {e}");
@@ -1681,6 +1699,21 @@ mod tests {
         assert!(!f.matches("releases/10-alpha"));
         assert!(f.matches("releases/beta/mona"));
         assert!(!f.matches("releases/beta/3-alpha"));
+    }
+
+    #[test]
+    fn ref_filter_matches_cheat_sheet_star_and_double_star() {
+        // Filter pattern cheat sheet: `*` does not match `/`, `**` matches
+        // any character including `/`.
+        let star = include(&["feature/*"]);
+        assert!(star.matches("feature/my-branch"));
+        assert!(!star.matches("feature/beta-a/my-branch"));
+        assert!(!include(&["*"]).matches("releases/10"));
+        assert!(include(&["*.js"]).matches("app.js"));
+        assert!(!include(&["*.js"]).matches("src/app.js"));
+        assert!(include(&["**.js"]).matches("src/js/app.js"));
+        assert!(include(&["feature/**"]).matches("feature/mona/the/octocat"));
+        assert!(include(&["**/README.md"]).matches("README.md"));
     }
 
     #[test]
