@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.10](https://github.com/wadackel/ravelact/compare/v0.0.9...v0.0.10) - 2026-10-17
+
+### Added
+
+- *(skill)* ship agent guidance in the binary via `ravelact skill` ([#76](https://github.com/wadackel/ravelact/pull/76))
+- *(browse)* cross-cutting findings float + node dot UI ([#65](https://github.com/wadackel/ravelact/pull/65))
+- *(findings)* integrate zizmor SARIF finding overlay (CLI + browse) ([#60](https://github.com/wadackel/ravelact/pull/60))
+
+### Fixed
+
+- *(secrets)* follow secrets renamed across reusable-workflow hops ([#81](https://github.com/wadackel/ravelact/pull/81))
+- *(trace)* follow GitHub's push ref-kind and filter pattern rules ([#80](https://github.com/wadackel/ravelact/pull/80))
+- *(ir)* stop pruning `dist` and `build` directories during action discovery ([#78](https://github.com/wadackel/ravelact/pull/78))
+
+### Other
+
+- *(findings)* document SARIF finding overlay across docs surfaces ([#64](https://github.com/wadackel/ravelact/pull/64))
+- *(findings)* add actionlint SARIF fixture and multi-source overlay coverage ([#63](https://github.com/wadackel/ravelact/pull/63))
+
 ## [0.0.9](https://github.com/wadackel/ravelact/compare/v0.0.8...v0.0.9) - 2026-05-31
 
 ### Added
