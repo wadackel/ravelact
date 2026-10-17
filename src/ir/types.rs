@@ -511,11 +511,14 @@ impl RefFilter {
     ///   the only changed file is ignored, which is what `!sequential_match`
     ///   expresses.
     ///
-    /// Glob syntax follows the [`globset`] crate. `*`, `**`, `[abc]`, and the
-    /// leading `!` negation match the GitHub cheat sheet exactly. The `?`
-    /// quantifier (GitHub: zero-or-one; globset: exactly-one) and `+`
-    /// quantifier (GitHub-only) are not faithfully covered; unsupported
-    /// patterns surface a warning on stderr and are treated as no-match.
+    /// Pattern syntax follows the GitHub filter pattern cheat sheet: `*`
+    /// stops at `/`, `**` crosses it, `?` / `+` quantify the preceding
+    /// character, `[abc]` / `[a-z]` list characters, `\` escapes, and a
+    /// leading `!` negates. Malformed patterns surface a warning on stderr and
+    /// are treated as no-match.
+    ///
+    /// Reference: Workflow syntax — Filter pattern cheat sheet —
+    /// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#filter-pattern-cheat-sheet
     pub fn matches(&self, value: &str) -> bool {
         match self {
             RefFilter::None => true,
@@ -545,13 +548,72 @@ fn sequential_match(patterns: &[String], value: &str) -> bool {
 }
 
 fn glob_match(pattern: &str, value: &str) -> bool {
-    match globset::Glob::new(pattern) {
-        Ok(g) => g.compile_matcher().is_match(value),
+    let compiled =
+        pattern_to_regex(pattern).and_then(|re| regex::Regex::new(&re).map_err(|e| e.to_string()));
+    match compiled {
+        Ok(re) => re.is_match(value),
         Err(e) => {
             eprintln!("warn: unsupported filter pattern `{pattern}`: {e}");
             false
         }
     }
+}
+
+/// Translates a GitHub filter pattern into an anchored regex. globset cannot
+/// express the cheat sheet: with `literal_separator` off its `*` crosses `/`,
+/// and with it on `**.js` and `releases/**-alpha` stop crossing `/`; neither
+/// mode reads `?` / `+` as quantifiers. The rules mirror nektos/act's
+/// `workflowpattern`. A leading `?` / `+` has nothing to quantify and is a
+/// literal, since passing it through would yield `^?…`, which un-anchors the
+/// match. Bracket contents are escaped one char at a time so Rust class
+/// syntax (`[^…]`, `&&`, nested `[`) never takes effect.
+fn pattern_to_regex(pattern: &str) -> Result<String, String> {
+    let mut out = String::from("^");
+    let mut chars = pattern.chars().peekable();
+    let mut first = true;
+    while let Some(c) = chars.next() {
+        match c {
+            '*' if chars.next_if_eq(&'*').is_some() => {
+                if chars.next_if_eq(&'/').is_some() {
+                    out.push_str("(.+/)?");
+                } else {
+                    out.push_str(".*");
+                }
+            }
+            '*' => out.push_str("[^/]*"),
+            '?' | '+' if !first => out.push(c),
+            '[' => {
+                out.push('[');
+                let mut prev_literal = false;
+                let mut empty = true;
+                loop {
+                    match chars.next() {
+                        None => return Err("missing closing `]`".to_string()),
+                        Some(']') if empty => return Err("empty `[]`".to_string()),
+                        Some(']') => break,
+                        Some('-') if prev_literal && chars.peek().is_some_and(|&n| n != ']') => {
+                            out.push('-');
+                            prev_literal = false;
+                        }
+                        Some(ch) => {
+                            out.push_str(&regex::escape(ch.encode_utf8(&mut [0; 4])));
+                            prev_literal = true;
+                        }
+                    }
+                    empty = false;
+                }
+                out.push(']');
+            }
+            '\\' => match chars.next() {
+                Some(next) => out.push_str(&regex::escape(next.encode_utf8(&mut [0; 4]))),
+                None => return Err("trailing `\\`".to_string()),
+            },
+            _ => out.push_str(&regex::escape(c.encode_utf8(&mut [0; 4]))),
+        }
+        first = false;
+    }
+    out.push('$');
+    Ok(out)
 }
 
 /// Event-specific payloads not expressible by the common filter fields.
@@ -1714,10 +1776,86 @@ mod tests {
 
     #[test]
     fn ref_filter_matches_malformed_pattern_returns_false_no_panic() {
-        // An unmatched bracket is invalid glob syntax. globset rejects it;
-        // glob_match emits a stderr warning and returns false rather than
-        // panicking, so the trace command keeps running on bad workflow YAML.
+        // An unmatched bracket is invalid pattern syntax. glob_match emits a
+        // stderr warning and returns false rather than panicking, so the
+        // trace command keeps running on bad workflow YAML.
         let f = include(&["["]);
         assert!(!f.matches("anything"));
+    }
+
+    #[test]
+    fn ref_filter_matches_single_star_does_not_cross_slash() {
+        let f = include(&["feature/*"]);
+        assert!(f.matches("feature/my-branch"));
+        assert!(!f.matches("feature/a/b"));
+
+        let f = include(&["*.js"]);
+        assert!(f.matches("app.js"));
+        assert!(!f.matches("src/x.js"));
+
+        let f = include(&["docs/*"]);
+        assert!(f.matches("docs/a.md"));
+        assert!(!f.matches("docs/a/b.md"));
+    }
+
+    #[test]
+    fn ref_filter_matches_double_star_crosses_slash() {
+        let f = include(&["**.js"]);
+        assert!(f.matches("src/x.js"));
+        assert!(f.matches("x.js"));
+
+        let f = include(&["**/README.md"]);
+        assert!(f.matches("README.md"));
+        assert!(f.matches("a/b/README.md"));
+        assert!(!f.matches("a/b/README.mdx"));
+    }
+
+    #[test]
+    fn ref_filter_matches_question_mark_makes_previous_char_optional() {
+        let f = include(&["*.jsx?"]);
+        assert!(f.matches("x.js"));
+        assert!(f.matches("x.jsx"));
+        assert!(!f.matches("x.jsxx"));
+    }
+
+    #[test]
+    fn ref_filter_matches_plus_repeats_previous_token() {
+        let f = include(&["v[12].[0-9]+.[0-9]+"]);
+        assert!(f.matches("v1.10.3"));
+        assert!(f.matches("v2.0.0"));
+        assert!(!f.matches("v3.0.0"));
+        assert!(!f.matches("v1..3"));
+    }
+
+    #[test]
+    fn ref_filter_matches_leading_quantifier_is_literal() {
+        let f = include(&["?x"]);
+        assert!(f.matches("?x"));
+        assert!(!f.matches("x"));
+        assert!(!f.matches("ax"));
+    }
+
+    #[test]
+    fn ref_filter_matches_escaped_char_is_literal() {
+        let f = include(&["\\!file"]);
+        assert!(f.matches("!file"));
+        assert!(!f.matches("file"));
+    }
+
+    #[test]
+    fn ref_filter_matches_bracket_contents_are_literal_chars() {
+        // `^` inside brackets is not regex negation; GitHub classes list
+        // characters only.
+        let f = include(&["[^a]"]);
+        assert!(f.matches("a"));
+        assert!(f.matches("^"));
+        assert!(!f.matches("b"));
+    }
+
+    #[test]
+    fn ref_filter_matches_malformed_patterns_return_false() {
+        assert!(!include(&["[]"]).matches("[]"));
+        assert!(!include(&["a\\"]).matches("a\\"));
+        assert!(!include(&["[ab"]).matches("a"));
     }
 }

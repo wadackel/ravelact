@@ -3484,3 +3484,116 @@ jobs:
         "releases/10-alpha must miss (negation pattern subtracts): {stdout_miss}"
     );
 }
+
+fn write_push_workflow(root: &Path, file: &str, push_filters: &str) {
+    let dir = root.join(".github/workflows");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join(file),
+        format!(
+            "on:\n  push:\n{push_filters}jobs:\n  noop:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo\n"
+        ),
+    )
+    .unwrap();
+}
+
+fn trace_push_stdout(root: &Path, flags: &[&str]) -> String {
+    let mut args = vec!["trace", "push"];
+    args.extend_from_slice(flags);
+    String::from_utf8(run(root, &args).success().get_output().stdout.clone()).unwrap()
+}
+
+fn assert_traced(root: &Path, flags: &[&str], all: &[&str], expected: &[&str]) {
+    let stdout = trace_push_stdout(root, flags);
+    for file in all {
+        let path = format!(".github/workflows/{file}");
+        assert_eq!(
+            stdout.contains(&path),
+            expected.contains(file),
+            "{file} for `trace push {}`: {stdout}",
+            flags.join(" ")
+        );
+    }
+}
+
+#[test]
+fn trace_push_ref_kind_follows_defined_filter() {
+    // GitHub: defining only branches (or only tags) means the workflow does
+    // not run for pushes of the undefined ref kind.
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write_push_workflow(root, "branches.yml", "    branches: [main]\n");
+    write_push_workflow(root, "branches-ignore.yml", "    branches-ignore: [main]\n");
+    write_push_workflow(root, "tags.yml", "    tags: ['v*']\n");
+    write_push_workflow(root, "both.yml", "    branches: [main]\n    tags: ['v*']\n");
+    write_push_workflow(root, "none.yml", "");
+    let all = [
+        "branches.yml",
+        "branches-ignore.yml",
+        "tags.yml",
+        "both.yml",
+        "none.yml",
+    ];
+
+    assert_traced(
+        root,
+        &["--tag", "v1.0.0"],
+        &all,
+        &["tags.yml", "both.yml", "none.yml"],
+    );
+    assert_traced(
+        root,
+        &["--branch", "main"],
+        &all,
+        &["branches.yml", "both.yml", "none.yml"],
+    );
+    // A ref-less `--path` query is a branch push, so tags-only triggers drop.
+    assert_traced(
+        root,
+        &["--path", "src/x.rs"],
+        &all,
+        &[
+            "branches.yml",
+            "branches-ignore.yml",
+            "both.yml",
+            "none.yml",
+        ],
+    );
+    assert_traced(
+        root,
+        &["--branch", "main", "--tag", "v1.0.0"],
+        &all,
+        &["both.yml", "none.yml"],
+    );
+}
+
+#[test]
+fn trace_push_tag_skips_paths_filter() {
+    // GitHub: path filters are not evaluated for pushes of tags.
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write_push_workflow(
+        root,
+        "tag-paths.yml",
+        "    tags: ['v*']\n    paths: ['src/**']\n",
+    );
+    let all = ["tag-paths.yml"];
+
+    assert_traced(
+        root,
+        &["--tag", "v1.0.0", "--path", "docs/x.md"],
+        &all,
+        &all,
+    );
+}
+
+#[test]
+fn trace_branch_star_does_not_cross_slash() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    write_push_workflow(root, "feature.yml", "    branches: ['feature/*']\n");
+    let all = ["feature.yml"];
+
+    assert_traced(root, &["--branch", "feature/a"], &all, &all);
+    assert_traced(root, &["--branch", "feature/a/b"], &all, &[]);
+}
