@@ -242,18 +242,9 @@ jobs:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
-      - uses: ./.github/actions/setup-nix-devshell
-        with:
-          cache-key-prefix: nix-ci-${{ runner.os }}
-      # rust-embed requires web/dist/ to exist for cargo build.
-      - name: just frontend
-        run: nix develop --command just frontend
-      # check-skill-drift.sh shells out to ./target/debug/ravelact --help
-      # to assert subcommand-name parity with SKILL.md.
-      - name: Build ravelact
-        run: nix develop --command cargo build --locked
-      - name: Check skill drift
-        run: nix develop --command script/check-skill-drift.sh
+      # Parity between subcommands and `ravelact skill` topics is a unit test
+      # (`every_subcommand_has_a_skill_topic`) run by the test job; this job
+      # only validates the thin wrapper SKILL.md, so it needs no Nix or build.
       - name: Install gh CLI
         # ubuntu-latest ships gh 2.89.0 < 2.90.0 required for `gh skill`.
         # Install a SHA-pinned deb from the upstream cli/cli release. We pin

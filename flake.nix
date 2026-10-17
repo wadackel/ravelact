@@ -29,7 +29,9 @@
           # generated / external directories (web/dist, web/node_modules,
           # web/.vite) which are either gitignored build output or pnpm-
           # managed dependency caches. Excluding them keeps the Nix source
-          # hash stable and avoids polluting the sandbox.
+          # hash stable and avoids polluting the sandbox. The Markdown under
+          # src/cli/skill/ is kept too: `ravelact skill` embeds it with
+          # include_str!, and filterCargoSources drops non-Rust files.
           src = pkgs.lib.cleanSourceWith {
             src = ./.;
             filter = path: type:
@@ -37,12 +39,16 @@
                 p = toString path;
                 webRoot = toString ./web;
                 isUnderWeb = pkgs.lib.hasPrefix (webRoot + "/") p || p == webRoot;
+                isSkillMarkdown =
+                  pkgs.lib.hasPrefix (toString ./src/cli/skill + "/") p
+                  && pkgs.lib.hasSuffix ".md" p;
                 isExcluded =
                   pkgs.lib.hasPrefix (toString ./web/dist) p
                   || pkgs.lib.hasPrefix (toString ./web/node_modules) p
                   || pkgs.lib.hasPrefix (toString ./web/.vite) p;
               in
                 (craneLib.filterCargoSources path type)
+                || isSkillMarkdown
                 || (isUnderWeb && !isExcluded);
           };
           strictDeps = true;

@@ -180,6 +180,8 @@ For a full development setup (Nix dev shell, `just` recipes, snapshot tests), se
 
 `ravelact` ships an [AgentSkill](https://agentskills.io/specification) under [`skills/ravelact/`](./skills/ravelact/) that teaches AI coding agents (GitHub Copilot, Claude Code, Cursor, Codex, Gemini CLI, and many more) **which command fits which question** and **how to interpret each output format** — so you can ask "who calls this reusable workflow?" or "what runs on push?" and the agent picks the right `ravelact` invocation automatically.
 
+The skill itself is a thin wrapper: the guidance lives in the binary and is printed by `ravelact skill` (an overview and the topic list) and `ravelact skill <topic>` (one command, or a guide such as `findings`). Agents therefore always read the guidance for the `ravelact` version they run, and the skill needs the binary on `PATH`.
+
 ### Install the skill (recommended)
 
 Requires **GitHub CLI v2.90.0+** (the `gh skill` command, [GA on 2026-04-16](https://github.blog/changelog/2026-04-16-manage-agent-skills-with-github-cli/)).
@@ -187,16 +189,15 @@ Requires **GitHub CLI v2.90.0+** (the `gh skill` command, [GA on 2026-04-16](htt
 ```sh
 # User-scope install for a specific agent (example: Claude Code)
 gh skill install wadackel/ravelact ravelact --agent claude-code --scope user
-
-# Pin to a specific ravelact release
-gh skill install wadackel/ravelact ravelact@v0.3.0 --agent claude-code --scope user
 ```
+
+There is no need to pin the skill to a release: its content follows the installed binary. Upgrade `ravelact` itself to get newer guidance.
 
 Run `gh skill install --help` for the full list of supported `--agent` values.
 
 ### Install from a local checkout (for skill development)
 
-When iterating on the skill itself, install from the local working tree instead of the published repo:
+The guidance is the Markdown under [`src/cli/skill/`](./src/cli/skill/), embedded at build time. Edit it and check the output with `cargo run -- skill <topic>`. To have an agent pick up the wrapper from the local working tree instead of the published repo:
 
 ```sh
 gh skill install ./skills/ravelact ravelact --from-local --agent claude-code --scope user --force
@@ -204,7 +205,7 @@ gh skill install ./skills/ravelact ravelact --from-local --agent claude-code --s
 
 ### How drift is prevented
 
-Each PR runs `script/check-skill-drift.sh` in CI, which asserts that every `ravelact` subcommand printed by `ravelact --help` is also referenced in [`skills/ravelact/SKILL.md`](./skills/ravelact/SKILL.md). The same job runs `gh skill publish --dry-run` to validate the skill against the [agentskills.io specification](https://agentskills.io/specification).
+A unit test (`every_subcommand_has_a_skill_topic`) asserts that every `ravelact` subcommand has a `ravelact skill` topic of the same name, so adding a command without guidance fails `cargo test`. A separate CI job runs `gh skill publish --dry-run` to validate the wrapper against the [agentskills.io specification](https://agentskills.io/specification).
 
 ## Quick Start
 
@@ -276,6 +277,7 @@ wf_1 --> extwf_0
 | `build` | Other | Build IR and persist the cache | 0 |
 | `browse` | Other | Launch local server and render the workflow graph in a browser | 0 |
 | `completion <shell>` | Other | Print shell-completion setup snippet (bash / zsh / fish) | 0 |
+| `skill [<topic>]` | Other | Print agent-facing usage guidance (overview, or one topic) | 0 |
 
 ### Global flags
 
@@ -308,6 +310,7 @@ The `--format` flag is opt-in per command. Most report commands accept `text|jso
 | `dump` | fixed JSON | No `--format` flag. |
 | `build` | fixed text | No `--format` flag. |
 | `completion` | shell snippet | No `--format` flag. |
+| `skill` | fixed markdown | No `--format` flag. |
 
 Human `text` output uses compact status lines such as `impact  no impacted targets` and `dedup  no near-duplicate clusters  (threshold=0.80)` for empty states — when present, the parens-wrapped trailing segment is the run summary (counts, descriptors). Markdown-capable reports keep the longer "No … found" prose for PR comments and GitHub Job Summaries.
 
@@ -863,7 +866,7 @@ GitHub CLI extension support is not part of the current distribution path. A fut
 | Group | Commands | Exit code |
 |---|---|---|
 | Inspect / Suggest / Export | `trace`, `triggers`, `callers`, `impact`, `orphans`, `extract`, `dedup`, `dump`, `graph` | always `0` (informational) |
-| Build & cache | `build`, `completion` | always `0` |
+| Build & cache | `build`, `completion`, `skill` | always `0` |
 | Check | `permissions`, `secrets`, `wiring` | `0` when clean, `1` when any finding is reported |
 
 ## Annotations

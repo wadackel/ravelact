@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 // thinnest cut that makes the chain reachable; siblings remain
 // crate-private per their `pub(super)` markers.
 pub mod render;
+mod skill;
 mod stdin_input;
 
 #[derive(Parser, Debug)]
@@ -55,6 +56,7 @@ Other:
   browse       Launch local server and render the workflow graph in a browser
   build        Build IR and persist to ${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
   completion   Generate shell completion setup snippet (bash / zsh / fish)
+  skill        Print agent-facing usage guidance (overview, or one topic)
   help         Print this message or the help of the given subcommand(s)
 
 Run `ravelact <COMMAND> --help` for details on a single command.
@@ -340,6 +342,17 @@ pub enum Command {
         shell: String,
     },
 
+    /// Print agent-facing usage guidance embedded in this binary.
+    ///
+    /// Without a topic, prints the overview (conventions, global flags,
+    /// output formats, exit codes) and the list of topics. With a topic,
+    /// prints that command's or guide's page. The published AgentSkill
+    /// defers to this command so its content always matches the binary.
+    Skill {
+        /// Topic to print. Omit for the overview and the topic list.
+        topic: Option<skill::Topic>,
+    },
+
     /// Launch a local HTTP server and render the workflow graph in a
     /// browser via Cytoscape.js. The graph is built once at startup, so
     /// there is no live reload. Binds to `127.0.0.1` on an ephemeral
@@ -451,6 +464,8 @@ impl Cli {
     // enough scaffolding to clutter this file — live in `cli/render/<name>.rs`
     // and are invoked as `render::<name>::run(...)`. When a new command's
     // handler outgrows the inline shape, promote it to `cli/render/`.
+    // `skill` prints static text rather than query results, so it lives in
+    // `cli/skill.rs` instead of `cli/render/`.
     pub fn run(&self) -> Result<i32> {
         let root: &Path = self.root.as_deref().unwrap_or(Path::new("."));
         let ui = Ui::from_env((&self.color).into(), root);
@@ -541,6 +556,10 @@ impl Cli {
             )
             .map(|_| 0),
             Command::Completion { shell } => cmd_completion(shell).map(|_| 0),
+            Command::Skill { topic } => {
+                skill::run(*topic);
+                Ok(0)
+            }
             Command::Browse {
                 port,
                 no_open,
@@ -1503,6 +1522,23 @@ mod tests {
             .into_iter()
             .map(|c| c.get_value().to_string_lossy().into_owned())
             .collect()
+    }
+
+    #[test]
+    fn every_subcommand_has_a_skill_topic() {
+        use clap::CommandFactory;
+        let subcommands: BTreeSet<String> = Cli::command()
+            .get_subcommands()
+            .map(|c| c.get_name().to_string())
+            .filter(|name| name != "skill")
+            .collect();
+        let topics: BTreeSet<String> = skill::Topic::value_variants()
+            .iter()
+            .filter(|t| !t.is_guide())
+            .filter_map(|t| t.to_possible_value())
+            .map(|v| v.get_name().to_string())
+            .collect();
+        assert_eq!(subcommands, topics);
     }
 
     #[test]
