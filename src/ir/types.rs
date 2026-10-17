@@ -631,6 +631,21 @@ impl TriggerSpec {
         self.event.name()
     }
 
+    /// Whether a push to `branch` passes this trigger's ref filters. Declaring
+    /// only `tags` / `tags-ignore` means branch pushes never run the workflow.
+    ///
+    /// Reference: Workflow syntax —
+    /// https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onpushbranchestagsbranches-ignoretags-ignore
+    pub fn matches_branch(&self, branch: &str) -> bool {
+        (self.tags.is_none() || !self.branches.is_none()) && self.branches.matches(branch)
+    }
+
+    /// Tag counterpart of [`Self::matches_branch`]: declaring only `branches`
+    /// / `branches-ignore` means tag pushes never run the workflow.
+    pub fn matches_tag(&self, tag: &str) -> bool {
+        (self.branches.is_none() || !self.tags.is_none()) && self.tags.matches(tag)
+    }
+
     /// Workflows callable from another workflow (`on: workflow_call`) are not
     /// entry points; they must be invoked.
     pub fn is_entry_point(&self) -> bool {

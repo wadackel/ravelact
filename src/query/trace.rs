@@ -302,10 +302,11 @@ impl TriggerMatch {
 ///
 /// - `types` is OR-matched against the trigger's activity types via
 ///   [`TriggerSpec::matches_activity`].
-/// - `branches`, `tags`, `paths` are OR-matched against the trigger's
-///   `RefFilter` fields via [`RefFilter::matches`]. A trigger whose filter is
-///   `RefFilter::None` accepts every value (matches GitHub Actions behavior:
-///   no filter declared = trigger fires for every ref / path).
+/// - `branches` and `tags` are OR-matched via [`TriggerSpec::matches_branch`]
+///   / [`TriggerSpec::matches_tag`]. With no ref filter declared, every ref
+///   fires. Declaring only one axis rejects refs on the other.
+/// - `paths` is OR-matched via [`RefFilter::matches`]. `RefFilter::None`
+///   accepts every path.
 ///
 /// When multiple triggers on the same workflow could match (event name +
 /// every filter satisfied), the **first IR-order trigger that passes all
@@ -332,8 +333,8 @@ pub fn trace(
             t.event_name() == event
                 && t.is_entry_point()
                 && (types.is_empty() || types.iter().any(|act| t.matches_activity(act)))
-                && (branches.is_empty() || branches.iter().any(|b| t.branches.matches(b)))
-                && (tags.is_empty() || tags.iter().any(|x| t.tags.matches(x)))
+                && (branches.is_empty() || branches.iter().any(|b| t.matches_branch(b)))
+                && (tags.is_empty() || tags.iter().any(|x| t.matches_tag(x)))
                 && (paths.is_empty() || paths.iter().any(|p| t.paths.matches(p)))
         });
         if let Some(trigger_spec) = matched {
