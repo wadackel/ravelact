@@ -55,6 +55,7 @@ Other:
   browse       Launch local server and render the workflow graph in a browser
   build        Build IR and persist to ${XDG_STATE_HOME}/ravelact/repo-<sha8>/cache.json
   completion   Generate shell completion setup snippet (bash / zsh / fish)
+  skill        Print the agent usage guide for this ravelact version
   help         Print this message or the help of the given subcommand(s)
 
 Run `ravelact <COMMAND> --help` for details on a single command.
@@ -340,6 +341,12 @@ pub enum Command {
         shell: String,
     },
 
+    /// Print the agent usage guide (Markdown) for this ravelact version.
+    ///
+    /// The `ravelact` AgentSkill is a thin wrapper that runs this command,
+    /// so the guide an agent reads always matches the installed binary.
+    Skill,
+
     /// Launch a local HTTP server and render the workflow graph in a
     /// browser via Cytoscape.js. The graph is built once at startup, so
     /// there is no live reload. Binds to `127.0.0.1` on an ephemeral
@@ -541,6 +548,10 @@ impl Cli {
             )
             .map(|_| 0),
             Command::Completion { shell } => cmd_completion(shell).map(|_| 0),
+            Command::Skill => {
+                print!("{SKILL_GUIDE}");
+                Ok(0)
+            }
             Command::Browse {
                 port,
                 no_open,
@@ -560,6 +571,8 @@ impl Cli {
         }
     }
 }
+
+const SKILL_GUIDE: &str = include_str!("skill.md");
 
 fn cmd_completion(shell: &str) -> Result<()> {
     match shell {
@@ -1497,6 +1510,32 @@ fn wiring_message(f: &WiringFinding) -> String {
 mod tests {
     use super::*;
     use clap::Parser;
+
+    #[test]
+    fn skill_guide_documents_every_subcommand() {
+        use clap::CommandFactory;
+        let missing: Vec<String> = Cli::command()
+            .get_subcommands()
+            .map(|c| c.get_name().to_string())
+            .filter(|name| {
+                let bare = format!("#### `{name}`");
+                let with_args = format!("#### `{name} ");
+                !SKILL_GUIDE
+                    .lines()
+                    .any(|l| l.starts_with(&bare) || l.starts_with(&with_args))
+            })
+            .collect();
+        assert!(
+            missing.is_empty(),
+            "src/cli/skill.md needs a `#### `<cmd>`` heading for: {missing:?}"
+        );
+        for label in ["Inspect", "Check", "Suggest", "Export"] {
+            assert!(
+                SKILL_GUIDE.contains(label),
+                "src/cli/skill.md is missing the {label} group label"
+            );
+        }
+    }
 
     fn candidate_values(candidates: Vec<CompletionCandidate>) -> Vec<String> {
         candidates

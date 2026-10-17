@@ -31,7 +31,7 @@ It builds an IR from `.github/workflows/*.{yml,yaml}` and any `action.{yml,yaml}
   - [From Source](#from-source)
 - [AgentSkill for AI Agents](#agentskill-for-ai-agents)
   - [Install the skill (recommended)](#install-the-skill-recommended)
-  - [Install from a local checkout (for skill development)](#install-from-a-local-checkout-for-skill-development)
+  - [Editing the guide](#editing-the-guide)
   - [How drift is prevented](#how-drift-is-prevented)
 - [Quick Start](#quick-start)
 - [Usage](#usage)
@@ -180,6 +180,8 @@ For a full development setup (Nix dev shell, `just` recipes, snapshot tests), se
 
 `ravelact` ships an [AgentSkill](https://agentskills.io/specification) under [`skills/ravelact/`](./skills/ravelact/) that teaches AI coding agents (GitHub Copilot, Claude Code, Cursor, Codex, Gemini CLI, and many more) **which command fits which question** and **how to interpret each output format** — so you can ask "who calls this reusable workflow?" or "what runs on push?" and the agent picks the right `ravelact` invocation automatically.
 
+The skill itself is a thin wrapper. The full guide is embedded in the binary and printed by `ravelact skill`, so the agent always reads the guide for the `ravelact` version on its PATH. Upgrading the binary updates the guide; the installed skill does not need to be reinstalled or pinned to a release.
+
 ### Install the skill (recommended)
 
 Requires **GitHub CLI v2.90.0+** (the `gh skill` command, [GA on 2026-04-16](https://github.blog/changelog/2026-04-16-manage-agent-skills-with-github-cli/)).
@@ -187,24 +189,17 @@ Requires **GitHub CLI v2.90.0+** (the `gh skill` command, [GA on 2026-04-16](htt
 ```sh
 # User-scope install for a specific agent (example: Claude Code)
 gh skill install wadackel/ravelact ravelact --agent claude-code --scope user
-
-# Pin to a specific ravelact release
-gh skill install wadackel/ravelact ravelact@v0.3.0 --agent claude-code --scope user
 ```
 
 Run `gh skill install --help` for the full list of supported `--agent` values.
 
-### Install from a local checkout (for skill development)
+### Editing the guide
 
-When iterating on the skill itself, install from the local working tree instead of the published repo:
-
-```sh
-gh skill install ./skills/ravelact ravelact --from-local --agent claude-code --scope user --force
-```
+The guide lives in [`src/cli/skill.md`](./src/cli/skill.md). Rebuild the binary and run `ravelact skill` to see the result; no skill reinstall is needed.
 
 ### How drift is prevented
 
-Each PR runs `script/check-skill-drift.sh` in CI, which asserts that every `ravelact` subcommand printed by `ravelact --help` is also referenced in [`skills/ravelact/SKILL.md`](./skills/ravelact/SKILL.md). The same job runs `gh skill publish --dry-run` to validate the skill against the [agentskills.io specification](https://agentskills.io/specification).
+`cargo test` asserts that every subcommand defined in the CLI has its own section heading in `src/cli/skill.md`. CI also runs `gh skill publish --dry-run` to validate the wrapper against the [agentskills.io specification](https://agentskills.io/specification).
 
 ## Quick Start
 
