@@ -387,12 +387,12 @@ mod tests {
             &root.join("pkg/foo/action.yml"),
             "runs:\n  using: composite\n  steps:\n    - run: echo hi\n      shell: bash\n",
         );
-        // nested dist/ — should be pruned
+        // nested target/ — should be pruned
         write(
-            &root.join("pkg/foo/dist/should-be-ignored/action.yml"),
+            &root.join("pkg/foo/target/should-be-ignored/action.yml"),
             "runs:\n  using: composite\n  steps: []\n",
         );
-        // nested node_modules/ — pruning must not be specific to "dist"
+        // nested node_modules/ — pruning must not be specific to "target"
         write(
             &root.join("apps/bar/node_modules/whatever/action.yml"),
             "runs:\n  using: composite\n  steps: []\n",
@@ -401,6 +401,28 @@ mod tests {
         let ir = build_ir(root, &GlobSet::empty()).unwrap();
         assert_eq!(ir.actions.len(), 1);
         assert_eq!(ir.actions[0].id.0, "pkg/foo");
+    }
+
+    #[test]
+    fn discovers_actions_in_dirs_named_build_or_dist() {
+        let dir = tempdir().unwrap();
+        let root = dir.path();
+        let composite =
+            "runs:\n  using: composite\n  steps:\n    - run: echo hi\n      shell: bash\n";
+        write(&root.join(".github/actions/build/action.yml"), composite);
+        write(&root.join(".github/actions/dist/action.yaml"), composite);
+        write(&root.join("build/setup/action.yml"), composite);
+
+        let ir = build_ir(root, &GlobSet::empty()).unwrap();
+        let ids: Vec<&str> = ir.actions.iter().map(|a| a.id.0.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                ".github/actions/build",
+                ".github/actions/dist",
+                "build/setup"
+            ]
+        );
     }
 
     #[test]
