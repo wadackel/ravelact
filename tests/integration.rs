@@ -2313,6 +2313,73 @@ fn check_secrets_chain_break_mid_renames() {
 }
 
 #[test]
+fn check_secrets_renamed_mid_chain_reaches_leaf() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path();
+    // A passes NPM_TOKEN to B as NPM; B forwards its NPM to C as TOKEN.
+    write_at(
+        &root.join(".github/workflows/a.yml"),
+        "name: A\non: push\njobs:\n  call:\n    uses: ./.github/workflows/b.yml\n    secrets:\n      NPM: ${{ secrets.NPM_TOKEN }}\n",
+    );
+    write_at(
+        &root.join(".github/workflows/b.yml"),
+        "name: B\non:\n  workflow_call:\n    secrets:\n      NPM:\n        required: true\njobs:\n  forward:\n    uses: ./.github/workflows/c.yml\n    secrets:\n      TOKEN: ${{ secrets.NPM }}\n",
+    );
+    write_at(
+        &root.join(".github/workflows/c.yml"),
+        "name: C\non:\n  workflow_call:\n    secrets:\n      TOKEN:\n        required: true\njobs:\n  consume:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n",
+    );
+    let (code, json) = run_check_secrets_json(root);
+    assert_eq!(code, 0, "renamed chain should be clean: {json:#}");
+    assert!(json.as_array().unwrap().is_empty());
+}
+
+#[test]
+fn check_secrets_renamed_source_dropped_upstream() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let root = tmp.path();
+    // B forwards its NPM to C as TOKEN, but A never passes NPM to B.
+    write_at(
+        &root.join(".github/workflows/a.yml"),
+        "name: A\non: push\njobs:\n  call:\n    uses: ./.github/workflows/b.yml\n    secrets:\n      OTHER: ${{ secrets.OTHER }}\n",
+    );
+    write_at(
+        &root.join(".github/workflows/b.yml"),
+        "name: B\non:\n  workflow_call:\n    secrets:\n      NPM:\n        required: false\njobs:\n  forward:\n    uses: ./.github/workflows/c.yml\n    secrets:\n      TOKEN: ${{ secrets.NPM }}\n",
+    );
+    write_at(
+        &root.join(".github/workflows/c.yml"),
+        "name: C\non:\n  workflow_call:\n    secrets:\n      TOKEN:\n        required: true\njobs:\n  consume:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n",
+    );
+    let (code, json) = run_check_secrets_json(root);
+    assert_eq!(code, 1, "expected exit 1: {json:#}");
+    let arr = json.as_array().expect("array");
+    assert_eq!(arr.len(), 1, "expected exactly one finding: {json:#}");
+    let chain_break = &arr[0];
+    assert_eq!(
+        chain_break.get("kind").and_then(Value::as_str),
+        Some("SecretsInheritChainBreak")
+    );
+    assert_eq!(
+        chain_break.get("secret").and_then(Value::as_str),
+        Some("TOKEN")
+    );
+    assert_eq!(
+        chain_break.get("dropped_at").and_then(Value::as_str),
+        Some(".github/workflows/a.yml"),
+        "A is where B's NPM source is missing; got: {chain_break:#?}"
+    );
+    let message = chain_break
+        .get("message")
+        .and_then(Value::as_str)
+        .expect("message");
+    assert!(
+        message.contains("expected as `NPM`"),
+        "message should name the hop-local secret: {message}"
+    );
+}
+
+#[test]
 fn check_secrets_chain_break_inherit_subset() {
     let tmp = tempfile::tempdir().expect("tempdir");
     let root = tmp.path();
