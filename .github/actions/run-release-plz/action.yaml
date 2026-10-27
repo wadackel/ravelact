@@ -31,7 +31,7 @@ runs:
         rustup show active-toolchain
         cargo --version
         rustc --version
-    - uses: release-plz/action@e8792575c7f2366cf6ff3ccc33ead9ace5b691c7 # v0.5.130
+    - uses: release-plz/action@f67a7e724bdad4a0f6875f186060a0ca2770d76c # v0.5.147
       with:
         command: ${{ inputs.command }}
       env:
