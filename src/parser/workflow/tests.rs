@@ -1,4 +1,4 @@
-use super::uses::{parse_docker_ref, parse_uses};
+use super::uses::{parse_docker_ref, parse_uses, parse_workflow_ref};
 use super::*;
 use std::io::Write;
 use std::path::Path;
@@ -195,6 +195,26 @@ jobs:
         by_id["no_env"].environment, None,
         "missing environment: should yield None"
     );
+}
+
+#[test]
+fn parses_same_repository_uses() {
+    match parse_uses("$/.github/actions/setup").unwrap() {
+        UsesRef::LocalAction(ActionId(p)) => assert_eq!(p, ".github/actions/setup"),
+        other => panic!("expected LocalAction, got {other:?}"),
+    }
+    match parse_uses("$/").unwrap() {
+        UsesRef::LocalAction(ActionId(p)) => assert_eq!(p, "."),
+        other => panic!("expected LocalAction, got {other:?}"),
+    }
+    match parse_uses("$/.github/workflows/build.yml").unwrap() {
+        UsesRef::LocalWorkflow(WorkflowId(p)) => assert_eq!(p, ".github/workflows/build.yml"),
+        other => panic!("expected LocalWorkflow, got {other:?}"),
+    }
+    match parse_workflow_ref("$/.github/workflows/build.yml").unwrap() {
+        WorkflowRef::Local(WorkflowId(p)) => assert_eq!(p, ".github/workflows/build.yml"),
+        other => panic!("expected Local, got {other:?}"),
+    }
 }
 
 #[test]
