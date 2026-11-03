@@ -49,6 +49,11 @@ fn normalize_local_uses_path(rest: &str) -> String {
     }
 }
 
+/// Strip the prefix of a same-repository `uses:` reference: `./` or `$/`.
+fn strip_local_prefix(s: &str) -> Option<&str> {
+    s.strip_prefix("./").or_else(|| s.strip_prefix("$/"))
+}
+
 /// Parse a `uses:` string into a [`UsesRef`].
 pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
     let s = s.trim();
@@ -57,7 +62,7 @@ pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
         return Ok(UsesRef::Docker(parse_docker_ref(rest)));
     }
 
-    if let Some(rest) = s.strip_prefix("./") {
+    if let Some(rest) = strip_local_prefix(s) {
         let normalized = normalize_local_uses_path(rest);
         if normalized.starts_with(".github/workflows/")
             && (normalized.ends_with(".yml") || normalized.ends_with(".yaml"))
@@ -90,7 +95,7 @@ pub(crate) fn parse_uses(s: &str) -> Result<UsesRef> {
 
 pub(super) fn parse_workflow_ref(s: &str) -> Result<WorkflowRef> {
     let s = s.trim();
-    if let Some(rest) = s.strip_prefix("./") {
+    if let Some(rest) = strip_local_prefix(s) {
         let normalized = normalize_local_uses_path(rest);
         return Ok(WorkflowRef::Local(WorkflowId(normalized)));
     }
