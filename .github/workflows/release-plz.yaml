@@ -19,7 +19,7 @@ jobs:
       group: release-plz-pr-${{ github.ref }}
       cancel-in-progress: true
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -40,7 +40,7 @@ jobs:
       group: release-plz-release-${{ github.ref }}
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
