@@ -26,6 +26,6 @@ jobs:
     # aggregator does not fail on its own job timeout while polling.
     timeout-minutes: 35
     steps:
-      - uses: pkgdeps/automerge-gate@v5.0.0
+      - uses: pkgdeps/automerge-gate@v5.0.5
         with:
           gate-mode: 'public'
