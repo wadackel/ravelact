@@ -4,7 +4,7 @@
 version: 'v0.0.3'
 workflows:
     '.github/workflows/automerge-gate.yaml':
-        - 'pkgdeps/automerge-gate@v5.0.0'
+        - 'pkgdeps/automerge-gate@v5.0.5'
     '.github/workflows/ci.yaml':
         - 'actions/checkout@v6.0.3'
         - 'actions/upload-artifact@v7.0.1'
@@ -13,14 +13,14 @@ workflows:
     '.github/workflows/release-plz.yaml':
         - 'actions/checkout@v6.0.3'
         - 'actions/create-github-app-token@v3.2.0'
-        - 'release-plz/action@v0.5.130'
+        - 'release-plz/action@v0.5.148'
     '.github/workflows/release.yaml':
         - 'actions/checkout@v6.0.3'
         - 'actions/download-artifact@v8.0.1'
         - 'actions/upload-artifact@v7.0.1'
         - 'determinatesystems/nix-installer-action@v22'
         - 'nix-community/cache-nix-action@v7.0.2'
-        - 'rust-lang/crates-io-auth-action@v1.0.4'
+        - 'rust-lang/crates-io-auth-action@v1.0.6'
     '.github/workflows/verify-lockfile.yaml':
         - 'actions/checkout@v7.0.1'
 dependencies:
@@ -49,9 +49,9 @@ dependencies:
         commit: 'sha1-043fb46d1a93c77aae656e7c1c64a875d1fc6a0a'
         owner_id: 44036562
         repo_id: 192625955
-    'cargo-bins/cargo-binstall@30b5ca8b54e1dcffd9548bc87ede1531310fdc67':
-        ref: 'v1.20.0'
-        commit: 'sha1-30b5ca8b54e1dcffd9548bc87ede1531310fdc67'
+    'cargo-bins/cargo-binstall@851112458b5f28a29e5bc14a690c3f283d9dcc6f':
+        ref: 'v1.26.2'
+        commit: 'sha1-851112458b5f28a29e5bc14a690c3f283d9dcc6f'
         owner_id: 110581826
         repo_id: 321270638
     'determinatesystems/nix-installer-action@v22':
@@ -64,32 +64,32 @@ dependencies:
         commit: 'sha1-7df957e333c1e5da7721f60227dbba6d06080569'
         owner_id: 33221035
         repo_id: 660071037
-    'pkgdeps/automerge-gate@v5.0.0':
-        ref: 'v5.0.0'
-        commit: 'sha1-fe5d7cd2fc17778dc42f6916f9d9990cb259ad01'
+    'pkgdeps/automerge-gate@v5.0.5':
+        ref: 'v5.0.5'
+        commit: 'sha1-9ab7a1d211aca48667cdbf94cca05ae67b64eba2'
         owner_id: 62287596
         repo_id: 1229895260
-    'release-plz/action@v0.5.130':
-        ref: 'v0.5.130'
-        commit: 'sha1-e8792575c7f2366cf6ff3ccc33ead9ace5b691c7'
+    'release-plz/action@v0.5.148':
+        ref: 'v0.5.148'
+        commit: 'sha1-66b324fd6c72d05d2a08568492ecdd62bfb8a62b'
         owner_id: 188756284
         repo_id: 476470908
         uses:
-            - 'cargo-bins/cargo-binstall@30b5ca8b54e1dcffd9548bc87ede1531310fdc67'
+            - 'cargo-bins/cargo-binstall@851112458b5f28a29e5bc14a690c3f283d9dcc6f'
             - 'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4'
-            - 'taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154'
+            - 'taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b'
     'release-plz/git-config@59144859caf016f8b817a2ac9b051578729173c4':
         ref: 'v0.1.2'
         commit: 'sha1-59144859caf016f8b817a2ac9b051578729173c4'
         owner_id: 188756284
         repo_id: 735058483
-    'rust-lang/crates-io-auth-action@v1.0.4':
-        ref: 'v1.0.4'
-        commit: 'sha1-bbd81622f20ce9e2dd9622e3218b975523e45bbe'
+    'rust-lang/crates-io-auth-action@v1.0.6':
+        ref: 'v1.0.6'
+        commit: 'sha1-3268eb413133e2960fa4ae0e963ca76380c54cd9'
         owner_id: 5430905
         repo_id: 1008931044
-    'taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154':
-        ref: 'main'
-        commit: 'sha1-0631aa6515c7d545823c67cfae7ef4fc7f490154'
+    'taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b':
+        ref: 'v2.89.0'
+        commit: 'sha1-1919c4a95903d2c33e4a221102edca87309fc14b'
         owner_id: 43724913
         repo_id: 442947557
