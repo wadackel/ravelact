@@ -1,101 +1,129 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-
-  // Extend from best practices preset for hardened defaults
-  // (config migrations, abandonment warnings, etc.)
-  "extends": [
-    "config:best-practices",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    ":separateMajorReleases",
-    ":automergeDisabled",
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:best-practices',
+    ':dependencyDashboard',
+    ':semanticCommits',
+    ':separateMajorReleases',
+    ':automergeDisabled',
   ],
-
-  // actions.lock holds the commits, so uses: lines stay on version tags.
-  "ignorePresets": ["helpers:pinGitHubActionDigests"],
-
-  // Manage Cargo, GitHub Actions, and npm dependencies
-  "enabledManagers": ["cargo", "github-actions", "npm"],
-
-  // Allow up to 10 concurrent PRs
-  "prConcurrentLimit": 10,
-
-  // Auto-close dependency dashboard when all updates are processed
-  "dependencyDashboardAutoclose": true,
-
-  // Lock file maintenance schedule (runs every Monday at 2am)
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["after 2am on monday"],
+  ignorePresets: [
+    'helpers:pinGitHubActionDigests',
+  ],
+  enabledManagers: [
+    'cargo',
+    'github-actions',
+    'npm',
+  ],
+  prConcurrentLimit: 10,
+  dependencyDashboard: {
+    autoclose: true,
   },
-
-  // Require timestamps for minimumReleaseAge (Renovate 42+ default)
-  "minimumReleaseAgeBehaviour": "timestamp-required",
-
-  "packageRules": [
-    // Cargo dependencies: wait 3 days after release to reduce supply-chain risk
-    // (security updates bypass this delay)
+  lockFileMaintenance: {
+    enabled: true,
+    schedule: [
+      'after 2am on monday',
+    ],
+  },
+  minimumReleaseAgeBehaviour: 'timestamp-required',
+  packageRules: [
     {
-      "matchManagers": ["cargo"],
-      "minimumReleaseAge": "3 days",
-      "prCreation": "not-pending",
-      "internalChecksFilter": "strict",
+      matchManagers: [
+        'cargo',
+      ],
+      minimumReleaseAge: '3 days',
+      prCreation: 'not-pending',
+      internalChecksFilter: 'strict',
     },
-
-    // Cargo dependencies: group patch & minor updates together
     {
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "cargo dependencies (patch & minor)",
-      "labels": ["dependencies", "cargo"],
+      matchManagers: [
+        'cargo',
+      ],
+      matchUpdateTypes: [
+        'patch',
+        'minor',
+      ],
+      groupName: 'cargo dependencies (patch & minor)',
+      labels: [
+        'dependencies',
+        'cargo',
+      ],
     },
-
-    // Cargo dependencies: separate major updates for careful review
     {
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["major"],
-      "labels": ["dependencies", "cargo", "major"],
+      matchManagers: [
+        'cargo',
+      ],
+      matchUpdateTypes: [
+        'major',
+      ],
+      labels: [
+        'dependencies',
+        'cargo',
+        'major',
+      ],
     },
-
-    // npm dependencies: wait 7 days after release to reduce supply-chain risk,
-    // pin to exact versions (matches web/pnpm-workspace.yaml savePrefix + minimumReleaseAge)
     {
-      "matchManagers": ["npm"],
-      "minimumReleaseAge": "7 days",
-      "rangeStrategy": "pin",
-      "prCreation": "not-pending",
-      "internalChecksFilter": "strict",
+      matchManagers: [
+        'npm',
+      ],
+      minimumReleaseAge: '7 days',
+      rangeStrategy: 'pin',
+      prCreation: 'not-pending',
+      internalChecksFilter: 'strict',
     },
-
-    // npm dependencies: group patch & minor updates together
     {
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "groupName": "npm dependencies (patch & minor)",
-      "labels": ["dependencies", "npm"],
+      matchManagers: [
+        'npm',
+      ],
+      matchUpdateTypes: [
+        'patch',
+        'minor',
+      ],
+      groupName: 'npm dependencies (patch & minor)',
+      labels: [
+        'dependencies',
+        'npm',
+      ],
     },
-
-    // npm dependencies: separate major updates for careful review
     {
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["major"],
-      "labels": ["dependencies", "npm", "major"],
+      matchManagers: [
+        'npm',
+      ],
+      matchUpdateTypes: [
+        'major',
+      ],
+      labels: [
+        'dependencies',
+        'npm',
+        'major',
+      ],
     },
-
-    // GitHub Actions: group official actions (actions/*)
     {
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["/^actions//"],
-      "groupName": "github-actions (official)",
-      "labels": ["dependencies", "ci"],
+      matchManagers: [
+        'github-actions',
+      ],
+      matchPackageNames: [
+        '/^actions//',
+      ],
+      groupName: 'github-actions (official)',
+      labels: [
+        'dependencies',
+        'ci',
+      ],
     },
-
-    // GitHub Actions: group third-party actions (non-actions/*)
     {
-      "matchManagers": ["github-actions"],
-      "matchPackageNames": ["!/^actions//"],
-      "groupName": "github-actions (third-party)",
-      "labels": ["dependencies", "ci", "third-party"],
+      matchManagers: [
+        'github-actions',
+      ],
+      matchPackageNames: [
+        '!/^actions//',
+      ],
+      groupName: 'github-actions (third-party)',
+      labels: [
+        'dependencies',
+        'ci',
+        'third-party',
+      ],
     },
   ],
 }
