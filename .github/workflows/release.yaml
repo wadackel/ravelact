@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v6.1.0
         with:
           persist-credentials: false
       - uses: $/.github/actions/setup-nix-devshell
@@ -35,7 +35,7 @@ jobs:
         # Frontend tooling (pnpm + Node) is pinned via flake.lock — the SSOT
         # for the project's Node/pnpm version pair.
         run: nix develop --command just frontend
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: web-dist
           path: web/dist
@@ -77,7 +77,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v6.1.0
         with:
           persist-credentials: false
       - name: Install Rust toolchain
@@ -95,7 +95,7 @@ jobs:
         # produced once by the frontend-bundle job instead of rebuilding it
         # per target. The binary itself is built with the host rustup
         # toolchain (no Nix), so it does not link against /nix/store paths.
-        uses: actions/download-artifact@v8.0.1
+        uses: actions/download-artifact@v8.0.2
         with:
           name: web-dist
           path: web/dist
@@ -147,7 +147,7 @@ jobs:
               echo "skipping --version smoke test: ${RAVELACT_RELEASE_ASSET} not natively runnable on ${arch}"
               ;;
           esac
-      - uses: actions/upload-artifact@v7.0.1
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: ravelact-${{ matrix.asset }}
           path: staging/ravelact-${{ matrix.asset }}
@@ -164,7 +164,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v6.1.0
         with:
           persist-credentials: false
       - uses: $/.github/actions/setup-nix-devshell
@@ -244,10 +244,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6.0.3
+      - uses: actions/checkout@v6.1.0
         with:
           persist-credentials: false
-      - uses: actions/download-artifact@v8.0.1
+      - uses: actions/download-artifact@v8.0.2
         with:
           path: artifacts
           pattern: ravelact-*
